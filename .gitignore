@@ -1,0 +1,180 @@
+############################################################
+# 前后端分离项目 .gitignore
+# 结构假设：
+#   project-root/
+#   ├── backend/     (Java: Maven / Gradle)
+#   ├── frontend/    (React)
+#   └── .gitignore
+############################################################
+
+# ======================== 通用 ========================
+# 操作系统
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# 编辑器 / IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json.example
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+.factorypath
+
+# 日志
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# 环境变量 / 密钥（非常重要，切勿提交）
+.env
+.env.local
+.env.*.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.pem
+*.key
+*.p12
+*.jks
+application-local.yml
+application-local.properties
+application-secret.yml
+
+# 临时文件
+*.tmp
+*.bak
+*.orig
+*.rej
+.cache/
+tmp/
+temp/
+
+# ======================== 后端 Java ========================
+# 编译产物
+target/
+build/
+out/
+bin/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+# Maven Wrapper（视团队约定，通常保留 wrapper 脚本；如需忽略可取消注释）
+# .mvn/
+# mvnw
+# mvnw.cmd
+
+# Gradle
+.gradle/
+gradle-app.setting
+!gradle-wrapper.jar
+!gradle-wrapper.properties
+build/
+
+# 打包产物
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+# 但保留 Maven/Gradle Wrapper 的 jar
+!**/gradle/wrapper/gradle-wrapper.jar
+!**/mvn/wrapper/maven-wrapper.jar
+
+# 字节码 / 类文件
+*.class
+
+# 测试报告
+surefire-reports/
+failsafe-reports/
+jacoco.exec
+*.exec
+allure-results/
+test-output/
+
+# 数据库 / 本地数据
+*.db
+*.sqlite
+*.h2.db
+*.mv.db
+*.trace.db
+/data/
+/uploads/
+
+# Lombok
+lombok.config
+
+# 生成代码
+generated-sources/
+generated-test-sources/
+/generated/
+
+# ======================== 前端 React ========================
+# 依赖
+node_modules/
+.pnp
+.pnp.js
+.pnp.cjs
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+jspm_packages/
+
+# 构建产物
+dist/
+build/
+out/
+.next/
+.nuxt/
+.cache/
+.parcel-cache/
+.eslintcache
+.rollup.cache
+*.tsbuildinfo
+
+# 测试
+coverage/
+.nyc_output/
+/test-results/
+/playwright-report/
+/playwright/.cache/
+cypress/videos/
+cypress/screenshots/
+
+# Vite / CRA 本地缓存
+.vite/
+node_modules/.vite/
+
+# 包管理器锁文件（⚠️ 请团队统一：要么提交锁文件，要么全部忽略）
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+# Storybook
+storybook-static/
+
+# 本地环境
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local

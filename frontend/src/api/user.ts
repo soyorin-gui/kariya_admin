@@ -1,0 +1,10 @@
+import request from '../utils/request';
+import type { Result, PageResult } from '../types/common';
+import type { User, UserFormOptions, UserRequest } from '../types/user';
+export const getUsers = (params: { pageNum: number; pageSize: number; keyword?: string }) => request.get<Result<PageResult<User>>>('/system/users', { params }).then((r) => r.data.data);
+export const createUser = (data: UserRequest) => request.post<Result<User>>('/system/users', data).then((r) => r.data);
+export const updateUser = (id: number, data: UserRequest) => request.put<Result<User>>(`/system/users/${id}`, data).then((r) => r.data);
+export const deleteUser = (id: number) => request.delete(`/system/users/${id}`);
+export const resetUserPassword = (id: number) => request.post(`/system/users/${id}/reset-password`);
+export const getUserFormOptions = () => request.get<Result<UserFormOptions>>('/system/users/form-options').then((r) => r.data.data);
+export const exportUsers = (keyword?: string) => request.get('/system/users/export', { params: { keyword }, responseType: 'blob' });

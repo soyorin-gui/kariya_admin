@@ -1,0 +1,25 @@
+@import './theme.css';
+@import './reset.css';
+#nprogress .bar {
+  background: var(--brand) !important;
+}
+.ant-layout {
+  min-height: 100vh;
+}
+.page-title {
+  margin: 0 !important;
+  color: var(--ink) !important;
+}
+.page-kicker {
+  color: var(--brand);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  margin-bottom: 8px;
+}
+.table-card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(19, 56, 120, 0.06);
+}

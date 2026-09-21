@@ -1,0 +1,123 @@
+.page-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  margin-bottom: 26px;
+}
+.page-head p {
+  color: var(--muted);
+  margin: 8px 0 0;
+}
+.today {
+  color: #7182a3;
+  font-size: 14px;
+}
+.stat-card {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(19, 56, 120, 0.045);
+}
+.stat-card .ant-card-body {
+  display: flex;
+  justify-content: space-between;
+  padding: 22px;
+}
+.stat-card span,
+.stat-card small {
+  display: block;
+  color: #7a8ba9;
+  font-size: 14px;
+}
+.stat-card strong {
+  display: block;
+  font-size: 32px;
+  margin: 8px 0;
+  color: var(--ink);
+}
+.stat-card small {
+  color: #18a66a;
+}
+.stat-icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  font-size: 23px;
+}
+.dash-row {
+  margin-top: 18px;
+}
+.chart-card,
+.recent-card {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(19, 56, 120, 0.045);
+}
+.chart {
+  height: 285px;
+}
+.login-list {
+  display: flex;
+  flex-direction: column;
+}
+.login-row {
+  display: grid;
+  grid-template-columns: 36px 1fr 155px 84px;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 0;
+  border-bottom: 1px solid #eff3f9;
+}
+.login-row:last-child {
+  border-bottom: none;
+}
+.avatar-dot {
+  width: 31px;
+  height: 31px;
+  display: grid;
+  place-items: center;
+  color: var(--brand);
+  background: #eaf2ff;
+  border-radius: 50%;
+  font-size: 12px;
+}
+.login-row strong,
+.login-row small {
+  display: block;
+}
+.login-row small,
+.login-row > span:not(.avatar-dot) {
+  color: #7c8eaa;
+  font-size: 13px;
+}
+.system-info {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  row-gap: 18px;
+  margin: 2px 0;
+}
+.system-info dt {
+  color: #7c8eaa;
+}
+.system-info dd {
+  margin: 0;
+  text-align: right;
+  color: #23365e;
+}
+@media (max-width: 700px) {
+  .page-head {
+    align-items: start;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .today {
+    display: none;
+  }
+  .login-row {
+    grid-template-columns: 36px 1fr 74px;
+  }
+  .login-row > span:not(.avatar-dot) {
+    display: none;
+  }
+}

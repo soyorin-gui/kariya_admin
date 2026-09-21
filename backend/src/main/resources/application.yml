@@ -1,0 +1,22 @@
+spring:
+  application:
+    name: kariya-admin
+  profiles:
+    active: dev
+  jackson:
+    time-zone: Asia/Shanghai
+  # Replace this development-only value with an environment variable or Kubernetes Secret in production.
+jasypt:
+  encryptor:
+    password: kariya
+
+mybatis-plus:
+  global-config:
+    banner: false
+
+kariya:
+  security:
+    jwt-secret: kariya-admin-development-secret-must-be-at-least-32-characters
+    access-token-minutes: 15
+    idle-hours: 2
+    remembered-idle-days: 7

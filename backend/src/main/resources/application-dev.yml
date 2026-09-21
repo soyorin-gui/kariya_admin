@@ -1,0 +1,27 @@
+spring:
+  datasource:
+    url: 
+    username: 
+    password: 
+    hikari:
+      connection-timeout: 5000
+      validation-timeout: 3000
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  data:
+    redis:
+      host: 
+      port: 
+      password: 
+server:
+  port: 8080
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] [%X{requestId:-}] %logger{36} - %msg%n"
+  level:
+    org.kariya: DEBUG
+    com.zaxxer.hikari: DEBUG
+    org.springframework.jdbc: DEBUG
+    org.mybatis: DEBUG
+mybatis-plus:
+  configuration:
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
