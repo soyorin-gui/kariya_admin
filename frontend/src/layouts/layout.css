@@ -24,6 +24,10 @@
 }
 .app-sider .ant-menu {
   border: none;
+  /* antd 的内联菜单自带一条右边框（.ant-menu-inline 上的 border-inline-end），
+     那条规则的选择器优先级高于 .app-sider .ant-menu，只写 border: none 盖不掉，
+     所以必须单独用 !important 收掉它。这根线和 Sider 的分隔视觉上重复，去掉更干净。 */
+  border-inline-end: 0 !important;
   background: transparent;
   font-weight: 600;
 }
@@ -70,10 +74,19 @@
   gap: 16px;
   min-width: 0;
 }
+/*
+ * 顶栏「首页」与右侧面包屑的对齐。
+ *
+ * 首页链接里有个 14px 图标，会把链接的行盒撑得比面包屑高；两者虽然都靠
+ * align-items: center 居中，但各自的行盒高度不同、基线也不在同一处，
+ * 看起来就是"文字没对齐"。这里给两边同一个固定高度、再各自 flex 居中，
+ * 分隔竖线（面包屑的 border-left）也因此和文字等高、上下对称。
+ */
 .header-home {
   display: flex;
   align-items: center;
   gap: 7px;
+  height: 24px;
   color: #1f3358;
   font-weight: 650;
   white-space: nowrap;
@@ -82,6 +95,9 @@
   color: var(--brand);
 }
 .header-navigation .ant-breadcrumb {
+  display: flex;
+  align-items: center;
+  height: 24px;
   padding-left: 16px;
   border-left: 1px solid var(--line);
 }

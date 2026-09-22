@@ -10,7 +10,11 @@ export interface User {
   roleNames: string;
   status: number;
   createdTime: string;
+  manageable: boolean;
+  deletable: boolean;
+  resettable: boolean;
 }
+export interface UserCreated { user: User; temporaryPassword: string }
 export interface UserRequest {
   username: string;
   realName: string;
@@ -22,3 +26,5 @@ export interface UserRequest {
 }
 export interface UserFormOptions { departments: SelectOption[]; roles: SelectOption[] }
 export interface SelectOption { value: number; label: string }
+/** 用户名可用性校验结果，见后端 UsernameAvailability。 */
+export interface UsernameAvailability { available: boolean; message?: string | null }

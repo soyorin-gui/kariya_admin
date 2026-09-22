@@ -1,6 +1,6 @@
 package org.kariya.auth.model;
 
 public record LoginResult(String accessToken, UserProfile user) {
-    public record UserProfile(Long id, String username, String realName) {
+    public record UserProfile(Long id, String username, String realName, boolean passwordChangeRequired) {
     }
 }

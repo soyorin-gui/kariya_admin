@@ -61,17 +61,17 @@ export default function RolePage() {
       fixed: 'right',
       render: (_, record) => (
         <Space size='middle'>
-          <Permission code='system:role:grant'>
+          {record.manageable && <Permission code='system:role:grant'>
             <a onClick={() => setGranting(record)}>
               <KeyOutlined /> 授权
             </a>
-          </Permission>
-          <Permission code='system:role:update'>
+          </Permission>}
+          {record.manageable && <Permission code='system:role:update'>
             <a onClick={() => openDialog(record)}>
               <EditOutlined /> 编辑
             </a>
-          </Permission>
-          <Permission code='system:role:delete'>
+          </Permission>}
+          {record.manageable && <Permission code='system:role:delete'>
             <Popconfirm
               title='确定删除此角色？'
               description='已分配给用户的角色无法删除。'
@@ -90,7 +90,7 @@ export default function RolePage() {
                 <DeleteOutlined /> 删除
               </a>
             </Popconfirm>
-          </Permission>
+          </Permission>}
         </Space>
       ),
     },

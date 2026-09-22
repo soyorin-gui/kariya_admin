@@ -1,2 +1,21 @@
 @import '../shared.css';
-.user-dialog .ant-modal-content{border-radius:14px;box-shadow:0 18px 46px rgba(20,54,111,.18)}.user-dialog .ant-modal-header{border-bottom:1px solid var(--line);padding:18px 24px 12px;margin-bottom:0}.user-dialog .ant-modal-body{padding:18px 24px 12px!important}.user-dialog .ant-modal-footer{padding:8px 24px 18px;margin-top:0}.user-dialog-title{display:flex;align-items:center;gap:10px;color:var(--ink);font-size:19px;font-weight:700}.user-dialog-title .ant-avatar{background:#e8f1ff;color:var(--brand)}.password-note{padding:11px 13px;border-radius:8px;background:#f4f8ff;color:#63789b;font-size:13px;line-height:1.6}.password-note svg{color:var(--brand);margin-right:7px}.password-note strong{color:#264e94}.user-page .ant-table-wrapper .ant-pagination{margin:16px 0 0!important}
+/* 弹窗外壳（圆角、阴影、标题、内边距、内容区滚动上限）统一由 shared.css 的 .system-dialog 提供，
+   UserDialog 已经带上该类名，这里只保留用户模块自己的样式。 */
+.password-note {
+  padding: 11px 13px;
+  border-radius: 8px;
+  background: #f4f8ff;
+  color: #63789b;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.password-note svg {
+  color: var(--brand);
+  margin-right: 7px;
+}
+.password-note strong {
+  color: #264e94;
+}
+.user-page .ant-table-wrapper .ant-pagination {
+  margin: 16px 0 0 !important;
+}

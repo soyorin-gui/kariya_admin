@@ -1,0 +1,2 @@
+@import '../shared.css';
+.log-page .ant-table-wrapper .ant-pagination{margin:16px 0 0!important}.log-toolbar{align-items:flex-start}.log-strong{color:var(--ink);font-weight:600}.log-mono{font-family:Consolas,Monaco,'Courier New',monospace;font-size:13px;color:#536581}.log-time{white-space:nowrap;color:var(--muted)}

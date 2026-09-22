@@ -1,1 +1,231 @@
-.table-toolbar{margin-bottom:24px;display:flex;justify-content:space-between;gap:16px}.table-toolbar>.ant-input-affix-wrapper{width:370px}.danger{color:#ff4d4f!important}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.dialog-loading{height:230px;display:flex;flex-direction:column;gap:12px;justify-content:center;align-items:center;color:var(--muted)}.system-dialog .ant-modal-content{border-radius:14px;box-shadow:0 18px 46px rgba(20,54,111,.18)}.system-dialog .ant-modal-header{border-bottom:1px solid var(--line);padding:18px 24px 12px;margin-bottom:0}.system-dialog .ant-modal-body{padding:18px 24px 12px!important}.system-dialog .ant-modal-footer{padding:8px 24px 18px;margin-top:0}.system-dialog-title{display:flex;align-items:center;gap:10px;color:var(--ink);font-size:19px;font-weight:700}.system-dialog-title svg{color:var(--brand);padding:8px;background:#e8f1ff;border-radius:50%;box-sizing:content-box}.tree-expand-arrow{position:relative;display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;padding:0;border:0;background:transparent;color:#536581;cursor:pointer}.tree-expand-arrow::after{content:'';width:5px;height:5px;border:solid currentColor;border-width:0 1.5px 1.5px 0;transform:rotate(-45deg);transition:transform .16s ease}.tree-expand-arrow.is-expanded::after{transform:rotate(45deg)}.tree-expand-arrow:hover{color:var(--brand)}@media (max-width:600px){.table-toolbar{flex-direction:column}.table-toolbar>.ant-input-affix-wrapper{width:100%}.form-grid{grid-template-columns:1fr}}
+/* ============================================================================
+ * 系统管理模块共享样式（菜单 / 角色 / 部门 / 用户四个页面及其弹窗）
+ * ========================================================================== */
+
+.table-toolbar {
+  margin-bottom: 24px;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+.table-toolbar > .ant-input-affix-wrapper {
+  width: 370px;
+}
+.danger {
+  color: #ff4d4f !important;
+}
+/* 可选的两列栅格：字段少、彼此无从属关系时可用它压短弹窗。
+   当前四个弹窗都改成了一行一个字段（横向 label），所以暂时没有使用者。 */
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.dialog-loading {
+  height: 230px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  justify-content: center;
+  align-items: center;
+  color: var(--muted);
+}
+
+/* ------------------------------- 弹窗外壳 ------------------------------- */
+
+.system-dialog .ant-modal-content {
+  /*
+   * antd v5 把 20px 24px 的内边距加在 .ant-modal-content 上，而 header / body / footer
+   * 自身的内边距都是 0（见 antd 的 contentPadding / headerPadding 两个 token）。
+   * 所以如果只给 header 加 padding，标题上方就变成"content 的 20px + header 的 padding"，
+   * 和下方到 border-bottom 的距离对不上，视觉上头重脚轻。
+   * 这里把 content 的内边距清零，三个区域各自管自己的间距，彼此不再叠加。
+   */
+  padding: 0;
+  border-radius: 14px;
+  box-shadow: 0 18px 46px rgba(20, 54, 111, 0.18);
+}
+/* 标题上下各 20px，到顶和到分隔线的距离一致。 */
+.system-dialog .ant-modal-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 0;
+}
+/* 关闭按钮原先按 antd 的 modalHeaderHeight 计算位置，改完 header 高度后要自己对齐到标题中线。 */
+.system-dialog .ant-modal-close {
+  top: 16px;
+  inset-inline-end: 16px;
+}
+.system-dialog .ant-modal-body {
+  padding: 20px 24px !important;
+  /*
+   * 内容区滚动上限。三个条件取最小，保证任何屏幕下弹窗整体（含标题栏与按钮区）都不超出视口：
+   *   70vh            —— 常规屏幕下给到 70% 高度，比原来的 60vh 更宽松
+   *   680px           —— 超高屏上的绝对上限，避免表单被拉成一整屏
+   *   100vh - 230px   —— 矮屏兜底：扣掉 antd 的 top:100px 定位与标题栏/按钮区高度
+   */
+  max-height: min(70vh, 680px, calc(100vh - 230px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.system-dialog .ant-modal-footer {
+  padding: 0 24px 20px;
+  margin-top: 0;
+}
+
+/*
+ * 长 label 的兜底。
+ *
+ * antd 的 .ant-form-item-label 默认是 overflow: hidden + white-space: nowrap，
+ * 标签一旦比 label 列宽长，就会被**直接裁掉**——而且因为它是 text-align: end，
+ * 被裁掉的是开头，只剩下末尾几个字，比换成省略号还难认。
+ * 四个 Form 都开了 labelWrap，这里再把 antd 写死的 32px 高度放开：
+ * 否则换行后的第二行会溢出 label 盒，压到相邻字段上去。
+ * 开了之后长标签的表现是：在 label 列内折成两行、该行整体变高，输入框仍在同一行右侧。
+ */
+.system-dialog .ant-form-item-label-wrap {
+  overflow: visible;
+  white-space: normal;
+}
+.system-dialog .ant-form-item-label-wrap > label {
+  height: auto;
+  min-height: 32px;
+  white-space: normal;
+  line-height: 1.5;
+}
+
+/* 弹窗标题：不放图标、也不加英文小标，标题只占一行，避免标题区过高。 */
+.system-dialog-title {
+  color: var(--ink);
+  font-size: 19px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+/* ------------------------------- 表单布局 ------------------------------- */
+
+.system-dialog .ant-form-item {
+  margin-bottom: 18px;
+}
+.system-dialog .ant-form-item:last-child {
+  margin-bottom: 4px;
+}
+/*
+ * 表单整体限宽并居中。
+ *
+ * 横向表单的 label 列默认是 text-align: end（antd 的 .ant-form-item-label 里写死的），
+ * 也就是标签紧贴输入框、左侧留出一段空白。弹窗越宽，输入框被拉得越长，
+ * 这种"左边一段空、右边一个超长输入框"的不平衡感就越明显。
+ * 限宽 + 居中之后，两侧留白对称，表单看上去才是"居中"的。
+ * 如果你更希望标签左对齐（每行都从最左边起排），在四个 Form 上加 labelAlign='left' 即可。
+ */
+.system-dialog .ant-form {
+  max-width: 520px;
+  margin: 0 auto;
+}
+/*
+ * label 列宽统一由各弹窗 Form 的 labelCol 指定（96px ≈ 4 个汉字 + 冒号）。
+ * 注意不要给 wrapperCol 传 { flex: '1 1 auto' }：antd 横向表单给控件列的默认值是
+ * flex: 1 1 0，改成 basis: auto 后控件列会以内容宽度为基准，
+ * 而 Form.Item 的行本质是 antd 的 Row（flex-flow: row wrap），
+ * 宽内容控件（AutoComplete / 多选 Select）就会被挤到下一行，出现"label 和输入框不在同一行"。
+ */
+
+/* --------------------------- 表单标签 + 说明气泡 --------------------------- */
+
+.field-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.field-label-hint {
+  color: #9aabc4;
+  font-size: 13px;
+  cursor: help;
+}
+.field-label-hint:hover {
+  color: var(--brand);
+}
+
+/* ---------------------------- 树形表格展开箭头 ---------------------------- */
+/*
+ * 与侧边栏子菜单箭头同构：两根圆角短棒拼成 chevron。
+ * antd 原版是 6px × 1.5px；这里长度 7px、厚度 1.6px（比之前的 2px 细一点），
+ * 收起朝右，展开时整体旋转 90° 朝下。
+ */
+.tree-expand-arrow {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  /* 与右侧文字拉开距离：antd 表格的展开图标紧贴第一列文字，原样偏挤。 */
+  margin-inline-end: 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #5f90df;
+  vertical-align: middle;
+  cursor: pointer;
+  transition: transform 0.2s ease, color 0.2s ease;
+}
+.tree-expand-arrow::before,
+.tree-expand-arrow::after {
+  position: absolute;
+  /* inset + margin:auto 是最稳的绝对定位居中写法，不依赖 flex 的静态位置规则。 */
+  inset: 0;
+  margin: auto;
+  width: 7px;
+  height: 1.6px;
+  background-color: currentColor;
+  border-radius: 2px;
+  content: '';
+  transition: transform 0.2s ease;
+}
+/* 收起（朝右）：::before 是上臂（斜率 +1），::after 是下臂（斜率 -1），两臂在右侧交汇。 */
+.tree-expand-arrow::before {
+  transform: translateY(-2.5px) rotate(45deg);
+}
+.tree-expand-arrow::after {
+  transform: translateY(2.5px) rotate(-45deg);
+}
+/* 展开（朝下）：整体旋转 90°，两臂的相对关系不用重算。 */
+.tree-expand-arrow.is-expanded {
+  transform: rotate(90deg);
+}
+.tree-expand-arrow:hover {
+  color: var(--brand);
+}
+
+/*
+ * 展开箭头与同一单元格内文字的垂直对齐。
+ *
+ * 这是"箭头和文字对不齐"的真正原因：antd 表格的树形行会把
+ * 「缩进 span + 展开图标 + 单元格内容」放在同一个 <td> 的同一个行盒里，
+ * 而展开图标和我们自己写的 <Space> 都是 inline-flex 盒子。
+ * 这类盒子内部没有行内内容时，它的基线取**自身下边缘**，于是两者各自贴着文字基线摆放，
+ * 高度又不一致（16px 的按钮 vs 只有文字的 Space），视觉上就参差了。
+ * 给两者统一 vertical-align: middle，中线才会对到文字的光学中心。
+ */
+.tree-expand-arrow,
+.ant-table-tbody .ant-table-cell .ant-space {
+  vertical-align: middle;
+}
+
+@media (max-width: 600px) {
+  .table-toolbar {
+    flex-direction: column;
+  }
+  .table-toolbar > .ant-input-affix-wrapper {
+    width: 100%;
+  }
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+  /* 窄屏下把 label 列再收窄一点，给输入框让出空间：labelCol 是内联样式，必须 !important 才能覆盖。 */
+  .system-dialog .ant-form-item-label {
+    flex: 0 0 84px !important;
+    max-width: 84px !important;
+  }
+}

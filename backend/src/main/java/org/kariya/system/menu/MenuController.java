@@ -2,6 +2,7 @@ package org.kariya.system.menu;
 
 import jakarta.validation.Valid;
 import org.kariya.common.result.Result;
+import org.kariya.system.log.OperationLog;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
@@ -24,18 +25,21 @@ public class MenuController {
 
     @PostMapping
     @PreAuthorize("hasAuthority('system:menu:add')")
+    @OperationLog(module = "菜单管理", action = "新增菜单")
     Result<MenuEntity> create(@Valid @RequestBody MenuRequest request) {
         return Result.ok(service.create(request), "新增菜单成功");
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("hasAuthority('system:menu:update')")
+    @OperationLog(module = "菜单管理", action = "修改菜单")
     Result<MenuEntity> update(@PathVariable Long id, @Valid @RequestBody MenuRequest request) {
         return Result.ok(service.update(id, request), "修改菜单成功");
     }
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('system:menu:delete')")
+    @OperationLog(module = "菜单管理", action = "删除菜单")
     Result<Void> delete(@PathVariable Long id) {
         service.remove(id);
         return Result.ok(null, "删除菜单成功");

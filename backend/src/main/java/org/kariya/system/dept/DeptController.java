@@ -2,6 +2,7 @@ package org.kariya.system.dept;
 
 import jakarta.validation.Valid;
 import org.kariya.common.result.Result;
+import org.kariya.system.log.OperationLog;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
@@ -30,18 +31,21 @@ public class DeptController {
 
     @PostMapping
     @PreAuthorize("hasAuthority('system:dept:add')")
+    @OperationLog(module = "部门管理", action = "新增部门")
     Result<DeptVO> create(@Valid @RequestBody DeptRequest request) {
         return Result.ok(service.create(request), "新增部门成功");
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("hasAuthority('system:dept:update')")
+    @OperationLog(module = "部门管理", action = "修改部门")
     Result<DeptVO> update(@PathVariable Long id, @Valid @RequestBody DeptRequest request) {
         return Result.ok(service.update(id, request), "修改部门成功");
     }
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('system:dept:delete')")
+    @OperationLog(module = "部门管理", action = "删除部门")
     Result<Void> delete(@PathVariable Long id) {
         service.remove(id);
         return Result.ok(null, "删除部门成功");

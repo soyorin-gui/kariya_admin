@@ -2,6 +2,8 @@ package org.kariya.system.menu;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import org.kariya.common.exception.BusinessException;
+import org.kariya.system.role.RoleEntity;
+import org.kariya.system.role.RoleMapper;
 import org.kariya.system.role.RoleMenuMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,12 +15,15 @@ import java.util.Set;
 @Service
 public class MenuService {
     private static final Set<String> TYPES = Set.of("DIR", "MENU", "BUTTON");
+    private static final String SUPER_ADMIN_ROLE_CODE = "super_admin";
     private final MenuMapper menus;
     private final RoleMenuMapper roleMenus;
+    private final RoleMapper roles;
 
-    public MenuService(MenuMapper menus, RoleMenuMapper roleMenus) {
+    public MenuService(MenuMapper menus, RoleMenuMapper roleMenus, RoleMapper roles) {
         this.menus = menus;
         this.roleMenus = roleMenus;
+        this.roles = roles;
     }
 
     public List<MenuEntity> list() {
@@ -31,7 +36,23 @@ public class MenuService {
         apply(menu, request, null);
         menu.setBuiltin(0);
         menus.insert(menu);
+        grantToSuperAdmin(menu.getId());
         return menu;
+    }
+
+    /**
+     * 新建的菜单自动授权给超级管理员。
+     * <p>
+     * 菜单是"配了才存在、授了才可见"的：sys_menu 里加一条记录并不会自动出现在任何人的菜单树里，
+     * 因为菜单树是 role → role_menu → menu 推出来的。如果不做这一步，"在浏览器里新增菜单"这个
+     * 刚需流程会卡住——连建它的人自己刷新后都看不到，还得再绕去角色管理给自己授权一次。
+     * <p>
+     * 没有采用"超级管理员自动拥有全部菜单"的隐式绕过方案，是为了让授权关系始终显式、可审计：
+     * 角色管理的授权树里能看到这条新菜单是勾选状态，而不是被一段特殊逻辑藏起来。
+     */
+    private void grantToSuperAdmin(Long menuId) {
+        RoleEntity superAdmin = roles.selectOne(new LambdaQueryWrapper<RoleEntity>().eq(RoleEntity::getRoleCode, SUPER_ADMIN_ROLE_CODE));
+        if (superAdmin != null) roleMenus.insert(superAdmin.getId(), menuId);
     }
 
     @Transactional
@@ -67,8 +88,12 @@ public class MenuService {
             if (currentId != null && isDescendantOf(parent, currentId)) throw new BusinessException("不能将菜单移动到自身的子菜单下");
         }
         String routePath = trim(request.routePath());
+        String component = trim(request.component());
         String permission = trim(request.permissionCode());
         if ("MENU".equals(type) && routePath == null) throw new BusinessException("菜单类型必须填写路由地址");
+        // 页面菜单没有组件就无法渲染。前端对这种情况会显示"组件不存在"诊断页，
+        // 但更应该在配置阶段就拦住，避免库里存下一条永远打不开的菜单。
+        if ("MENU".equals(type) && component == null) throw new BusinessException("菜单类型必须填写前端组件");
         if ("BUTTON".equals(type) && permission == null) throw new BusinessException("按钮类型必须填写权限标识");
         if (routePath != null && menus.selectCount(new LambdaQueryWrapper<MenuEntity>().eq(MenuEntity::getRoutePath, routePath).ne(currentId != null, MenuEntity::getId, currentId)) > 0) {
             throw new BusinessException("路由地址已存在");
@@ -81,7 +106,7 @@ public class MenuService {
         menu.setMenuType(type);
         menu.setRouteName(trim(request.routeName()));
         menu.setRoutePath(routePath);
-        menu.setComponent(trim(request.component()));
+        menu.setComponent(component);
         menu.setPermissionCode(permission);
         menu.setIcon(trim(request.icon()));
         menu.setSortOrder(request.sortOrder());

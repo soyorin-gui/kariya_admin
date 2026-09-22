@@ -1,13 +1,22 @@
 import { useState } from 'react';
 import { App, Button, Checkbox, Form, Input } from 'antd';
-import { EyeInvisibleOutlined, EyeTwoTone, LockOutlined, UserOutlined } from '@ant-design/icons';
+import { EyeInvisibleOutlined, EyeTwoTone, GithubOutlined, GoogleOutlined, LockOutlined, UserOutlined, WechatOutlined } from '@ant-design/icons';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { login, fetchMe } from '../../api/auth';
 import { useAppDispatch } from '../../store/hooks';
 import { setProfile, setSession } from '../../store/authSlice';
 import { Logo } from '../../components/common/Logo';
+import { firstAvailablePath } from '../../router/menu';
 import { getApiErrorMessage } from '../../utils/apiError';
 import './login.css';
+
+/** 第三方登录入口。接入后把 onSelect 换成真正的跳转/换取令牌逻辑即可。 */
+const THIRD_PARTY_PROVIDERS = [
+  { key: 'wechat', label: '微信', icon: <WechatOutlined />, className: 'social-wechat' },
+  { key: 'github', label: 'GitHub', icon: <GithubOutlined />, className: 'social-github' },
+  { key: 'google', label: 'Google', icon: <GoogleOutlined />, className: 'social-google' },
+];
+
 export default function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
   const [form] = Form.useForm<{ username: string; password: string; rememberMe: boolean }>();
@@ -20,10 +29,12 @@ export default function LoginPage() {
       setSubmitting(true);
       const response = await login(values);
       const result = response.data;
-      dispatch(setSession(result));
       const profile = await fetchMe();
+      dispatch(setSession({ accessToken: result.accessToken, user: profile.user }));
       dispatch(setProfile(profile));
-      const redirect = new URLSearchParams(location.search).get('redirect') ?? '/home';
+      // 没有显式 redirect 时落到「我的第一项可见页面」：菜单是按角色授权的，
+      // 写死 /home 会让没被授予首页的用户一登录就撞 403。
+      const redirect = new URLSearchParams(location.search).get('redirect') ?? firstAvailablePath(profile.menus);
       message.success(response.message || '登录成功');
       navigate(redirect, { replace: true });
     } catch (error) {
@@ -33,6 +44,11 @@ export default function LoginPage() {
     } finally {
       setSubmitting(false);
     }
+  };
+  const onThirdParty = (label: string) => {
+    // TODO: 接入第三方登录。后端的会话签发（sessions.create + jwt.issue）可以直接复用，
+    // 拿到第三方回调的 openid/userinfo 后换成本系统的用户即可。
+    message.info(`${label}登录尚未接入`);
   };
   return (
     <main className='login-page'>
@@ -52,40 +68,50 @@ export default function LoginPage() {
       </section>
       <section className='login-panel'>
         <div className='login-form-wrap'>
-          <Logo />
-          <div className='login-heading'>
-            <h2>欢迎登录</h2>
-            <p>请输入账号信息以继续访问系统</p>
-          </div>
-          <Form form={form} layout='vertical' initialValues={{ rememberMe: true, username: '', password: '' }} onFinish={onFinish} requiredMark={false}>
-            <Form.Item name='username' rules={[{ required: true, message: '请输入用户名' }]}>
-              <Input size='large' prefix={<UserOutlined />} placeholder='请输入用户名' autoComplete='username' />
-            </Form.Item>
-            <Form.Item name='password' rules={[{ required: true, message: '请输入密码' }]}>
-              <Input.Password
-                size='large'
-                prefix={<LockOutlined />}
-                placeholder='请输入密码'
-                iconRender={(visible) => (visible ? <EyeTwoTone /> : <EyeInvisibleOutlined />)}
-                autoComplete='current-password'
-              />
-            </Form.Item>
-            <div className='login-options'>
-              <Form.Item name='rememberMe' valuePropName='checked' noStyle>
-                <Checkbox>记住我</Checkbox>
-              </Form.Item>
-              <span>
-                <Link to='/forgot'>忘记密码</Link>
-                <i /> <Link to='/register'>用户注册</Link>
-              </span>
+          {/* login-body 撑满剩余高度并让内容成组垂直居中，版权因此被挤到底部 */}
+          <div className='login-body'>
+            <Logo />
+            <div className='login-heading'>
+              <h2>欢迎登录</h2>
+              <p>请输入账号信息以继续访问系统</p>
             </div>
-            <Button htmlType='submit' size='large' type='primary' block loading={submitting}>
-              登录
-            </Button>
-            <Button size='large' block className='sso-button'>
-              统一认证登录
-            </Button>
-          </Form>
+            <Form form={form} layout='vertical' initialValues={{ rememberMe: true, username: '', password: '' }} onFinish={onFinish} requiredMark={false}>
+              <Form.Item name='username' rules={[{ required: true, message: '请输入用户名' }]}>
+                <Input size='large' prefix={<UserOutlined />} placeholder='请输入用户名' autoComplete='username' />
+              </Form.Item>
+              <Form.Item name='password' rules={[{ required: true, message: '请输入密码' }]}>
+                <Input.Password
+                  size='large'
+                  prefix={<LockOutlined />}
+                  placeholder='请输入密码'
+                  iconRender={(visible) => (visible ? <EyeTwoTone /> : <EyeInvisibleOutlined />)}
+                  autoComplete='current-password'
+                />
+              </Form.Item>
+              <div className='login-options'>
+                <Form.Item name='rememberMe' valuePropName='checked' noStyle>
+                  <Checkbox>记住我</Checkbox>
+                </Form.Item>
+                <span>
+                  <Link to='/forgot'>忘记密码</Link>
+                  <i /> <Link to='/register'>用户注册</Link>
+                </span>
+              </div>
+              <Button htmlType='submit' size='large' type='primary' block loading={submitting}>
+                登录
+              </Button>
+            </Form>
+            <div className='login-social'>
+              <div className='login-social-divider'>其他登录方式</div>
+              <div className='login-social-buttons'>
+                {THIRD_PARTY_PROVIDERS.map((provider) => (
+                  <Button key={provider.key} size='large' className={provider.className} icon={provider.icon} onClick={() => onThirdParty(provider.label)}>
+                    {provider.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          </div>
           <div className='login-copyright'>© 2026 Kariya Admin　版权所有</div>
         </div>
       </section>

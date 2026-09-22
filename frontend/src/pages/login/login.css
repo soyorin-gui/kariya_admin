@@ -1,13 +1,15 @@
 .login-page {
   min-height: 100vh;
   display: flex;
-  background: #fff;
+  /* 彩色渐变铺满整页而不是只给左侧：磨砂玻璃必须"背后有东西"，模糊才看得出来。
+     同时把裁切放在这里，让装饰球可以越过 hero 边界、钻到毛玻璃面板底下。 */
+  background: linear-gradient(135deg, #f8fbff 0%, #eaf3ff 48%, #dceaff 100%);
+  overflow: hidden;
 }
 .login-hero {
   width: 60%;
   position: relative;
-  overflow: hidden;
-  background: linear-gradient(135deg, #f8fbff 0%, #eaf3ff 48%, #dceaff 100%);
+  background: transparent;
 }
 .login-hero:before {
   content: '';
@@ -74,20 +76,45 @@
   vertical-align: middle;
   margin-right: 14px;
 }
+
+/* --------------------------------- 右侧面板 --------------------------------- */
+
 .login-panel {
   width: 40%;
   min-height: 100vh;
   display: flex;
-  align-items: center;
+  /* 主轴上居中（内容成组居中），交叉轴拉伸（让表单容器铺满整屏高度）——
+     铺满是为了把版权压在面板最下方。 */
+  align-items: stretch;
   justify-content: center;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.78), rgba(242, 248, 255, 0.7));
-  border-left: 1px solid rgba(22, 119, 255, 0.12);
-  box-shadow: -14px 0 36px rgba(22, 79, 154, 0.06);
-  backdrop-filter: blur(22px) saturate(145%);
-  -webkit-backdrop-filter: blur(22px) saturate(145%);
+  padding: 52px 0;
+  box-sizing: border-box;
+  /*
+   * 必须让面板参与定位并抬高层级：左侧 hero 是 position: relative，
+   * 按 CSS 绘制顺序（定位元素晚于静态元素）它会画在面板之上，
+   * 那样钻过来的装饰球就变成"盖在玻璃上"而不是"被玻璃模糊"。
+   * backdrop-filter 模糊的是自身背后的内容，前提就是它在层级上位于那些内容之上。
+   */
+  position: relative;
+  z-index: 2;
+  /* 半透明 + 大半径模糊 = 磨砂玻璃。左上角那层白色高光让玻璃看起来有厚度。 */
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.56), rgba(255, 255, 255, 0.34));
+  border-left: 1px solid rgba(255, 255, 255, 0.65);
+  box-shadow: -18px 0 48px rgba(22, 79, 154, 0.09);
+  backdrop-filter: blur(26px) saturate(170%);
+  -webkit-backdrop-filter: blur(26px) saturate(170%);
 }
 .login-form-wrap {
   width: min(468px, 80%);
+  display: flex;
+  flex-direction: column;
+}
+/* 上半部分占据全部剩余高度并把内容垂直居中，版权因此被挤到面板最底部。 */
+.login-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 .logo {
   display: flex;
@@ -132,46 +159,53 @@
   transform: skewY(-30deg);
 }
 .logo strong {
-  font-size: 21px;
+  font-size: 24px;
   display: block;
   color: #14285a;
+  letter-spacing: 0.2px;
 }
 .logo small {
   display: block;
   font-size: 13px;
   color: #7385a5;
-  margin-top: 2px;
+  margin-top: 3px;
 }
 .login-heading {
-  margin: 58px 0 35px;
+  /* vh 相关的 clamp：矮屏不至于溢出，高屏能把内容铺到视口约 85% 的高度。
+     固定 px 的话在 1080p 上永远只占半屏，就是"内容挤在中间"的观感来源。 */
+  margin: clamp(64px, 9vh, 110px) 0 clamp(34px, 5.4vh, 60px);
 }
 .login-heading h2 {
-  font-size: 36px;
+  font-size: 42px;
   line-height: 1.1;
-  margin: 0 0 13px;
+  margin: 0 0 14px;
   color: #112a5d;
 }
 .login-heading p {
   color: #6c82ab;
-  font-size: 16px;
+  font-size: 17px;
   margin: 0;
 }
+
+/* --------------------------------- 表单区域 --------------------------------- */
+
 .login-panel .ant-input-affix-wrapper {
   border-radius: 10px;
-  padding: 12px 16px;
+  padding: 15px 18px;
   border-color: #ccd9ed;
+  background: rgba(255, 255, 255, 0.66);
 }
 .login-panel .ant-input-affix-wrapper input {
-  font-size: 16px;
+  font-size: 17px;
 }
 .login-panel .ant-form-item {
-  margin-bottom: 24px;
+  margin-bottom: clamp(24px, 3.4vh, 38px);
 }
 .login-options {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin: -3px 0 30px;
+  margin: -4px 0 clamp(26px, 4vh, 48px);
   color: #5473a2;
 }
 .login-options a {
@@ -185,40 +219,85 @@
   vertical-align: middle;
 }
 .login-panel .ant-btn-lg {
-  height: 54px;
+  height: clamp(56px, 6.6vh, 64px);
   border-radius: 10px;
   font-size: 17px;
   font-weight: 650;
 }
-.sso-button {
-  margin-top: 16px;
-  color: #193c76;
-  border-color: #cad9ee;
-  background: transparent;
+
+/* ------------------------------ 第三方登录入口 ------------------------------ */
+
+.login-social {
+  margin-top: clamp(30px, 5.2vh, 58px);
 }
+.login-social-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  color: #8a9cbb;
+  font-size: 13px;
+}
+.login-social-divider:before,
+.login-social-divider:after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgba(22, 119, 255, 0.16);
+}
+.login-social-buttons {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+.login-social-buttons .ant-btn {
+  height: 46px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #2b4570;
+  border-color: rgba(22, 119, 255, 0.22);
+  background: rgba(255, 255, 255, 0.6);
+}
+.social-wechat:hover {
+  color: #07c160 !important;
+  border-color: #07c160 !important;
+}
+.social-github:hover {
+  color: #24292f !important;
+  border-color: #24292f !important;
+}
+.social-google:hover {
+  color: #ea4335 !important;
+  border-color: #ea4335 !important;
+}
+
+/* --------------------------------- 版权信息 --------------------------------- */
+
 .login-copyright {
-  margin-top: 62px;
+  margin-top: clamp(20px, 3.4vh, 40px);
   padding-top: 22px;
-  border-top: 1px solid #d9e4f3;
+  border-top: 1px solid rgba(22, 119, 255, 0.14);
   color: #7890b4;
   text-align: center;
   font-size: 13px;
 }
+
 @media (max-width: 800px) {
   .login-hero {
     display: none;
   }
   .login-panel {
     width: 100%;
+    padding: 9vh 0 40px;
   }
   .login-form-wrap {
     width: min(468px, 86%);
   }
-  .login-heading {
-    margin-top: 46px;
+  .login-body {
+    justify-content: flex-start;
   }
-  .login-panel {
-    align-items: flex-start;
-    padding-top: 10vh;
+  .login-heading {
+    margin-top: 48px;
   }
 }

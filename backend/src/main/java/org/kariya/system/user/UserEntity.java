@@ -18,6 +18,7 @@ public class UserEntity {
     private Long deptId;
     private Integer status;
     private Long authVersion;
+    private Integer passwordChangeRequired;
     private Integer builtin;
     @TableLogic
     private Integer deleted;

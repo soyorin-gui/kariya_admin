@@ -7,6 +7,7 @@ export interface Role {
   builtin: number;
   userCount: number;
   createdTime?: string;
+  manageable: boolean;
 }
 
 export interface RoleRequest {

@@ -1,0 +1,41 @@
+/*
+ * 403 无权限页样式 —— 纯占位实现，改版时整个文件可以直接替换。
+ * 只依赖 :root 上的主题变量（--brand / --ink / --muted / --line / --surface），
+ * 不引用任何业务页面的类名。
+ */
+.forbidden-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  padding: 24px;
+}
+
+.forbidden-placeholder {
+  width: 100%;
+  max-width: 460px;
+  padding: 48px 32px;
+  text-align: center;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.forbidden-code {
+  margin: 0;
+  font-size: 56px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 2px;
+  color: var(--brand);
+}
+
+.forbidden-title {
+  margin: 16px 0 8px;
+  color: var(--ink);
+}
+
+.forbidden-desc {
+  margin: 0 0 24px;
+  color: var(--muted);
+}

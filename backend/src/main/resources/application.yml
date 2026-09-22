@@ -25,3 +25,13 @@ kariya:
     access-token-minutes: 15
     idle-hours: 2
     remembered-idle-days: 7
+  log:
+    # 审计日志保留策略。到期后由 LogRetentionJob 分批物理删除，避免日志表无限膨胀。
+    # 关闭清理（enabled: false）后日志只增不删，需要自己安排归档。
+    retention:
+      enabled: true
+      login-days: 180
+      operation-days: 365
+      batch-size: 2000
+      max-batches: 50
+      cron: "0 30 3 * * *"

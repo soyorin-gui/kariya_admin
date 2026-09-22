@@ -21,18 +21,24 @@ VALUES (1, 0, '首页', 'MENU', 'home', '/home', 'home/index', NULL, 'DashboardO
        (4, 2, '角色管理', 'MENU', 'system-role', '/system/role', 'system/role/index', NULL, 'SafetyOutlined', 2, 1),
        (5, 2, '部门管理', 'MENU', 'system-dept', '/system/dept', 'system/dept/index', NULL, 'ApartmentOutlined', 3, 1),
        (6, 2, '菜单管理', 'MENU', 'system-menu', '/system/menu', 'system/menu/index', NULL, 'MenuOutlined', 4, 1),
+       (13, 2, '登录日志', 'MENU', 'system-login-log', '/system/login-log', 'system/loginlog/index', NULL, 'FileSearchOutlined', 5, 1),
+       (14, 2, '操作日志', 'MENU', 'system-operation-log', '/system/operation-log', 'system/operatelog/index', NULL, 'HistoryOutlined', 6, 1),
        (7, 3, '查询用户', 'BUTTON', NULL, NULL, NULL, 'system:user:list', NULL, 1, 1),
        (8, 3, '新增用户', 'BUTTON', NULL, NULL, NULL, 'system:user:add', NULL, 2, 1),
        (9, 3, '更新用户', 'BUTTON', NULL, NULL, NULL, 'system:user:update', NULL, 3, 1),
        (10, 3, '删除用户', 'BUTTON', NULL, NULL, NULL, 'system:user:delete', NULL, 4, 1),
-       (11, 3, '重置密码', 'BUTTON', NULL, NULL, NULL, 'system:user:reset-password', NULL, 5, 1);
+       (11, 3, '重置密码', 'BUTTON', NULL, NULL, NULL, 'system:user:reset-password', NULL, 5, 1),
+       (15, 13, '查询登录日志', 'BUTTON', NULL, NULL, NULL, 'system:loginlog:list', NULL, 1, 1),
+       (16, 13, '删除登录日志', 'BUTTON', NULL, NULL, NULL, 'system:loginlog:delete', NULL, 2, 1),
+       (17, 14, '查询操作日志', 'BUTTON', NULL, NULL, NULL, 'system:operatelog:list', NULL, 1, 1),
+       (18, 14, '删除操作日志', 'BUTTON', NULL, NULL, NULL, 'system:operatelog:delete', NULL, 2, 1);
 INSERT INTO sys_role_menu
 SELECT 1, id
 FROM sys_menu;
 INSERT INTO sys_role_menu
 SELECT 2, id
 FROM sys_menu
-WHERE id IN (1, 2, 3, 7, 8, 9, 10, 11);
+WHERE id IN (1, 2, 3, 7, 8, 9, 10);
 
 INSERT INTO sys_menu (id, parent_id, menu_name, menu_type, permission_code, sort_order, visible, status, keep_alive,
                       builtin, deleted)

@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { App, Form, Input, InputNumber, Modal, Radio, Select, Spin, TreeSelect } from 'antd';
-import { ApartmentOutlined } from '@ant-design/icons';
 import { createDept, getDeptFormOptions, updateDept } from '../../../api/dept';
 import type { Dept, DeptFormOptions, DeptRequest } from '../../../types/dept';
 import { getApiErrorMessage } from '../../../utils/apiError';
+import { FieldLabel } from '../FieldLabel';
 
 interface DeptDialogProps {
   open: boolean;
@@ -51,11 +51,53 @@ export function DeptDialog({ open, dept, allDepts, onClose, onSaved }: DeptDialo
     }
   };
 
-  return <Modal className='system-dialog' open={open} width={680} title={<span className='system-dialog-title'><ApartmentOutlined />{editing ? '编辑部门' : '新增部门'}</span>} okText='确定' cancelText='取消' onCancel={onClose} onOk={() => void submit()} destroyOnHidden forceRender>
-    {loadingOptions ? <div className='dialog-loading'><Spin /><span>正在加载表单数据...</span></div> : <Form form={form} layout='vertical' requiredMark={false}>
-      <div className='form-grid'><Form.Item name='deptName' label='部门名称' rules={[{ required: true, message: '请输入部门名称' }]}><Input placeholder='例如：运营部' /></Form.Item><Form.Item name='deptCode' label='部门编码' rules={[{ required: true, message: '请输入部门编码' }, { pattern: /^[A-Za-z][A-Za-z0-9_-]*$/, message: '以字母开头，可使用数字、下划线或短横线' }]}><Input placeholder='例如：OPERATIONS' /></Form.Item></div>
-      <div className='form-grid'><Form.Item name='parentId' label='上级部门'><TreeSelect allowClear treeDefaultExpandAll treeData={parentTree} placeholder='根部门' /></Form.Item><Form.Item name='leaderUserId' label='负责人'><Select allowClear showSearch optionFilterProp='label' options={options?.leaders} placeholder='请选择负责人（可选）' /></Form.Item></div>
-      <div className='form-grid'><Form.Item name='sortOrder' label='显示排序' rules={[{ required: true, message: '请输入排序值' }]}><InputNumber min={0} precision={0} style={{ width: '100%' }} /></Form.Item><Form.Item name='status' label='状态'><Radio.Group disabled={dept?.builtin === 1}><Radio value={1}>启用</Radio><Radio value={0}>停用</Radio></Radio.Group></Form.Item></div>
-    </Form>}
-  </Modal>;
+  return (
+    <Modal
+      className='system-dialog'
+      open={open}
+      width={600}
+      title={editing ? '编辑部门' : '新增部门'}
+      okText='确定'
+      cancelText='取消'
+      onCancel={onClose}
+      onOk={() => void submit()}
+      destroyOnHidden
+      forceRender
+    >
+      {loadingOptions ? (
+        <div className='dialog-loading'>
+          <Spin />
+          <span>正在加载表单数据...</span>
+        </div>
+      ) : (
+        <Form form={form} layout='horizontal' labelCol={{ flex: '0 0 96px' }} colon={false} labelWrap requiredMark={false}>
+          <Form.Item name='deptName' label='部门名称' rules={[{ required: true, message: '请输入部门名称' }]}>
+            <Input placeholder='例如：运营部' />
+          </Form.Item>
+          <Form.Item
+            name='deptCode'
+            label={<FieldLabel text='部门编码' hint='部门的唯一英文编码，以字母开头，可使用数字、下划线或短横线；删除后该编码仍会被历史记录占用。' />}
+            rules={[{ required: true, message: '请输入部门编码' }, { pattern: /^[A-Za-z][A-Za-z0-9_-]*$/, message: '以字母开头，可使用数字、下划线或短横线' }]}
+          >
+            <Input placeholder='例如：OPERATIONS' />
+          </Form.Item>
+          <Form.Item name='parentId' label={<FieldLabel text='上级部门' hint='留空即为根部门。已删除的部门不在候选里；不能选择自身或自身的下级。' />}>
+            <TreeSelect allowClear treeDefaultExpandAll treeData={parentTree} placeholder='根部门' />
+          </Form.Item>
+          <Form.Item name='leaderUserId' label={<FieldLabel text='负责人' hint='该部门的负责人，仅用于展示与后续流程找人，不影响权限。' />}>
+            <Select allowClear showSearch optionFilterProp='label' options={options?.leaders} placeholder='请选择负责人（可选）' />
+          </Form.Item>
+          <Form.Item name='sortOrder' label={<FieldLabel text='显示排序' hint='数字越小越靠前。只能填 0 及以上的整数。' />} rules={[{ required: true, message: '请输入排序值' }]}>
+            <InputNumber min={0} step={1} precision={0} style={{ width: '100%' }} placeholder='例如：10' />
+          </Form.Item>
+          <Form.Item name='status' label='状态' rules={[{ required: true }]}>
+            <Radio.Group disabled={dept?.builtin === 1}>
+              <Radio value={1}>启用</Radio>
+              <Radio value={0}>停用</Radio>
+            </Radio.Group>
+          </Form.Item>
+        </Form>
+      )}
+    </Modal>
+  );
 }

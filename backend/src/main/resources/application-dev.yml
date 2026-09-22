@@ -19,9 +19,9 @@ logging:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] [%X{requestId:-}] %logger{36} - %msg%n"
   level:
     org.kariya: DEBUG
-    com.zaxxer.hikari: DEBUG
-    org.springframework.jdbc: DEBUG
-    org.mybatis: DEBUG
+    com.zaxxer.hikari: INFO
+    org.springframework.jdbc: INFO
+    org.mybatis: INFO
 mybatis-plus:
   configuration:
     log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl

@@ -20,7 +20,8 @@ export function AuthGuard({ children }: { children: ReactNode }) {
         const profile = await fetchMe();
         if (!active) return;
         dispatch(setSession({ accessToken, user: profile.user }));
-        dispatch(setProfile({ permissions: profile.permissions, menus: profile.menus }));
+        // routes 是全站页面路由目录，DynamicPage 用它区分 403 与 404，必须一起写入。
+        dispatch(setProfile({ permissions: profile.permissions, menus: profile.menus, routes: profile.routes }));
       } catch {
         if (!active) return;
         dispatch(clearSession());

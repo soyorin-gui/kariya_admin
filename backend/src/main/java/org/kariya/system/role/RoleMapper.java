@@ -15,4 +15,12 @@ public interface RoleMapper extends BaseMapper<RoleEntity> {
             ORDER BY r.id
             """)
     List<RoleEntity> selectByUserId(Long userId);
+
+    @Select("""
+            SELECT r.* FROM sys_role r
+            INNER JOIN sys_user_role ur ON ur.role_id = r.id
+            WHERE ur.user_id = #{userId} AND r.deleted = 0
+            ORDER BY r.id
+            """)
+    List<RoleEntity> selectAssignedByUserId(Long userId);
 }

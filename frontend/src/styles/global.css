@@ -30,6 +30,44 @@
   align-items: end;
   margin-bottom: 16px;
 }
+
+/* -------------------------------- 全局滚动条 -------------------------------- */
+/*
+ * 浏览器默认滚动条在 Windows 上是带方角的灰色块，横竖两条交汇处还会露出一个白色小方块，
+ * 放在浅色后台里特别扎眼。这里统一成：细、圆角、半透明、悬停加深。
+ *   - ::-webkit-scrollbar 系列：Chrome / Edge / Safari
+ *   - scrollbar-width / scrollbar-color：Firefox
+ * 两边都写，避免只在一半浏览器上生效。
+ */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(19, 56, 120, 0.22) transparent;
+}
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  /* 透明 border + background-clip 把滑块"减肥"到约 4px：直接调 width 会把滑轨一起变窄。 */
+  border: 2px solid transparent;
+  background-clip: content-box;
+  background-color: rgba(19, 56, 120, 0.22);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(19, 56, 120, 0.4);
+}
+::-webkit-scrollbar-thumb:active {
+  background-color: rgba(19, 56, 120, 0.52);
+}
+::-webkit-scrollbar-corner {
+  /* 横竖滚动条交汇处的小方块，默认是纯白，最容易"丑"的就是它。 */
+  background: transparent;
+}
+
 @media (max-width: 700px) {
   .page-head {
     align-items: start;

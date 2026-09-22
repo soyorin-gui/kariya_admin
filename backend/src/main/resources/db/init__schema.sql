@@ -27,6 +27,7 @@ CREATE TABLE sys_user
     dept_id       BIGINT       NOT NULL,
     status        TINYINT      NOT NULL DEFAULT 1,
     auth_version  BIGINT       NOT NULL DEFAULT 1,
+    password_change_required TINYINT NOT NULL DEFAULT 0,
     builtin       TINYINT      NOT NULL DEFAULT 0,
     deleted       TINYINT      NOT NULL DEFAULT 0,
     created_by    BIGINT NULL,
@@ -95,7 +96,9 @@ CREATE TABLE sys_login_log
     user_agent VARCHAR(500),
     result     VARCHAR(16) NOT NULL,
     message    VARCHAR(255),
-    login_time DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP
+    login_time DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    -- 列表默认按时间倒序 + 时间范围过滤，定期清理也按时间条件删除，这个索引三处都用得上。
+    INDEX      idx_login_log_time (login_time)
 );
 CREATE TABLE sys_operation_log
 (
@@ -107,5 +110,8 @@ CREATE TABLE sys_operation_log
     request_ip   VARCHAR(64),
     result       VARCHAR(16) NOT NULL,
     duration_ms  BIGINT,
-    created_time DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_time DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX        idx_operation_log_time (created_time),
+    -- 模块是等值筛选，做成复合索引可以同时服务"按模块 + 按时间"的查询。
+    INDEX        idx_operation_log_module (module, created_time)
 );

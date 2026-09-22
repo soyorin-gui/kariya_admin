@@ -1,9 +1,9 @@
 import { useEffect } from 'react';
 import { App, Form, Input, Modal, Radio, Select } from 'antd';
-import { SafetyOutlined } from '@ant-design/icons';
 import { createRole, updateRole } from '../../../api/role';
 import type { Role, RoleRequest } from '../../../types/role';
 import { getApiErrorMessage } from '../../../utils/apiError';
+import { FieldLabel } from '../FieldLabel';
 
 interface RoleDialogProps {
   open: boolean;
@@ -42,14 +42,40 @@ export function RoleDialog({ open, role, onClose, onSaved }: RoleDialogProps) {
     }
   };
 
-  return <Modal className='system-dialog' open={open} width={680} title={<span className='system-dialog-title'><SafetyOutlined />{editing ? '编辑角色' : '新增角色'}</span>} okText='确定' cancelText='取消' onCancel={onClose} onOk={() => void submit()} destroyOnHidden forceRender>
-    <Form form={form} layout='vertical' requiredMark={false}>
-      <div className='form-grid'>
-        <Form.Item name='roleName' label='角色名称' rules={[{ required: true, message: '请输入角色名称' }]}><Input placeholder='例如：运营专员' /></Form.Item>
-        <Form.Item name='roleCode' label='角色标识' rules={[{ required: true, message: '请输入角色标识' }, { pattern: /^[a-z][a-z0-9_:.-]*$/, message: '使用小写字母开头，可包含数字、冒号或下划线' }]}><Input disabled={role?.builtin === 1} placeholder='例如：operator' /></Form.Item>
-      </div>
-      <Form.Item name='dataScope' label='数据权限范围' rules={[{ required: true, message: '请选择数据权限范围' }]}><Select options={dataScopeOptions} /></Form.Item>
-      <Form.Item name='status' label='状态' rules={[{ required: true }]}><Radio.Group disabled={role?.builtin === 1}><Radio value={1}>启用</Radio><Radio value={0}>禁用</Radio></Radio.Group></Form.Item>
-    </Form>
-  </Modal>;
+  return (
+    <Modal
+      className='system-dialog'
+      open={open}
+      width={600}
+      title={editing ? '编辑角色' : '新增角色'}
+      okText='确定'
+      cancelText='取消'
+      onCancel={onClose}
+      onOk={() => void submit()}
+      destroyOnHidden
+      forceRender
+    >
+      <Form form={form} layout='horizontal' labelCol={{ flex: '0 0 96px' }} colon={false} labelWrap requiredMark={false}>
+        <Form.Item name='roleName' label='角色名称' rules={[{ required: true, message: '请输入角色名称' }]}>
+          <Input placeholder='例如：运营专员' />
+        </Form.Item>
+        <Form.Item
+          name='roleCode'
+          label={<FieldLabel text='角色标识' hint='角色的唯一英文标识，只能小写字母开头，用于后端判断角色，创建后不建议再改。' />}
+          rules={[{ required: true, message: '请输入角色标识' }, { pattern: /^[a-z][a-z0-9_:.-]*$/, message: '使用小写字母开头，可包含数字、冒号或下划线' }]}
+        >
+          <Input disabled={role?.builtin === 1} placeholder='例如：operator' />
+        </Form.Item>
+        <Form.Item name='dataScope' label={<FieldLabel text='数据范围' hint='决定该角色能看到哪些部门的数据：全部=不限；本部门及下级=自己部门加所有子部门；仅本部门=只自己部门；仅本人=只能看自己。' />} rules={[{ required: true, message: '请选择数据权限范围' }]}>
+          <Select options={dataScopeOptions} />
+        </Form.Item>
+        <Form.Item name='status' label='状态' rules={[{ required: true }]}>
+          <Radio.Group disabled={role?.builtin === 1}>
+            <Radio value={1}>启用</Radio>
+            <Radio value={0}>禁用</Radio>
+          </Radio.Group>
+        </Form.Item>
+      </Form>
+    </Modal>
+  );
 }

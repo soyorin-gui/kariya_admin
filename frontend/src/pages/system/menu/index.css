@@ -1,2 +1,5 @@
 @import '../shared.css';
-.menu-dialog .ant-form-item{margin-bottom:15px}
+/* 菜单表单字段最多（最多 10 行），行距比其他弹窗收得更紧，尽量不出滚动条。 */
+.menu-dialog .ant-form-item {
+  margin-bottom: 14px;
+}

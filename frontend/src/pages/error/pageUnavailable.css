@@ -1,0 +1,59 @@
+/*
+ * 「页面组件不存在」诊断页样式 —— 开发者向，改版时整个文件可替换。
+ * 只依赖 :root 上的主题变量，不引用业务页面的类名。
+ */
+.page-unavailable {
+  max-width: 720px;
+  padding: 28px 32px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-left: 4px solid #faad14;
+  border-radius: 12px;
+}
+
+.page-unavailable h2 {
+  margin: 0 0 12px;
+  color: var(--ink);
+}
+
+.page-unavailable p {
+  margin: 0 0 20px;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.page-unavailable dl {
+  margin: 0 0 20px;
+  padding: 14px 16px;
+  background: #f7f9fd;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.page-unavailable dt {
+  color: var(--muted);
+  margin-top: 8px;
+}
+
+.page-unavailable dt:first-child {
+  margin-top: 0;
+}
+
+.page-unavailable dd {
+  margin: 4px 0 0;
+}
+
+.page-unavailable code {
+  padding: 2px 6px;
+  background: #eef3fb;
+  border-radius: 4px;
+  color: #264e94;
+  font-family: Consolas, Monaco, 'Courier New', monospace;
+}
+
+.page-unavailable ol {
+  margin: 0;
+  padding-left: 20px;
+  color: var(--muted);
+  line-height: 2;
+}
