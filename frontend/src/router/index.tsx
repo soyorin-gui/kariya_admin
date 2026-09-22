@@ -3,7 +3,9 @@ import { AppLayout } from '../layouts/AppLayout';
 import LoginPage from '../pages/login';
 import HomePage from '../pages/home';
 import UserPage from '../pages/system/user';
-import PlaceholderPage from '../pages/system/PlaceholderPage';
+import RolePage from '../pages/system/role';
+import DeptPage from '../pages/system/dept';
+import MenuPage from '../pages/system/menu';
 import NotFound from '../pages/error/NotFound';
 import { AuthGuard } from '../components/common/AuthGuard';
 export const router = createBrowserRouter([
@@ -15,9 +17,9 @@ export const router = createBrowserRouter([
       { index: true, element: <Navigate to='/home' replace /> },
       { path: 'home', element: <HomePage /> },
       { path: 'system/user', element: <UserPage /> },
-      { path: 'system/role', element: <PlaceholderPage title='角色管理' /> },
-      { path: 'system/dept', element: <PlaceholderPage title='部门管理' /> },
-      { path: 'system/menu', element: <PlaceholderPage title='菜单管理' /> },
+      { path: 'system/role', element: <RolePage /> },
+      { path: 'system/dept', element: <DeptPage /> },
+      { path: 'system/menu', element: <MenuPage /> },
     ],
   },
   { path: '*', element: <NotFound /> },

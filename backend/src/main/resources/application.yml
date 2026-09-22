@@ -2,13 +2,18 @@ spring:
   application:
     name: kariya-admin
   profiles:
-    active: dev
+    active: local
   jackson:
     time-zone: Asia/Shanghai
   # Replace this development-only value with an environment variable or Kubernetes Secret in production.
 jasypt:
   encryptor:
     password: kariya
+    algorithm: PBEWITHHMACSHA512ANDAES_256
+    key-obtention-iterations: 100000
+    iv-generator-classname: org.jasypt.iv.RandomIvGenerator
+    salt-generator-classname: org.jasypt.salt.RandomSaltGenerator
+    string-output-type: base64
 
 mybatis-plus:
   global-config:

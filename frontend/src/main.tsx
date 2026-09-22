@@ -8,7 +8,6 @@ import { store } from './store';
 import { router } from './router';
 import { themeTokens } from './theme';
 import './styles/global.css';
-import './pages/system/system.css';
 import './layouts/layout.css';
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

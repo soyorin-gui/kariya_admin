@@ -83,23 +83,21 @@ export function AppLayout() {
   const crumb = menuBreadcrumb(location.pathname, menus).map((title) => ({ title }));
   return (
     <Layout className='app-shell'>
-      <Sider width={224} theme='light' className='app-sider'>
+      <Sider width={240} theme='light' className='app-sider'>
         <Logo />
         <Menu mode='inline' selectedKeys={[location.pathname]} defaultOpenKeys={['/system', 'system']} items={items} />
         <div className='sider-foot'>
-          高效 · 安全 · 专业
+          CRUD · BUG · CV
           <br />
-          <span>
-            Kariya Admin Console
-            <br />
-            v1.0.0
-          </span>
+          <span>Kariya的个人开发工作台</span>
         </div>
       </Sider>
       <Layout className='app-main-layout'>
         <Header className='app-header'>
           <div className='header-navigation'>
-            <Link to='/home' className='header-home'><HomeOutlined /> 首页</Link>
+            <Link to='/home' className='header-home'>
+              <HomeOutlined /> 首页
+            </Link>
             {crumb.length > 0 && <Breadcrumb items={crumb} />}
           </div>
           <Space size={20}>

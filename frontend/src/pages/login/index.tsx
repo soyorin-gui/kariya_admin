@@ -41,12 +41,13 @@ export default function LoginPage() {
         <div className='orb orb-two' />
         <div className='hero-content'>
           <div className='hero-rule' />
-          <h1>高效 · 安全 · 专业</h1>
-          <p>构建更可靠的企业管理平台</p>
+          <h1>Kariya Admin</h1>
+          <p>你把核心系统交给劳务派遣来开发</p>
+          <p>说明你也没把他当核心</p>
         </div>
         <footer>
           <span />
-          让管理更简单　让企业更强大
+          只要不报错，就是好系统
         </footer>
       </section>
       <section className='login-panel'>
@@ -56,7 +57,7 @@ export default function LoginPage() {
             <h2>欢迎登录</h2>
             <p>请输入账号信息以继续访问系统</p>
           </div>
-          <Form form={form} layout='vertical' initialValues={{ rememberMe: true, username: 'admin', password: 'Admin@123456' }} onFinish={onFinish} requiredMark={false}>
+          <Form form={form} layout='vertical' initialValues={{ rememberMe: true, username: '', password: '' }} onFinish={onFinish} requiredMark={false}>
             <Form.Item name='username' rules={[{ required: true, message: '请输入用户名' }]}>
               <Input size='large' prefix={<UserOutlined />} placeholder='请输入用户名' autoComplete='username' />
             </Form.Item>

@@ -1,0 +1,2 @@
+@import '../shared.css';
+.dialog-description{margin:0 0 14px;color:var(--muted);font-size:13px;line-height:1.7}.permission-tree{min-height:320px;max-height:52vh;overflow:auto;padding:12px 14px;background:#f8faff;border:1px solid var(--line);border-radius:10px}.permission-tree .ant-tree{background:transparent}.permission-tree .ant-tree-treenode{padding:4px 0}.permission-tree-title{display:inline-flex;align-items:center;gap:10px}.permission-tree-title small{color:#91a0b7;font-size:12px}.role-grant-dialog .ant-modal-body{padding-bottom:18px!important}

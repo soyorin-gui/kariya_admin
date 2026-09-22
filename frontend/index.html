@@ -1,1 +1,68 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><link rel="icon" type="image/svg+xml" href="/favicon.svg"/><title>Kariya Admin</title></head><body><div id="root"></div><script type="module" src="/src/main.tsx"></script></body></html>
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>Kariya Admin</title>
+    <style>
+      #app-loading {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+        background: linear-gradient(135deg, #eef6ff, #dcecff 48%, #f7fbff);
+        color: #4d6d8f;
+        font-family: Inter, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      }
+
+      .app-loading-mark {
+        display: grid;
+        width: 52px;
+        height: 52px;
+        place-items: center;
+        border: 1px solid rgba(255, 255, 255, 0.88);
+        border-radius: 16px;
+        background: linear-gradient(145deg, #4aa5ff, #0961d8);
+        box-shadow: 0 12px 28px rgba(24, 119, 241, 0.22);
+        color: #fff;
+        font-size: 15px;
+        font-weight: 800;
+        letter-spacing: -0.5px;
+      }
+
+      .app-loading-spinner {
+        width: 24px;
+        height: 24px;
+        border: 2px solid rgba(59, 130, 246, 0.16);
+        border-top-color: #3b82f6;
+        border-radius: 50%;
+        animation: app-loading-spin 0.8s linear infinite;
+      }
+
+      #app-loading p {
+        margin: 0;
+        font-size: 13px;
+      }
+
+      @keyframes app-loading-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root">
+      <div id="app-loading" role="status" aria-label="应用加载中...">
+        <div class="app-loading-mark">Kariya</div>
+        <div class="app-loading-spinner"></div>
+        <p>少女祈祷中...</p>
+      </div>
+    </div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

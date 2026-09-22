@@ -22,4 +22,18 @@
   border: 1px solid var(--line);
   border-radius: 12px;
   box-shadow: 0 10px 30px rgba(19, 56, 120, 0.06);
+  padding: 24px;
+}
+.page-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  margin-bottom: 16px;
+}
+@media (max-width: 700px) {
+  .page-head {
+    align-items: start;
+    flex-direction: column;
+    gap: 12px;
+  }
 }

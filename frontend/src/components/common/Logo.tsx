@@ -9,7 +9,7 @@ export function Logo({ compact = false }: { compact?: boolean }) {
       {!compact && (
         <span>
           <strong>Kariya Admin</strong>
-          <small>企业管理控制台</small>
+          <small>全栈摸鱼基地</small>
         </span>
       )}
     </div>

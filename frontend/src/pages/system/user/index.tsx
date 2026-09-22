@@ -8,6 +8,7 @@ import type { User } from '../../../types/user';
 import { downloadBlob } from '../../../utils/download';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { UserDialog } from './UserDialog';
+import './index.css';
 
 export default function UserPage() {
   const { message } = App.useApp();
@@ -30,9 +31,14 @@ export default function UserPage() {
       setLoading(false);
     }
   };
-  useEffect(() => { void load(); }, []);
+  useEffect(() => {
+    void load();
+  }, []);
 
-  const openDialog = (user: User | null = null) => { setEditing(user); setDialogOpen(true); };
+  const openDialog = (user: User | null = null) => {
+    setEditing(user);
+    setDialogOpen(true);
+  };
   const handleExport = async () => {
     try {
       const hide = message.loading('正在生成 Excel 文件...', 0);
@@ -52,26 +58,84 @@ export default function UserPage() {
     { title: '角色', dataIndex: 'roleNames', width: 170, render: (value) => value || '-' },
     { title: '部门', dataIndex: 'deptName', width: 110, render: (value) => value || '-' },
     { title: '创建时间', dataIndex: 'createdTime', width: 170, render: (value) => value?.replace('T', ' ') },
-    { title: '操作', width: 220, fixed: 'right', render: (_, user) => <Space size='middle'>
-      <a onClick={() => openDialog(user)}><EditOutlined /> 编辑</a>
-      <a onClick={() => void resetUserPassword(user.id).then(() => message.success('密码已重置为 Admin@123456')).catch((error) => message.error(getApiErrorMessage(error)))}>重置密码</a>
-      <Popconfirm title='确定删除此用户？' description='删除后用户将无法登录系统。' okText='删除' cancelText='取消' onConfirm={() => void deleteUser(user.id).then(() => { message.success('删除用户成功'); void load(); }).catch((error) => message.error(getApiErrorMessage(error)))}><a className='danger'><DeleteOutlined /> 删除</a></Popconfirm>
-    </Space> },
+    {
+      title: '操作',
+      width: 220,
+      fixed: 'right',
+      render: (_, user) => (
+        <Space size='middle'>
+          <a onClick={() => openDialog(user)}>
+            <EditOutlined /> 编辑
+          </a>
+          <a
+            onClick={() =>
+              void resetUserPassword(user.id)
+                .then(() => message.success('密码已重置为 Admin@123456'))
+                .catch((error) => message.error(getApiErrorMessage(error)))
+            }
+          >
+            重置密码
+          </a>
+          <Popconfirm
+            title='确定删除此用户？'
+            description='删除后用户将无法登录系统。'
+            okText='删除'
+            cancelText='取消'
+            onConfirm={() =>
+              void deleteUser(user.id)
+                .then(() => {
+                  message.success('删除用户成功');
+                  void load();
+                })
+                .catch((error) => message.error(getApiErrorMessage(error)))
+            }
+          >
+            <a className='danger'>
+              <DeleteOutlined /> 删除
+            </a>
+          </Popconfirm>
+        </Space>
+      ),
+    },
   ];
 
-  return <div>
-    <div className='page-head'><div><div className='page-kicker'>SYSTEM MANAGEMENT</div><h1 className='page-title'>用户管理</h1><p>维护系统用户、角色状态与基础信息。</p></div></div>
-    <div className='table-card'>
-      <div className='table-toolbar'>
-        <Input value={keyword} onChange={(event) => setKeyword(event.target.value)} onPressEnter={() => void load()} prefix={<SearchOutlined />} placeholder='搜索用户名 / 姓名' />
-        <Space wrap>
-          <Button icon={<ReloadOutlined />} onClick={() => void load()}>刷新</Button>
-          <Permission code='system:user:export'><Button icon={<DownloadOutlined />} onClick={() => void handleExport()}>导出</Button></Permission>
-          <Permission code='system:user:add'><Button type='primary' icon={<PlusOutlined />} onClick={() => openDialog()}>新增用户</Button></Permission>
-        </Space>
+  return (
+    <div className='user-page'>
+      <div className='page-head'>
+        <div>
+          <div className='page-kicker'>SYSTEM MANAGEMENT</div>
+          <h1 className='page-title'>用户管理</h1>
+        </div>
       </div>
-      <Table rowKey='id' columns={columns} dataSource={records} loading={loading} pagination={{ total, pageSize: 10, showSizeChanger: false, showTotal: (value) => `共 ${value} 条记录` }} scroll={{ x: 1100 }} />
+      <div className='table-card'>
+        <div className='table-toolbar'>
+          <Input value={keyword} onChange={(event) => setKeyword(event.target.value)} onPressEnter={() => void load()} prefix={<SearchOutlined />} placeholder='搜索用户名 / 姓名' />
+          <Space wrap>
+            <Button icon={<ReloadOutlined />} onClick={() => void load()}>
+              刷新
+            </Button>
+            <Permission code='system:user:export'>
+              <Button icon={<DownloadOutlined />} onClick={() => void handleExport()}>
+                导出
+              </Button>
+            </Permission>
+            <Permission code='system:user:add'>
+              <Button type='primary' icon={<PlusOutlined />} onClick={() => openDialog()}>
+                新增用户
+              </Button>
+            </Permission>
+          </Space>
+        </div>
+        <Table
+          rowKey='id'
+          columns={columns}
+          dataSource={records}
+          loading={loading}
+          pagination={{ total, pageSize: 10, showSizeChanger: false, showTotal: (value) => `共 ${value} 条记录` }}
+          scroll={{ x: 1100 }}
+        />
+      </div>
+      <UserDialog open={dialogOpen} user={editing} onClose={() => setDialogOpen(false)} onSaved={() => void load()} />
     </div>
-    <UserDialog open={dialogOpen} user={editing} onClose={() => setDialogOpen(false)} onSaved={() => void load()} />
-  </div>;
+  );
 }

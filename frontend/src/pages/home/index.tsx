@@ -74,7 +74,6 @@ export default function HomePage() {
           <Typography.Title level={2} className='page-title'>
             概览面板
           </Typography.Title>
-          <p>欢迎回来，以下是系统的最新运行情况。</p>
         </div>
         <div className='today'>2026 年 9 月 21 日　星期一</div>
       </div>

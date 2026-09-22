@@ -33,3 +33,19 @@ INSERT INTO sys_role_menu
 SELECT 2, id
 FROM sys_menu
 WHERE id IN (1, 2, 3, 7, 8, 9, 10, 11);
+
+INSERT INTO sys_menu (id, parent_id, menu_name, menu_type, permission_code, sort_order, visible, status, keep_alive,
+                      builtin, deleted)
+VALUES (12, 3, '导出用户', 'BUTTON', 'system:user:export', 6, 1, 1, 0, 1, 0);
+INSERT INTO sys_role_menu (role_id, menu_id)
+SELECT id, 12
+FROM sys_role
+WHERE role_code = 'super_admin';
+
+UPDATE sys_user
+SET password_hash = '$2b$10$iKzJCqZ2.SdHiacURI6N3.fgIRi/2GE0UiGDefC.LfeQAC5K8nkeK',
+    auth_version = auth_version + 1,
+    updated_time = CURRENT_TIMESTAMP
+WHERE username = 'admin'
+  AND builtin = 1
+  AND deleted = 0;

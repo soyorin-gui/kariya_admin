@@ -1,2 +1,0 @@
-registry=${NPM_INTERNAL_REGISTRY}
-//registry.example.com/:_authToken=${NPM_TOKEN}

@@ -35,6 +35,12 @@ export function AuthGuard({ children }: { children: ReactNode }) {
     };
   }, [dispatch, location.pathname, navigate, token]);
 
-  if (checking) return <div className='app-loading'><Spin size='large' /><span>系统加载中...</span></div>;
+  if (checking)
+    return (
+      <div className='app-loading'>
+        <Spin size='large' />
+        <span>系统加载中...</span>
+      </div>
+    );
   return token ? <>{children}</> : null;
 }
