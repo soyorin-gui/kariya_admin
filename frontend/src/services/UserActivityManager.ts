@@ -4,7 +4,9 @@ export class UserActivityManager {
   private handler = () => {
     if (Date.now() - this.lastTouch > 5 * 60_000) {
       this.lastTouch = Date.now();
-      void touch();
+      // A rejected touch means the session expired. The Axios interceptor clears the session
+      // on the next protected request; suppressing this background rejection avoids console noise.
+      void touch().catch(() => undefined);
     }
   };
   start() {

@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ItemType } from 'antd/es/menu/interface';
 import { App, Avatar, Breadcrumb, Button, Dropdown, Form, Input, Layout, Menu, Modal, Space, Tooltip } from 'antd';
-import { BellOutlined, HomeOutlined, LockOutlined, LogoutOutlined, SearchOutlined, SettingOutlined } from '@ant-design/icons';
+import { BellOutlined, LockOutlined, LogoutOutlined, SearchOutlined, SettingOutlined } from '@ant-design/icons';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { Logo } from '../components/common/Logo';
+import { SiderBrand } from './SiderBrand';
 import { AiAssistant } from '../components/ai/AiAssistant';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { clearSession } from '../store/authSlice';
@@ -11,8 +11,9 @@ import { logout } from '../api/auth';
 import { changeOwnPassword } from '../api/user';
 import { getApiErrorMessage } from '../utils/apiError';
 import type { MenuRoute } from '../types/auth';
-import { ancestorMenuKeys, findMenuByPath, firstAvailablePath, menuBreadcrumb } from '../router/menu';
+import { ancestorMenuKeys, findMenuByPath, firstAvailablePath, menuBreadcrumb, navigateTarget } from '../router/menu';
 import { resolveMenuIcon } from '../router/iconRegistry';
+import { UserActivityManager } from '../services/UserActivityManager';
 
 const { Sider, Header, Content } = Layout;
 const HOME_ROUTE = '/home';
@@ -59,6 +60,13 @@ export function AppLayout() {
   const user = useAppSelector((s) => s.auth.user);
   const menus = useAppSelector((s) => s.auth.menus);
   const items = useMemo(() => buildMenu(menus), [menus]);
+  // Keep the server session alive only while the user is actually interacting. The server
+  // still enforces the idle window and (for remember-me sessions) the 14-day absolute deadline.
+  useEffect(() => {
+    const activity = new UserActivityManager();
+    activity.start();
+    return () => activity.stop();
+  }, []);
   // 展开的目录不再写死：按当前地址在菜单树里的祖先链自动展开，并保留用户手动展开的其他目录。
   const [openKeys, setOpenKeys] = useState<string[]>([]);
   const ancestors = useMemo(() => ancestorMenuKeys(menus, location.pathname), [menus, location.pathname]);
@@ -70,7 +78,12 @@ export function AppLayout() {
    * 图标用首页菜单配置的图标（在菜单管理里改了这里跟着变）；跳转目标同理。
    * 万一当前角色没有被授予首页，退化为「我的第一项可见页面」，避免点一下直接撞 403。
    */
-  const landing = useMemo(() => findMenuByPath(menus, HOME_ROUTE) ?? findMenuByPath(menus, firstAvailablePath(menus)), [menus]);
+  const landing = useMemo(() => {
+    const grantedHome = findMenuByPath(menus, HOME_ROUTE);
+    if (grantedHome) return grantedHome;
+    const fallbackPath = firstAvailablePath(menus);
+    return fallbackPath ? findMenuByPath(menus, fallbackPath) : undefined;
+  }, [menus]);
   const exit = async () => {
     try {
       await logout();
@@ -97,7 +110,7 @@ export function AppLayout() {
   return (
     <Layout className='app-shell'>
       <Sider width={240} theme='light' className='app-sider'>
-        <Logo />
+        <SiderBrand />
         <Menu mode='inline' selectedKeys={[location.pathname]} openKeys={openKeys} onOpenChange={setOpenKeys} items={items} />
         <div className='sider-foot'>
           CRUD · BUG · CV
@@ -108,16 +121,23 @@ export function AppLayout() {
       <Layout className='app-main-layout'>
         <Header className='app-header'>
           <div className='header-navigation'>
-            <Link to={landing?.routePath ?? HOME_ROUTE} className='header-home'>
-              {/*
-                图标必须和侧边栏同一项完全一致，所以两边都走 resolveMenuIcon，
-                连"图标没配时回退成哪个图标"也保持一致（都回退到 MenuOutlined）。
-                之前这里写的是 landing?.icon ? resolveMenuIcon(...) : <HomeOutlined />，
-                一旦首页菜单的图标是空的，侧边栏回退成 MenuOutlined、顶栏却是 HomeOutlined，
-                看起来就是"两个首页图标不一样"。
-              */}
-              {landing ? resolveMenuIcon(landing.icon) : <HomeOutlined />} 首页
-            </Link>
+            {/*
+              没有可用落点时整条入口不渲染：以前回退成写死的 /home，而账号可能压根没有
+              这个页面（未配置/未授权），点一下就是 404/403。首页入口宁可不显示，
+              也不要给一个必然打不开的地址。
+            */}
+            {landing && (
+              <Link to={navigateTarget(landing.routePath ?? HOME_ROUTE)} className='header-home'>
+                {/*
+                  图标必须和侧边栏同一项完全一致，所以两边都走 resolveMenuIcon，
+                  连"图标没配时回退成哪个图标"也保持一致（都回退到 MenuOutlined）。
+                  之前这里写的是 landing?.icon ? resolveMenuIcon(...) : <HomeOutlined />，
+                  一旦首页菜单的图标是空的，侧边栏回退成 MenuOutlined、顶栏却是 HomeOutlined，
+                  看起来就是"两个首页图标不一样"。
+                */}
+                {resolveMenuIcon(landing.icon)} 首页
+              </Link>
+            )}
             {crumb.length > 0 && <Breadcrumb items={crumb} />}
           </div>
           <Space size={20}>
@@ -164,7 +184,7 @@ export function AppLayout() {
           <Form.Item name='oldPassword' label='原密码' rules={[{ required: true, message: '请输入原密码' }]}>
             <Input.Password autoComplete='current-password' />
           </Form.Item>
-          <Form.Item name='newPassword' label='新密码' rules={[{ required: true, min: 12, message: '新密码至少 12 位' }]}>
+          <Form.Item name='newPassword' label='新密码' rules={[{ required: true, min: 12, max: 72, message: '新密码长度需为 12-72 位' }]}>
             <Input.Password autoComplete='new-password' />
           </Form.Item>
           <Form.Item name='confirmPassword' label='确认新密码' dependencies={['newPassword']} rules={[{ required: true, message: '请确认新密码' },

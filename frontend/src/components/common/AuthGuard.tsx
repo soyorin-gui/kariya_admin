@@ -1,9 +1,9 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { Spin } from 'antd';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { fetchMe, refresh } from '../../api/auth';
 import { clearSession, setProfile, setSession } from '../../store/authSlice';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
+import { LoadingScreen } from './LoadingScreen';
 
 export function AuthGuard({ children }: { children: ReactNode }) {
   const [checking, setChecking] = useState(true);
@@ -36,12 +36,6 @@ export function AuthGuard({ children }: { children: ReactNode }) {
     };
   }, [dispatch, location.pathname, navigate, token]);
 
-  if (checking)
-    return (
-      <div className='app-loading'>
-        <Spin size='large' />
-        <span>系统加载中...</span>
-      </div>
-    );
+  if (checking) return <LoadingScreen />;
   return token ? <>{children}</> : null;
 }

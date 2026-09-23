@@ -1,0 +1,73 @@
+.app-loading {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(77, 161, 255, 0.18), transparent 31%),
+    linear-gradient(135deg, #eef6ff, #dcecff 48%, #f7fbff);
+}
+
+.app-loading-mark {
+  display: grid;
+  width: 52px;
+  height: 52px;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.88);
+  border-radius: 16px;
+  background: linear-gradient(145deg, #4aa5ff, var(--brand-deep, #0961d8));
+  box-shadow: 0 12px 28px rgba(24, 119, 241, 0.22);
+  color: #fff;
+  font-family: Inter, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+}
+
+/* 八颗圆点固定成环，放大的亮点按顺时针方向依次轮转。 */
+.app-loading-dots {
+  position: relative;
+  width: 92px;
+  height: 92px;
+}
+
+.app-loading-dots i {
+  position: absolute;
+  display: block;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--brand, #1677ff);
+  box-shadow: 0 2px 7px rgba(22, 119, 255, 0.22);
+  animation: loading-dot-orbit 1.9s ease-in-out infinite;
+}
+
+.app-loading-dots i:nth-child(1) { left: 41px; top: 5px; animation-delay: 0s; }
+.app-loading-dots i:nth-child(2) { left: 66px; top: 15px; animation-delay: -0.238s; }
+.app-loading-dots i:nth-child(3) { left: 77px; top: 41px; animation-delay: -0.475s; }
+.app-loading-dots i:nth-child(4) { left: 66px; top: 66px; animation-delay: -0.713s; }
+.app-loading-dots i:nth-child(5) { left: 41px; top: 77px; animation-delay: -0.95s; }
+.app-loading-dots i:nth-child(6) { left: 15px; top: 66px; animation-delay: -1.188s; }
+.app-loading-dots i:nth-child(7) { left: 5px; top: 41px; animation-delay: -1.425s; }
+.app-loading-dots i:nth-child(8) { left: 15px; top: 15px; animation-delay: -1.663s; }
+
+@keyframes loading-dot-orbit {
+  0%, 100% { opacity: 0.18; transform: scale(0.3); }
+  50% { opacity: 1; transform: scale(1.7); }
+}
+
+.app-loading-text {
+  margin: -3px 0 0;
+  color: var(--muted, #7483a7);
+  font-family: Inter, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-size: 13px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-loading-dots i { animation: none; }
+}

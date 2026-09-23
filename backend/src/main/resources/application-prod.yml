@@ -7,3 +7,12 @@ spring:
     redis:
       host: ${REDIS_HOST}
       port: ${REDIS_PORT:6379}
+lbl:
+  security:
+    # 生产走 https，刷新 Cookie 必须带 Secure，避免会话凭据以明文经网络传输。
+    secure-cookie: ${COOKIE_SECURE:true}
+    # 生产必须显式声明前端来源；留空则不放行任何跨域（前端与后端同源部署时留空即正确）。
+    cors-allowed-origins: ${CORS_ALLOWED_ORIGINS:}
+    # 生产部署在反向代理后面，必须填写代理地址（支持 CIDR），否则审计 IP 会全是网关地址、
+    # 且登录限流会让所有用户互相误伤。示例：127.0.0.1,10.0.0.0/8
+    trusted-proxies: ${TRUSTED_PROXIES:}

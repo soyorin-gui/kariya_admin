@@ -18,7 +18,7 @@ logging:
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] [%X{requestId:-}] %logger{36} - %msg%n"
   level:
-    org.kariya: DEBUG
+    org.lbl: DEBUG
     com.zaxxer.hikari: INFO
     org.springframework.jdbc: INFO
     org.mybatis: INFO

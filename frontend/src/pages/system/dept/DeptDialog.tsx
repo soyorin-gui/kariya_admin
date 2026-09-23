@@ -13,8 +13,14 @@ interface DeptDialogProps {
   onSaved: () => void;
 }
 interface DeptTreeNode { value: number; title: string; disabled?: boolean; children?: DeptTreeNode[] }
-function toTree(depts: Dept[], parentId = 0, disabledIds: Set<number>): DeptTreeNode[] {
-  return depts.filter((dept) => dept.parentId === parentId).map((dept) => ({ value: dept.id, title: dept.deptName, disabled: disabledIds.has(dept.id), children: toTree(depts, dept.id, disabledIds) }));
+function toTree(depts: Dept[], parentId = 0, blocked: Set<number>): DeptTreeNode[] {
+  return depts.filter((dept) => dept.parentId === parentId).map((dept) => ({
+    value: dept.id,
+    title: dept.deptName,
+    // A read-only ancestor remains visible for context, but cannot become a new parent.
+    disabled: blocked.has(dept.id) || !dept.canCreateChildren,
+    children: toTree(depts, dept.id, blocked),
+  }));
 }
 function blockedIds(depts: Dept[], id?: number) {
   const blocked = new Set<number>();
@@ -31,10 +37,11 @@ export function DeptDialog({ open, dept, allDepts, onClose, onSaved }: DeptDialo
   const [loadingOptions, setLoadingOptions] = useState(false);
   const editing = dept !== null;
   const parentTree = useMemo(() => toTree(allDepts, 0, blockedIds(allDepts, dept?.id)), [allDepts, dept?.id]);
+  const canCreateRoot = allDepts.some((value) => value.parentId === 0 && value.manageable);
 
   useEffect(() => {
     if (!open) return;
-    form.setFieldsValue(dept ? { parentId: dept.parentId || undefined, deptName: dept.deptName, deptCode: dept.deptCode, leaderUserId: dept.leaderUserId, sortOrder: dept.sortOrder, status: dept.status } : { parentId: undefined, deptName: '', deptCode: '', leaderUserId: undefined, sortOrder: 0, status: 1 });
+    form.setFieldsValue(dept ? { parentId: dept.parentId || undefined, deptName: dept.deptName, deptCode: dept.deptCode, leaderUserId: dept.leaderUserId, sortOrder: dept.sortOrder, status: dept.status } : { parentId: allDepts.find((value) => value.canCreateChildren)?.id, deptName: '', deptCode: '', leaderUserId: undefined, sortOrder: 0, status: 1 });
     setLoadingOptions(true);
     void getDeptFormOptions().then(setOptions).catch((error) => message.error(getApiErrorMessage(error, '无法加载部门表单数据'))).finally(() => setLoadingOptions(false));
   }, [dept, form, message, open]);
@@ -71,18 +78,18 @@ export function DeptDialog({ open, dept, allDepts, onClose, onSaved }: DeptDialo
         </div>
       ) : (
         <Form form={form} layout='horizontal' labelCol={{ flex: '0 0 96px' }} colon={false} labelWrap requiredMark={false}>
-          <Form.Item name='deptName' label='部门名称' rules={[{ required: true, message: '请输入部门名称' }]}>
+          <Form.Item name='deptName' label='部门名称' rules={[{ required: true, message: '请输入部门名称' }, { max: 80, message: '部门名称最长 80 个字符' }]}>
             <Input placeholder='例如：运营部' />
           </Form.Item>
           <Form.Item
             name='deptCode'
             label={<FieldLabel text='部门编码' hint='部门的唯一英文编码，以字母开头，可使用数字、下划线或短横线；删除后该编码仍会被历史记录占用。' />}
-            rules={[{ required: true, message: '请输入部门编码' }, { pattern: /^[A-Za-z][A-Za-z0-9_-]*$/, message: '以字母开头，可使用数字、下划线或短横线' }]}
+            rules={[{ required: true, message: '请输入部门编码' }, { max: 80, message: '部门编码最长 80 个字符' }, { pattern: /^[A-Za-z][A-Za-z0-9_-]*$/, message: '以字母开头，可使用数字、下划线或短横线' }]}
           >
             <Input placeholder='例如：OPERATIONS' />
           </Form.Item>
           <Form.Item name='parentId' label={<FieldLabel text='上级部门' hint='留空即为根部门。已删除的部门不在候选里；不能选择自身或自身的下级。' />}>
-            <TreeSelect allowClear treeDefaultExpandAll treeData={parentTree} placeholder='根部门' />
+            <TreeSelect allowClear={canCreateRoot} treeDefaultExpandAll treeData={parentTree} placeholder={canCreateRoot ? '根部门' : '请选择可管理的上级部门'} />
           </Form.Item>
           <Form.Item name='leaderUserId' label={<FieldLabel text='负责人' hint='该部门的负责人，仅用于展示与后续流程找人，不影响权限。' />}>
             <Select allowClear showSearch optionFilterProp='label' options={options?.leaders} placeholder='请选择负责人（可选）' />

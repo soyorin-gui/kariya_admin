@@ -2,6 +2,7 @@ import { createBrowserRouter } from 'react-router-dom';
 import { AppLayout } from '../layouts/AppLayout';
 import LoginPage from '../pages/login';
 import Forbidden from '../pages/error/Forbidden';
+import NotFound from '../pages/error/NotFound';
 import { AuthGuard } from '../components/common/AuthGuard';
 import { DynamicPage, MenuHomeRedirect } from './DynamicPage';
 
@@ -27,6 +28,14 @@ import { DynamicPage, MenuHomeRedirect } from './DynamicPage';
  */
 export const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
+  {
+    // 404 刻意不套 AuthGuard：它是"这个地址不存在"，与登录状态无关。
+    // 之前套了 AuthGuard，于是未登录用户访问任意不存在的地址会被送去登录页，
+    // 登录完再看到 404 —— 而且此时 /404 又被当成"受保护页面"写回 redirect，语义很别扭。
+    // 这个页面本身不渲染任何账号数据，公开它是安全的。
+    path: '/404',
+    element: <NotFound />,
+  },
   {
     path: '/',
     element: (

@@ -10,6 +10,9 @@ export interface Dept {
   status: number;
   builtin: number;
   createdTime?: string;
+  /** Read-only ancestor records are returned to keep the tree structurally complete. */
+  manageable: boolean;
+  canCreateChildren: boolean;
 }
 
 export interface DeptRequest {
@@ -24,4 +27,5 @@ export interface DeptRequest {
 export interface DeptFormOptions {
   departments: { value: number; label: string }[];
   leaders: { value: number; label: string }[];
+  canCreate: boolean;
 }

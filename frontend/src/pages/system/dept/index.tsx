@@ -54,6 +54,7 @@ export default function DeptPage() {
     setEditing(dept);
     setDialogOpen(true);
   };
+  const canCreate = depts.some((dept) => dept.canCreateChildren);
   const columns: ColumnsType<DeptRow> = [
     {
       title: '部门名称',
@@ -78,12 +79,12 @@ export default function DeptPage() {
       fixed: 'right',
       render: (_, row) => (
         <Space size='middle'>
-          <Permission code='system:dept:update'>
+          {row.manageable && <Permission code='system:dept:update'>
             <a onClick={() => openDialog(row)}>
               <EditOutlined /> 编辑
             </a>
-          </Permission>
-          <Permission code='system:dept:delete'>
+          </Permission>}
+          {row.manageable && <Permission code='system:dept:delete'>
             <Popconfirm
               title='确定删除此部门？'
               description='存在子部门或部门用户时无法删除。'
@@ -102,7 +103,7 @@ export default function DeptPage() {
                 <DeleteOutlined /> 删除
               </a>
             </Popconfirm>
-          </Permission>
+          </Permission>}
         </Space>
       ),
     },
@@ -122,11 +123,11 @@ export default function DeptPage() {
             <Button icon={<ReloadOutlined />} onClick={() => void load()}>
               刷新
             </Button>
-            <Permission code='system:dept:add'>
+            {canCreate && <Permission code='system:dept:add'>
               <Button type='primary' icon={<PlusOutlined />} onClick={() => openDialog()}>
                 新增部门
               </Button>
-            </Permission>
+            </Permission>}
           </Space>
         </div>
         <Table

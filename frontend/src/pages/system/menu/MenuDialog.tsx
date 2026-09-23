@@ -75,7 +75,7 @@ export function MenuDialog({ open, menu, menus, onClose, onSaved }: MenuDialogPr
       forceRender
     >
       <Form form={form} layout='horizontal' labelCol={{ flex: '0 0 96px' }} colon={false} labelWrap requiredMark={false}>
-        <Form.Item name='menuName' label='菜单名称' rules={[{ required: true, message: '请输入菜单名称' }]}>
+        <Form.Item name='menuName' label='菜单名称' rules={[{ required: true, message: '请输入菜单名称' }, { max: 80, message: '菜单名称最长 80 个字符' }]}>
           <Input placeholder='例如：操作日志' />
         </Form.Item>
         <Form.Item name='menuType' label='菜单类型' rules={[{ required: true }]}>
@@ -96,7 +96,9 @@ export function MenuDialog({ open, menu, menus, onClose, onSaved }: MenuDialogPr
           <Form.Item
             name='routePath'
             label={<FieldLabel text='路由地址' hint='前端路由路径，需与菜单组件所在页面的地址一致，以 / 开头，例如 /system/log。' />}
-            rules={menuType === 'MENU' ? [{ required: true, message: '菜单类型必须填写路由地址' }] : []}
+            rules={menuType === 'MENU'
+              ? [{ required: true, message: '菜单类型必须填写路由地址' }, { max: 160, message: '路由地址最长 160 个字符' }]
+              : [{ max: 160, message: '路由地址最长 160 个字符' }]}
           >
             <Input placeholder='例如：/system/log' />
           </Form.Item>
@@ -105,7 +107,7 @@ export function MenuDialog({ open, menu, menus, onClose, onSaved }: MenuDialogPr
           <Form.Item
             name='component'
             label={<FieldLabel text='前端组件' hint='相对 src/pages 的路径、不带 .tsx 后缀，例如 system/user/index。候选来自当前前端产物里真实存在的页面文件；新增页面后需要重新构建前端才会出现在候选里。' />}
-            rules={[{ required: true, message: '菜单类型必须填写前端组件' }]}
+            rules={[{ required: true, message: '菜单类型必须填写前端组件' }, { max: 160, message: '前端组件最长 160 个字符' }]}
           >
             <AutoComplete options={componentOptions} filterOption={(input, option) => String(option?.value ?? '').toLowerCase().includes(input.toLowerCase())} placeholder='例如：system/user/index' />
           </Form.Item>
@@ -114,9 +116,9 @@ export function MenuDialog({ open, menu, menus, onClose, onSaved }: MenuDialogPr
           <Form.Item
             name='permissionCode'
             label={<FieldLabel text='权限标识' hint='与后端 @PreAuthorize 中使用的权限码保持一致，例如 system:user:list。' />}
-            rules={[{ required: true, message: '请输入权限标识' }]}
+            rules={[{ required: true, message: '请输入权限标识' }, { max: 120, message: '权限标识最长 120 个字符' }, { pattern: /^[a-z0-9_:.-]*$/, message: '只能包含小写字母、数字、冒号、下划线、点和短横线' }]}
           >
-            <Input placeholder='例如：system:log:list' />
+            <Input placeholder='例如：system:loginlog:list' />
           </Form.Item>
         )}
         <Form.Item name='icon' label={<FieldLabel text='图标' hint='只能从已登记的图标中选择（清单见 src/router/iconRegistry.tsx），避免填了名字却渲染不出来。' />}>

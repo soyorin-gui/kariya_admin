@@ -116,55 +116,25 @@
   flex-direction: column;
   justify-content: center;
 }
-.logo {
+.login-brand {
   display: flex;
   gap: 11px;
   align-items: center;
 }
-.logo-mark {
-  width: 37px;
+.login-brand img {
+  width: 42px;
   height: 42px;
-  position: relative;
-  display: inline-block;
-  background: linear-gradient(135deg, #4294ff, #0c5ee5);
-  clip-path: polygon(50% 0, 95% 22%, 95% 75%, 50% 100%, 5% 75%, 5% 22%);
-  box-shadow: 0 8px 16px rgba(22, 119, 255, 0.24);
+  flex: 0 0 auto;
+  border-radius: 12px;
+  object-fit: cover;
 }
-.logo-mark i,
-.logo-mark b,
-.logo-mark em {
-  position: absolute;
-  background: #fff;
-  display: block;
-}
-.logo-mark i {
-  width: 9px;
-  height: 23px;
-  left: 14px;
-  top: 9px;
-  transform: skewY(-30deg);
-}
-.logo-mark b {
-  width: 16px;
-  height: 9px;
-  top: 16px;
-  left: 12px;
-  transform: skewY(30deg);
-}
-.logo-mark em {
-  height: 15px;
-  width: 7px;
-  right: 8px;
-  top: 17px;
-  transform: skewY(-30deg);
-}
-.logo strong {
+.login-brand strong {
   font-size: 24px;
   display: block;
   color: #14285a;
   letter-spacing: 0.2px;
 }
-.logo small {
+.login-brand small {
   display: block;
   font-size: 13px;
   color: #7385a5;

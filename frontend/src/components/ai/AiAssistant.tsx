@@ -11,7 +11,7 @@ export function AiAssistant() {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([{ id: 1, role: 'assistant', text: '你好，我是 Kariya 智能助手。有什么可以帮你？' }]);
+  const [messages, setMessages] = useState<Message[]>([{ id: 1, role: 'assistant', text: '你好，我是 LBL 智能助手。有什么可以帮你？' }]);
   const send = (suggestion?: string) => {
     const value = (suggestion ?? text).trim();
     if (!value || loading) return;
@@ -37,7 +37,7 @@ export function AiAssistant() {
           <div className='ai-welcome'>
             <div className='ai-welcome-title'>
               <Avatar size={36} icon={<RobotOutlined />} className='ai-avatar' />
-              <h2>你好，我是 Kariya 智能助手</h2>
+              <h2>你好，我是 LBL 智能助手</h2>
             </div>
             <p>欢迎随时提问，我可以协助处理系统操作与管理任务。</p>
           </div>

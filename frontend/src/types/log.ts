@@ -1,4 +1,4 @@
-/** 日志结果取值，与后端 org.kariya.system.log.LogResult 一致。 */
+/** 日志结果取值，与后端 org.LBL.system.log.LogResult 一致。 */
 export type LogResult = 'SUCCESS' | 'FAILURE' | 'LOCKED';
 
 /** 登录日志，对应后端 LoginLogEntity。 */

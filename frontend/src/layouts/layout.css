@@ -19,8 +19,30 @@
   overflow: hidden;
   position: relative;
 }
-.app-sider .logo {
+.sider-brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
   padding: 0 10px 32px;
+}
+.sider-brand img {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+  border-radius: 12px;
+  object-fit: cover;
+}
+.sider-brand strong {
+  display: block;
+  color: #14285a;
+  font-size: 22px;
+  letter-spacing: 0.2px;
+}
+.sider-brand small {
+  display: block;
+  margin-top: 3px;
+  color: #7385a5;
+  font-size: 13px;
 }
 .app-sider .ant-menu {
   border: none;
@@ -118,26 +140,16 @@
   overflow-y: auto;
   overscroll-behavior: contain;
 }
-.app-loading {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  gap: 14px;
-  background: var(--page);
-  color: var(--muted);
-}
 @media (max-width: 900px) {
   .app-sider {
     width: 72px !important;
     min-width: 72px !important;
     padding: 18px 8px;
   }
-  .app-sider .logo {
+  .sider-brand {
     padding: 0 9px 28px;
   }
-  .app-sider .logo > span:last-child,
+  .sider-brand > div,
   .app-sider .ant-menu-title-content,
   .app-sider .ant-menu-submenu-arrow,
   .sider-foot {

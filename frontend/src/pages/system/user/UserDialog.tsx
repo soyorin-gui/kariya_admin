@@ -103,13 +103,22 @@ export function UserDialog({ open, user, onClose, onSaved }: UserDialogProps) {
           >
             <Input disabled={editing} prefix={<UserOutlined />} placeholder='请输入用户名' />
           </Form.Item>
-          <Form.Item name='realName' label='姓名' rules={[{ required: true, message: '请输入姓名' }]}>
+          <Form.Item name='realName' label='姓名' rules={[{ required: true, message: '请输入姓名' }, { max: 64, message: '姓名最长 64 个字符' }]}>
             <Input prefix={<UserOutlined />} placeholder='请输入姓名' />
           </Form.Item>
-          <Form.Item name='phone' label='手机号' rules={[{ required: true, message: '请输入手机号' }]}>
+          {/*
+            手机号规则与后端 UserRequest 保持一致（^\+?[0-9 ()-]{5,32}$）。
+            这里刻意不做严格的 11 位中国大陆号码校验：座机、分机、境外号码都会被误伤，
+            而那属于业务规则，不该由通用校验层决定。
+          */}
+          <Form.Item
+            name='phone'
+            label='手机号'
+            rules={[{ required: true, message: '请输入手机号' }, { pattern: /^\+?[0-9 ()-]{5,32}$/, message: '手机号只能包含数字、空格、括号和短横线（5-32 位）' }]}
+          >
             <Input prefix={<PhoneOutlined />} placeholder='请输入手机号' />
           </Form.Item>
-          <Form.Item name='email' label='邮箱' rules={[{ type: 'email', message: '邮箱格式不正确' }]}>
+          <Form.Item name='email' label='邮箱' rules={[{ type: 'email', message: '邮箱格式不正确' }, { max: 128, message: '邮箱最长 128 个字符' }]}>
             <Input prefix={<MailOutlined />} placeholder='请输入邮箱地址（可选）' />
           </Form.Item>
           <Form.Item name='deptId' label={<FieldLabel text='所属部门' hint='可选范围受你自己的数据范围限制；它决定该用户在"本部门"类数据范围里算哪个部门。' />} rules={[{ required: true, message: '请选择部门' }]}>

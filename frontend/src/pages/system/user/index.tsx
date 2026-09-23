@@ -43,14 +43,16 @@ export default function UserPage() {
   };
   const search = () => void load(1, keyword);
   const handleExport = async () => {
+    let hide: (() => void) | undefined;
     try {
-      const hide = message.loading('正在生成 Excel 文件...', 0);
+      hide = message.loading('正在生成 Excel 文件...', 0);
       const response = await exportUsers(keyword);
       downloadBlob(response.data as Blob, `用户列表_${new Date().toISOString().slice(0, 10)}.xlsx`);
-      hide();
       message.success('用户数据导出成功');
     } catch (error) {
       message.error(getApiErrorMessage(error, '导出失败，请稍后重试'));
+    } finally {
+      hide?.();
     }
   };
   const columns: ColumnsType<User> = [

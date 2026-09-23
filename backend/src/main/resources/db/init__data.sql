@@ -7,9 +7,9 @@ VALUES (1, '超级管理员', 'super_admin', 'ALL', 1),
        (2, '系统管理员', 'system_admin', 'DEPT_AND_CHILDREN', 1);
 INSERT INTO sys_user (id, username, password_hash, real_name, phone, email, dept_id, status, auth_version, builtin)
 VALUES (1, 'admin', '$2a$10$.Dq4aa2TDEz3Zqj1N2fvZe1tlJo1NpR2xeDcRgGAa8X40kVkVIKLa', '管理员', '13800000001',
-        'admin@kariya.local', 1, 1, 1, 1),
+        'admin@lbl.local', 1, 1, 1, 1),
        (2, 'zhangsan', '$2a$10$.Dq4aa2TDEz3Zqj1N2fvZe1tlJo1NpR2xeDcRgGAa8X40kVkVIKLa', '张三', '13800000002',
-        'zhangsan@kariya.local', 3, 1, 1, 0);
+        'zhangsan@lbl.local', 3, 1, 1, 0);
 INSERT INTO sys_user_role
 VALUES (1, 1),
        (2, 2);

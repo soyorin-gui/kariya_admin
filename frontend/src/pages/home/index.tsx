@@ -129,7 +129,7 @@ export default function HomePage() {
           <Card className='recent-card' title='系统基础信息'>
             <dl className='system-info'>
               <dt>系统名称</dt>
-              <dd>Kariya Admin</dd>
+              <dd>LBL Shit</dd>
               <dt>运行环境</dt>
               <dd>Spring Boot 3 · React 19</dd>
               <dt>数据库</dt>

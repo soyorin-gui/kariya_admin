@@ -2,8 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { Key } from 'react';
 import { App, Modal, Spin, Tree } from 'antd';
 import type { DataNode } from 'antd/es/tree';
-import { getMenus } from '../../../api/menu';
-import { getRoleMenuIds, grantRoleMenus } from '../../../api/role';
+import { getRoleMenuIds, getGrantableMenus, grantRoleMenus } from '../../../api/role';
 import type { SystemMenu } from '../../../types/menu';
 import type { Role } from '../../../types/role';
 import { getApiErrorMessage } from '../../../utils/apiError';
@@ -35,7 +34,7 @@ export function RolePermissionDialog({ open, role, onClose, onSaved }: RolePermi
   useEffect(() => {
     if (!open || !role) return;
     setLoading(true);
-    void Promise.all([getMenus(), getRoleMenuIds(role.id)])
+    void Promise.all([getGrantableMenus(), getRoleMenuIds(role.id)])
       .then(([allMenus, granted]) => { setMenus(allMenus); setCheckedKeys(granted); })
       .catch((error) => message.error(getApiErrorMessage(error, '无法加载菜单权限')))
       .finally(() => setLoading(false));

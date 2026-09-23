@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { App, Button, Checkbox, Form, Input } from 'antd';
 import { EyeInvisibleOutlined, EyeTwoTone, GithubOutlined, GoogleOutlined, LockOutlined, UserOutlined, WechatOutlined } from '@ant-design/icons';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { login, fetchMe } from '../../api/auth';
 import { useAppDispatch } from '../../store/hooks';
 import { setProfile, setSession } from '../../store/authSlice';
-import { Logo } from '../../components/common/Logo';
-import { firstAvailablePath } from '../../router/menu';
+import { LoginBrand } from './LoginBrand';
+import { firstAvailablePath, resolveRedirect } from '../../router/menu';
 import { getApiErrorMessage } from '../../utils/apiError';
 import './login.css';
 
@@ -34,9 +34,11 @@ export default function LoginPage() {
       dispatch(setProfile(profile));
       // 没有显式 redirect 时落到「我的第一项可见页面」：菜单是按角色授权的，
       // 写死 /home 会让没被授予首页的用户一登录就撞 403。
-      const redirect = new URLSearchParams(location.search).get('redirect') ?? firstAvailablePath(profile.menus);
+      const redirect = resolveRedirect(new URLSearchParams(location.search).get('redirect'), window.location.origin)
+        ?? firstAvailablePath(profile.menus);
+      // 一个可见页面都没有时给出明确兜底，避免带着 undefined 去 navigate。
       message.success(response.message || '登录成功');
-      navigate(redirect, { replace: true });
+      navigate(redirect ?? '/404', { replace: true });
     } catch (error) {
       const errorMessage = getApiErrorMessage(error, '登录失败，请检查系统服务');
       form.setFields([{ name: 'password', errors: [errorMessage] }]);
@@ -57,7 +59,7 @@ export default function LoginPage() {
         <div className='orb orb-two' />
         <div className='hero-content'>
           <div className='hero-rule' />
-          <h1>Kariya Admin</h1>
+          <h1>LBL SHIT</h1>
           <p>你把核心系统交给劳务派遣来开发</p>
           <p>说明你也没把他当核心</p>
         </div>
@@ -70,7 +72,7 @@ export default function LoginPage() {
         <div className='login-form-wrap'>
           {/* login-body 撑满剩余高度并让内容成组垂直居中，版权因此被挤到底部 */}
           <div className='login-body'>
-            <Logo />
+            <LoginBrand />
             <div className='login-heading'>
               <h2>欢迎登录</h2>
               <p>请输入账号信息以继续访问系统</p>
@@ -92,10 +94,12 @@ export default function LoginPage() {
                 <Form.Item name='rememberMe' valuePropName='checked' noStyle>
                   <Checkbox>记住我</Checkbox>
                 </Form.Item>
-                <span>
-                  <Link to='/forgot'>忘记密码</Link>
-                  <i /> <Link to='/register'>用户注册</Link>
-                </span>
+                {/*
+                  这里原本放着「忘记密码」和「用户注册」两个 Link，但两条路由都不存在，
+                  后端也没有对应接口：点下去会落到通配路由 → DynamicPage → 判定为 404，
+                  未登录时还会先被 AuthGuard 弹回登录页，等于一个点了只会绕圈的死链。
+                  功能补齐后（需要后端加注册/找回接口）再把入口加回来，别提前挂死链。
+                */}
               </div>
               <Button htmlType='submit' size='large' type='primary' block loading={submitting}>
                 登录
@@ -112,7 +116,7 @@ export default function LoginPage() {
               </div>
             </div>
           </div>
-          <div className='login-copyright'>© 2026 Kariya Admin　版权所有</div>
+          <div className='login-copyright'>© 2026 LBL SHIT　版权所有</div>
         </div>
       </section>
     </main>

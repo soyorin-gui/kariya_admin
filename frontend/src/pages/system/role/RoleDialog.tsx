@@ -56,13 +56,13 @@ export function RoleDialog({ open, role, onClose, onSaved }: RoleDialogProps) {
       forceRender
     >
       <Form form={form} layout='horizontal' labelCol={{ flex: '0 0 96px' }} colon={false} labelWrap requiredMark={false}>
-        <Form.Item name='roleName' label='角色名称' rules={[{ required: true, message: '请输入角色名称' }]}>
+        <Form.Item name='roleName' label='角色名称' rules={[{ required: true, message: '请输入角色名称' }, { max: 80, message: '角色名称最长 80 个字符' }]}>
           <Input placeholder='例如：运营专员' />
         </Form.Item>
         <Form.Item
           name='roleCode'
           label={<FieldLabel text='角色标识' hint='角色的唯一英文标识，只能小写字母开头，用于后端判断角色，创建后不建议再改。' />}
-          rules={[{ required: true, message: '请输入角色标识' }, { pattern: /^[a-z][a-z0-9_:.-]*$/, message: '使用小写字母开头，可包含数字、冒号或下划线' }]}
+          rules={[{ required: true, message: '请输入角色标识' }, { max: 80, message: '角色标识最长 80 个字符' }, { pattern: /^[a-z][a-z0-9_:.-]*$/, message: '使用小写字母开头，可包含数字、冒号、下划线、点和短横线' }]}
         >
           <Input disabled={role?.builtin === 1} placeholder='例如：operator' />
         </Form.Item>

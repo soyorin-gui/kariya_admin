@@ -1,6 +1,6 @@
 spring:
   application:
-    name: kariya-admin
+    name: lbl-shit
   profiles:
     active: local
   jackson:
@@ -19,12 +19,24 @@ mybatis-plus:
   global-config:
     banner: false
 
-kariya:
+lbl:
   security:
-    jwt-secret: kariya-admin-development-secret-must-be-at-least-32-characters
+    jwt-secret: lbl-shit-development-secret-must-be-at-least-32-characters
     access-token-minutes: 15
     idle-hours: 2
     remembered-idle-days: 7
+    # “记住我”是 7 天无操作过期；即使持续操作，也必须在 14 天后重新登录。
+    remembered-absolute-days: 14
+    # 刷新 Cookie 的 Secure 属性。默认 false 是为了让本地 http 开发可用；生产用 https 时必须置为 true
+    # （application-prod.yml 里已覆盖为 true），否则刷新令牌会以明文经网络传输。
+    secure-cookie: ${COOKIE_SECURE:false}
+    # 允许跨域的前端来源，逗号分隔。allowCredentials=true 时不能用通配符，必须逐个列全。
+    # 留空 = 不放行任何跨域来源（前端与后端同源部署时的正确默认值）。
+    cors-allowed-origins: '${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}'
+    # 可信反向代理地址，逗号分隔，支持 CIDR。只有来自这些地址的请求，其 X-Forwarded-For 才会被采信；
+    # 留空 = 完全忽略转发头、直接使用 TCP 源地址（直连部署下的正确默认值）。
+    # 部署在 Nginx 后面时必须填写，否则所有用户共享网关地址，登录限流会互相误伤。
+    trusted-proxies: ${TRUSTED_PROXIES:}
   log:
     # 审计日志保留策略。到期后由 LogRetentionJob 分批物理删除，避免日志表无限膨胀。
     # 关闭清理（enabled: false）后日志只增不删，需要自己安排归档。

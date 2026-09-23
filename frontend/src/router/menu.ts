@@ -19,9 +19,49 @@ export function findMenuByPath(menus: MenuRoute[], pathname: string): MenuRoute 
  * 这里不能写死 /home：菜单表是按角色授权的，用户完全可能没被授予「首页」，
  * 写死就会变成"一登录就撞 403"。所以取「我的第一项可见页面」。
  * 菜单已由后端按 parent_id, sort_order, id 排好序，直接取首个即可。
+ *
+ * 交付不了任何页面时返回 null，**不再回退到某个写死的路径**。
+ * 原因：以前回退成 '/home'，而调用方拿到的会是一个"当前账号根本没被授权的地址"——
+ * 打开它必然渲染 403 或 404，而那两个页面上的「返回首页」按钮又用同一个函数算出
+ * '/home'，于是又 403/404，用户就卡在原地来回跳，永远出不去。返回 null 把
+ * "没有落点"这个事实交给调用方处理，才能给出真正的出口。
  */
-export function firstAvailablePath(menus: MenuRoute[], fallback = '/home'): string {
-  return pageMenus(menus).find((menu) => menu.visible !== 0)?.routePath ?? fallback;
+export function firstAvailablePath(menus: MenuRoute[]): string | null {
+  return pageMenus(menus).find((menu) => menu.visible !== 0)?.routePath ?? null;
+}
+
+/** 页面内跳转一律传站内路径；本函数只负责把它规整成 pathname。 */
+export function navigateTarget(path: string): { pathname: string } {
+  return { pathname: path };
+}
+
+/**
+ * 校验来自 URL 的 redirect 参数，防止开放重定向（钓鱼跳板）。
+ *
+ * 威胁模型：攻击者发一个 `https://你的系统/login?redirect=https://钓鱼站`。
+ * 受害者看到的是自己的域名、自己的登录框、登录成功后还会弹出「登录成功」——
+ * 然后被整页跳到钓鱼站。这是最容易被信任的一种钓鱼手法，必须在跳转前拦住。
+ *
+ * 只接受"站内绝对路径"：以单个 `/` 开头。用 URL 解析而不是正则，是为了让浏览器
+ * 自己按 RFC 3986 处理各种畸形写法，避免手写规则漏判：
+ *   - `//evil.com`   → 协议相对地址，host 变成 evil.com → 拒绝
+ *   - `https://evil` → 绝对地址，origin 不同        → 拒绝
+ *   - `/\evil.com`   → 部分浏览器同样按 // 处理     → 由 origin 比对兜住
+ *
+ * 注意：这里只保证"跳的是我们站点"，**不保证目标页面存在或已授权**。
+ * 那属于路由守卫的职责（见 DynamicPage），不要在这里用后端目录做白名单——
+ * 登录时该目录可能还没加载，而且目录是"全站配置过的页面"，不等于"这个账号能访问的页面"。
+ */
+export function resolveRedirect(raw: string | null | undefined, origin: string): string | null {
+  if (!raw) return null;
+  try {
+    const url = new URL(raw, origin);
+    if (url.origin !== origin) return null;
+    return url.pathname + url.search + url.hash;
+  } catch {
+    // 连 URL 都解析不出来（例如含非法字符），一律当不可信处理。
+    return null;
+  }
 }
 
 /**
