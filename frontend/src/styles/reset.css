@@ -9,7 +9,12 @@ body,
 }
 body {
   overflow: hidden;
-  font-family: Inter, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  /* ★ 必须走变量。写死字体栈会让"设置面板换字体"对自定义 CSS 完全无效 ——
+     AntD 组件跟着 token 变了，页面自有文案还是老字体。 */
+  font-family: var(--font-sans);
+  /* ★ 基础字号也走变量。注意它只影响"没有显式设过 font-size"的元素；
+     各处显式写死的字号已统一换成 --fs-* 阶梯（见 styles/theme.css 顶部说明）。 */
+  font-size: var(--fs-base);
   color: var(--ink);
 }
 button,

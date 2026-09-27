@@ -30,6 +30,10 @@
             <artifactId>spring-boot-starter-security</artifactId>
         </dependency>
         <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-websocket</artifactId>
+        </dependency>
+        <dependency>
             <groupId>com.baomidou</groupId>
             <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
             <version>${mybatis-plus.version}</version>
@@ -100,6 +104,29 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+            <!--
+              测试 JVM 需要允许"自我附加"（self-attach）。
+
+              为什么：Mockito 5 默认使用 inline mock maker，它要通过 byte-buddy-agent 把自己
+              作为 Java agent 附加到当前 JVM 上。而 JDK 从 9 开始把 jdk.attach.allowAttachSelf
+              的默认值改成了 false，于是在受限环境（沙箱、容器、部分 CI）里附加会失败，
+              报错是这一句 —— 它和被测代码毫无关系，很容易被误判成"测试写错了"：
+
+                  Could not initialize plugin: interface org.mockito.plugins.MockMaker
+
+              症状是：所有用到 Mockito 的测试类整体报错（Errors），而不用的测试照常通过。
+              本项目 2026-09-24 ~ 09-27 的 target/surefire-reports/*.dumpstream 里全是这个报错。
+
+              加上这个参数后，AccountSessionControllerTest 与 JasyptEncryptorTest 都恢复正常。
+              它对生产运行没有任何影响（只作用于 surefire fork 出来的测试 JVM）。
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <argLine>-Djdk.attach.allowAttachSelf=true</argLine>
+                </configuration>
             </plugin>
         </plugins>
     </build>

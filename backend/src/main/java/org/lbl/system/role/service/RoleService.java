@@ -17,6 +17,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.stream.Collectors;
+import java.time.LocalDateTime;
 
 @Service
 public class RoleService {
@@ -36,10 +40,24 @@ public class RoleService {
 
     public List<RoleVO> list(String keyword) {
         AccessPolicy.Actor actor = access.actor();
-        return roles.selectList(new LambdaQueryWrapper<RoleEntity>()
+        List<RoleEntity> list = roles.selectList(new LambdaQueryWrapper<RoleEntity>()
                         .and(keyword != null && !keyword.isBlank(), q -> q.like(RoleEntity::getRoleName, keyword).or().like(RoleEntity::getRoleCode, keyword))
-                        .orderByAsc(RoleEntity::getId))
-                .stream().map(role -> toView(role, actor)).toList();
+                        .orderByAsc(RoleEntity::getId));
+        if (list.isEmpty()) return List.of();
+        List<Long> ids = list.stream().map(RoleEntity::getId).toList();
+        Map<Long, Long> counts = userRoles.countByRoleIds(ids).stream().collect(Collectors.toMap(
+                value -> value.getRoleId(), value -> value.getUserCount()));
+        Map<Long, Set<String>> permissions = actor.superAdmin() ? Map.of() : rolePermissions(ids);
+        return list.stream().map(role -> toView(role, actor, counts.getOrDefault(role.getId(), 0L),
+                permissions.getOrDefault(role.getId(), Set.of()))).toList();
+    }
+
+    public RoleVO detail(Long id) {
+        AccessPolicy.Actor actor = access.actor();
+        RoleEntity role = require(id);
+        Set<String> permissions = actor.superAdmin() ? Set.of() : accessRolePermissions(id);
+        access.requireManageRole(actor, role, permissions);
+        return toView(role, actor, userRoles.countByRoleId(id), permissions);
     }
 
     @Transactional
@@ -47,8 +65,10 @@ public class RoleService {
         AccessPolicy.Actor actor = access.actor();
         access.requireScope(actor, request.dataScope());
         String code = request.roleCode().trim();
-        if (roles.selectCount(new LambdaQueryWrapper<RoleEntity>().eq(RoleEntity::getRoleCode, code)) > 0) {
-            throw new BusinessException("角色标识已存在");
+        // 口径与 sys_role.role_code 的唯一索引一致（含已逻辑删除的记录），理由同 DeptService.create：
+        // 删除只置 deleted=1，标识不会被释放，必须在这里挡住而不是让 INSERT 撞唯一键。
+        if (roles.countIncludingDeletedByRoleCode(code, 0L) > 0) {
+            throw new BusinessException("角色标识已被占用（已删除角色占用的标识不会被释放，请换一个）");
         }
         RoleEntity role = new RoleEntity();
         apply(role, request);
@@ -65,8 +85,8 @@ public class RoleService {
         access.requireScope(actor, request.dataScope());
         if (request.status() != 0 && request.status() != 1) throw new BusinessException("角色状态无效");
         String code = request.roleCode().trim();
-        if (roles.selectCount(new LambdaQueryWrapper<RoleEntity>().eq(RoleEntity::getRoleCode, code).ne(RoleEntity::getId, id)) > 0) {
-            throw new BusinessException("角色标识已存在");
+        if (roles.countIncludingDeletedByRoleCode(code, id) > 0) {
+            throw new BusinessException("角色标识已被占用（已删除角色占用的标识不会被释放，请换一个）");
         }
         if (role.getBuiltin() == 1 && (!role.getRoleCode().equals(code) || request.status() != 1)) {
             throw new BusinessException("内置角色不能修改标识或禁用");
@@ -84,6 +104,8 @@ public class RoleService {
         if (role.getBuiltin() == 1) throw new BusinessException("内置角色不能删除");
         if (userRoles.countByRoleId(id) > 0) throw new BusinessException("该角色已分配给用户，不能删除");
         roleMenus.deleteByRoleId(id);
+        role.setDeletedTime(LocalDateTime.now());
+        roles.updateById(role);
         roles.deleteById(id);
     }
 
@@ -132,11 +154,9 @@ public class RoleService {
         Set<Long> platformOnly = AccessPolicy.platformOnlyMenuIds(allMenus());
         AccessPolicy.requireNotPlatformOnly(ids, platformOnly);
         if (!actor.superAdmin()) {
-            Set<String> grantedCodes = new HashSet<>();
-            for (Long menuId : ids) {
-                MenuEntity menu = menus.selectById(menuId);
-                if (menu.getPermissionCode() != null && menu.getStatus() == 1) grantedCodes.add(menu.getPermissionCode());
-            }
+            Set<String> grantedCodes = ids.isEmpty() ? Set.of() : menus.selectBatchIds(ids).stream()
+                    .filter(menu -> menu.getPermissionCode() != null && menu.getStatus() == 1)
+                    .map(MenuEntity::getPermissionCode).collect(Collectors.toSet());
             if (grantedCodes.equals(actor.permissions())) throw new BusinessException("不能创建与自身同级的角色");
         }
         // 平台级权限始终不出现在可勾选树里。超级管理员已有的这部分权限是系统内置能力，
@@ -174,6 +194,24 @@ public class RoleService {
     }
 
     private RoleVO toView(RoleEntity role, AccessPolicy.Actor actor) {
-        return new RoleVO(role.getId(), role.getRoleName(), role.getRoleCode(), role.getDataScope(), role.getStatus(), role.getBuiltin(), userRoles.countByRoleId(role.getId()), role.getCreatedTime(), access.canManageRole(actor, role));
+        return toView(role, actor, userRoles.countByRoleId(role.getId()),
+                actor.superAdmin() ? Set.of() : accessRolePermissions(role.getId()));
+    }
+
+    private RoleVO toView(RoleEntity role, AccessPolicy.Actor actor, long userCount, Set<String> permissions) {
+        return new RoleVO(role.getId(), role.getRoleName(), role.getRoleCode(), role.getDataScope(), role.getStatus(),
+                role.getBuiltin(), userCount, role.getCreatedTime(), access.canManageRole(actor, role, permissions));
+    }
+
+    private Set<String> accessRolePermissions(Long roleId) {
+        return new HashSet<>(roleMenus.selectPermissionCodes(roleId));
+    }
+
+    private Map<Long, Set<String>> rolePermissions(List<Long> roleIds) {
+        if (roleIds.isEmpty()) return Map.of();
+        Map<Long, Set<String>> result = new HashMap<>();
+        roleMenus.selectPermissionCodesByRoleIds(roleIds).forEach(row ->
+                result.computeIfAbsent(row.getRoleId(), ignored -> new HashSet<>()).add(row.getPermissionCode()));
+        return result;
     }
 }

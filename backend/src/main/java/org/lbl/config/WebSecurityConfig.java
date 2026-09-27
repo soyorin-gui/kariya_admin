@@ -38,6 +38,17 @@ public class WebSecurityConfig {
                 })
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(a -> a
+                        .requestMatchers("/ws/**").permitAll()
+                        // 开户确认接口必须排在下面的认证入口通配规则之前：它需要临时认证态。
+                        // 而这里的"认证"就是刷新 Cookie 换来的那个访问令牌。
+                        //
+                        // 为什么非要有这一条：这两个接口本来是靠 @PreAuthorize 兜底的，
+                        // 而方法级权限拒绝抛的是 AccessDeniedException，被 GlobalExceptionHandler
+                        // 统一转成 403。前端的静默续期只在 401 时才触发（见 utils/request.ts），
+                        // 于是访问令牌一过期（15 分钟），用户点"创建账号/绑定账号"只会看到
+                        // "没有访问该资源的权限"，既不续期也不跳登录页，整个页面卡死。
+                        // 让它在"未认证"时走认证入口点返回 401，续期链路才能正常接上。
+                        .requestMatchers("/api/auth/onboarding/**").authenticated()
                         // 只放行认证入口。springdoc/swagger 依赖已移除，原先的 /swagger-ui/** 与
                         // /v3/api-docs/** 放行规则一并删掉——安全配置应当准确反映"什么是对外公开的"，
                         // 留着已不存在的路径放行，会在将来重新引入文档依赖时悄悄把整个接口面暴露出去。

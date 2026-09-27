@@ -1,9 +1,8 @@
 .login-page {
   min-height: 100vh;
   display: flex;
-  /* 彩色渐变铺满整页而不是只给左侧：磨砂玻璃必须"背后有东西"，模糊才看得出来。
-     同时把裁切放在这里，让装饰球可以越过 hero 边界、钻到毛玻璃面板底下。 */
-  background: linear-gradient(135deg, #f8fbff 0%, #eaf3ff 48%, #dceaff 100%);
+  /* 背景图右侧自带留白，正好承接登录面板；兜底色用于图片尚未加载完成的瞬间。 */
+  background: #eaf3ff url('../../assets/background.png') center center / cover no-repeat;
   overflow: hidden;
 }
 .login-hero {
@@ -11,70 +10,31 @@
   position: relative;
   background: transparent;
 }
-.login-hero:before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background-image: linear-gradient(120deg, transparent 49.7%, rgba(22, 119, 255, 0.06) 50%, transparent 50.3%),
-    linear-gradient(30deg, transparent 49.7%, rgba(22, 119, 255, 0.045) 50%, transparent 50.3%);
-  background-size: 160px 160px;
-}
-.orb {
-  position: absolute;
-  border-radius: 50%;
-  border: 1px solid rgba(22, 119, 255, 0.12);
-}
-.orb-one {
-  width: 600px;
-  height: 600px;
-  right: -180px;
-  top: -235px;
-  box-shadow: 0 0 0 48px rgba(22, 119, 255, 0.025), 0 0 0 112px rgba(22, 119, 255, 0.02);
-}
-.orb-two {
-  width: 480px;
-  height: 480px;
-  left: -220px;
-  bottom: -290px;
-  box-shadow: 0 0 0 60px rgba(22, 119, 255, 0.025);
-}
 .hero-content {
   position: absolute;
   left: 13%;
-  top: 35%;
+  top: 25%;
   z-index: 1;
 }
-.hero-rule {
-  width: 36px;
-  border-top: 2px solid var(--brand);
-  margin-bottom: 30px;
-}
 .hero-content h1 {
-  font-size: 46px;
+  font-size: var(--fs-mega);
   letter-spacing: 5px;
   color: #164282;
-  margin: 0 0 16px;
+  margin: 0 0 32px;
   font-weight: 750;
 }
 .hero-content p {
-  font-size: 21px;
-  color: #6482b0;
+  font-size: var(--fs-3xl);
+  color: #8d949f;
   margin: 0;
 }
 .login-hero footer {
   position: absolute;
   bottom: 60px;
-  left: 5%;
+  left: 10%;
   color: #6683ad;
-  font-size: 14px;
+  font-size: var(--fs-xl);
   z-index: 1;
-}
-.login-hero footer span {
-  display: inline-block;
-  width: 34px;
-  border-top: 2px solid var(--brand);
-  vertical-align: middle;
-  margin-right: 14px;
 }
 
 /* --------------------------------- 右侧面板 --------------------------------- */
@@ -97,12 +57,12 @@
    */
   position: relative;
   z-index: 2;
-  /* 半透明 + 大半径模糊 = 磨砂玻璃。左上角那层白色高光让玻璃看起来有厚度。 */
-  background: linear-gradient(160deg, rgba(255, 255, 255, 0.56), rgba(255, 255, 255, 0.34));
+  /* 只改变面板材质：半透明底色保留背景细节，模糊与饱和度形成毛玻璃质感。 */
+  background: linear-gradient(155deg, rgba(171, 217, 255, 0.2), rgba(204, 204, 204, 0.2));
   border-left: 1px solid rgba(255, 255, 255, 0.65);
   box-shadow: -18px 0 48px rgba(22, 79, 154, 0.09);
-  backdrop-filter: blur(26px) saturate(170%);
-  -webkit-backdrop-filter: blur(26px) saturate(170%);
+  backdrop-filter: blur(20px) saturate(145%);
+  -webkit-backdrop-filter: blur(20px) saturate(145%);
 }
 .login-form-wrap {
   width: min(468px, 80%);
@@ -129,14 +89,14 @@
   object-fit: cover;
 }
 .login-brand strong {
-  font-size: 24px;
+  font-size: var(--fs-3xl);
   display: block;
   color: #14285a;
   letter-spacing: 0.2px;
 }
 .login-brand small {
   display: block;
-  font-size: 13px;
+  font-size: var(--fs-sm);
   color: #7385a5;
   margin-top: 3px;
 }
@@ -146,14 +106,14 @@
   margin: clamp(64px, 9vh, 110px) 0 clamp(34px, 5.4vh, 60px);
 }
 .login-heading h2 {
-  font-size: 42px;
+  font-size: var(--fs-hero);
   line-height: 1.1;
   margin: 0 0 14px;
   color: #112a5d;
 }
 .login-heading p {
   color: #6c82ab;
-  font-size: 17px;
+  font-size: var(--fs-lg);
   margin: 0;
 }
 
@@ -166,7 +126,7 @@
   background: rgba(255, 255, 255, 0.66);
 }
 .login-panel .ant-input-affix-wrapper input {
-  font-size: 17px;
+  font-size: var(--fs-lg);
 }
 .login-panel .ant-form-item {
   margin-bottom: clamp(24px, 3.4vh, 38px);
@@ -181,6 +141,22 @@
 .login-options a {
   color: var(--brand);
 }
+.login-account-links {
+  display: inline-flex;
+  align-items: center;
+}
+.login-option-link {
+  appearance: none;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--brand);
+  font: inherit;
+  cursor: pointer;
+}
+.login-option-link:hover {
+  color: #4096ff;
+}
 .login-options i {
   height: 20px;
   border-left: 1px solid #bbcae1;
@@ -191,7 +167,7 @@
 .login-panel .ant-btn-lg {
   height: clamp(56px, 6.6vh, 64px);
   border-radius: 10px;
-  font-size: 17px;
+  font-size: var(--fs-lg);
   font-weight: 650;
 }
 
@@ -206,7 +182,7 @@
   gap: 12px;
   margin-bottom: 20px;
   color: #8a9cbb;
-  font-size: 13px;
+  font-size: var(--fs-sm);
 }
 .login-social-divider:before,
 .login-social-divider:after {
@@ -216,18 +192,28 @@
   background: rgba(22, 119, 255, 0.16);
 }
 .login-social-buttons {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(20px, 4vw, 34px);
 }
-.login-social-buttons .ant-btn {
-  height: 46px;
-  border-radius: 10px;
-  font-size: 14px;
-  font-weight: 600;
+.login-social-buttons .ant-btn.social-icon-button {
+  width: 50px;
+  min-width: 50px;
+  height: 50px;
+  padding: 0;
+  border-radius: 50%;
+  font-size: var(--fs-2xl);
   color: #2b4570;
   border-color: rgba(22, 119, 255, 0.22);
   background: rgba(255, 255, 255, 0.6);
+  box-shadow: 0 8px 20px rgba(39, 87, 154, 0.08);
+}
+.login-social-buttons .ant-btn.social-icon-button.is-disabled {
+  color: #91a0b8;
+  border-color: rgba(105, 126, 158, 0.18);
+  background: rgba(245, 248, 252, 0.58);
+  box-shadow: none;
 }
 .social-wechat:hover {
   color: #07c160 !important;
@@ -241,6 +227,10 @@
   color: #ea4335 !important;
   border-color: #ea4335 !important;
 }
+.login-social-buttons .ant-btn.social-icon-button.is-disabled:hover {
+  color: #91a0b8 !important;
+  border-color: rgba(105, 126, 158, 0.18) !important;
+}
 
 /* --------------------------------- 版权信息 --------------------------------- */
 
@@ -250,7 +240,7 @@
   border-top: 1px solid rgba(22, 119, 255, 0.14);
   color: #7890b4;
   text-align: center;
-  font-size: 13px;
+  font-size: var(--fs-sm);
 }
 
 @media (max-width: 800px) {

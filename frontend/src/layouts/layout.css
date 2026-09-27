@@ -14,7 +14,7 @@
   display: flex !important;
   flex-direction: column;
   padding: 19px 13px;
-  background: #fff !important;
+  background: var(--surface) !important;
   height: 100vh;
   overflow: hidden;
   position: relative;
@@ -34,15 +34,15 @@
 }
 .sider-brand strong {
   display: block;
-  color: #14285a;
-  font-size: 22px;
+  color: var(--ink);
+  font-size: var(--fs-2xl);
   letter-spacing: 0.2px;
 }
 .sider-brand small {
   display: block;
   margin-top: 3px;
-  color: #7385a5;
-  font-size: 13px;
+  color: var(--muted);
+  font-size: var(--fs-sm);
 }
 .app-sider .ant-menu {
   border: none;
@@ -66,9 +66,9 @@
   right: 0;
   bottom: 16px;
   padding: 16px 10px 8px;
-  color: #7e91b1;
+  color: var(--muted);
   line-height: 1.8;
-  font-size: 13px;
+  font-size: var(--fs-sm);
   text-align: center;
 }
 .sider-foot:before {
@@ -83,7 +83,7 @@
 .app-header {
   height: 66px;
   line-height: normal;
-  background: #fff;
+  background: var(--surface);
   border-bottom: 1px solid var(--line);
   padding: 0 28px;
   display: flex;
@@ -109,7 +109,7 @@
   align-items: center;
   gap: 7px;
   height: 24px;
-  color: #1f3358;
+  color: var(--ink-soft);
   font-weight: 650;
   white-space: nowrap;
 }
@@ -126,12 +126,30 @@
 .quick-search {
   width: 315px;
   border-radius: 8px;
-  background: #fafcff;
+  background: var(--surface-soft);
 }
 .user-menu {
   cursor: pointer;
-  color: #23365e;
+  color: var(--ink-soft);
   font-weight: 600;
+}
+.sider-trigger {
+  flex: 0 0 auto;
+  font-size: var(--fs-xl);
+}
+.app-sider.ant-layout-sider-collapsed {
+  padding-inline: 8px;
+}
+.app-sider.ant-layout-sider-collapsed .sider-brand {
+  justify-content: center;
+  padding-inline: 0;
+}
+.app-sider.ant-layout-sider-collapsed .sider-brand > div,
+.app-sider.ant-layout-sider-collapsed .sider-foot {
+  display: none;
+}
+.app-sider.ant-layout-sider-collapsed .ant-menu-submenu-title {
+  padding-inline: calc(50% - 7px) !important;
 }
 .app-content {
   padding: 18px;
@@ -142,8 +160,6 @@
 }
 @media (max-width: 900px) {
   .app-sider {
-    width: 72px !important;
-    min-width: 72px !important;
     padding: 18px 8px;
   }
   .sider-brand {
@@ -167,4 +183,31 @@
   .header-navigation .ant-breadcrumb {
     display: none;
   }
+}
+
+/* --------------------------------- 顶栏消息下拉面板 --------------------------------- */
+.notification-panel {
+  width: 440px;
+  max-width: 80vw;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+/* 标题行：底部一条 border-bottom，把标题与下面的消息列表分隔开。 */
+.notification-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 0 12px;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink);
+}
+/* 消息列表：固定高度上限，超出内部出滚动条。
+   标题行和底部"查看全部消息"按钮不参与滚动，始终固定在面板上下。 */
+.notification-panel-body {
+  max-height: 440px;
+  overflow-y: auto;
+  /* 防止列表滚到底之后继续滚动时带动页面一起滚（下拉是浮层，不该把背后页面带走）。 */
+  overscroll-behavior: contain;
+  padding-top: 4px;
 }

@@ -6,15 +6,18 @@ import org.lbl.common.result.*;
 import org.lbl.system.log.aspect.OperationLog;
 import org.lbl.system.user.request.PasswordChangeRequest;
 import org.lbl.system.user.request.UserRequest;
+import org.lbl.system.user.request.UserCreateRequest;
 import org.lbl.system.user.service.UserService;
-import org.lbl.system.user.vo.UserCreated;
 import org.lbl.system.user.vo.UserFormOptions;
 import org.lbl.system.user.vo.UserVO;
+import org.lbl.system.user.vo.UserListVO;
 import org.lbl.system.user.vo.UsernameAvailability;
+import org.lbl.auth.session.SessionView;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/system/users")
@@ -34,8 +37,14 @@ public class UserController {
 
     @GetMapping
     @PreAuthorize("hasAuthority('system:user:list')")
-    Result<PageResult<UserVO>> page(@RequestParam(defaultValue = "1") long pageNum, @RequestParam(defaultValue = "10") long pageSize, @RequestParam(required = false) String keyword) {
+    Result<PageResult<UserListVO>> page(@RequestParam(defaultValue = "1") long pageNum, @RequestParam(defaultValue = "10") long pageSize, @RequestParam(required = false) String keyword) {
         return Result.ok(service.page(pageNum, pageSize, keyword));
+    }
+
+    @GetMapping("/{id}")
+    @PreAuthorize("hasAuthority('system:user:update')")
+    Result<UserVO> detail(@PathVariable Long id) {
+        return Result.ok(service.detail(id));
     }
 
     @GetMapping("/form-options")
@@ -64,7 +73,7 @@ public class UserController {
     @PostMapping
     @PreAuthorize("hasAuthority('system:user:add')")
     @OperationLog(module = "用户管理", action = "新增用户")
-    Result<UserCreated> create(@Valid @RequestBody UserRequest r) {
+    Result<UserVO> create(@Valid @RequestBody UserCreateRequest r) {
         return Result.ok(service.create(r), "新增用户成功");
     }
 
@@ -90,11 +99,51 @@ public class UserController {
         return Result.ok(Map.of("temporaryPassword", service.resetPassword(id)), "密码重置成功");
     }
 
+    @GetMapping("/{id}/sessions")
+    @PreAuthorize("hasAuthority('system:user:update')")
+    Result<List<SessionView>> sessions(@PathVariable Long id,
+                                      @CookieValue(value = "lbl_refresh", required = false) String currentSid) {
+        return Result.ok(service.managedSessions(id, currentSid));
+    }
+
+    @DeleteMapping("/{id}/sessions/{reference}")
+    @PreAuthorize("hasAuthority('system:user:update')")
+    @OperationLog(module = "用户管理", action = "踢出用户会话")
+    Result<Void> removeSession(@PathVariable Long id, @PathVariable String reference) {
+        service.removeManagedSession(id, reference);
+        return Result.ok(null, "该会话已退出登录");
+    }
+
+    @DeleteMapping("/{id}/sessions")
+    @PreAuthorize("hasAuthority('system:user:update')")
+    @OperationLog(module = "用户管理", action = "踢出用户全部会话")
+    Result<Void> removeSessions(@PathVariable Long id) {
+        service.removeAllManagedSessions(id);
+        return Result.ok(null, "该用户的全部会话已退出登录");
+    }
+
     /**
-     * 修改本人密码。刻意不加 @PreAuthorize：首次登录的用户 authorities 是空的（见 JwtAuthenticationFilter），
-     * 必须让"待改初始密码"的账号能够调用它。
+     * 修改本人密码。
+     * <p>
+     * <b>刻意不要求任何权限码</b>：首次登录的用户 authorities 是空的（见 JwtAuthenticationFilter），
+     * 必须让"待改初始密码"的账号能够调用它 —— 因此这里只能写
+     * {@code !hasAuthority('onboarding:access')} 这种"排除式"表达式，<b>绝不能</b>改成
+     * {@code hasAuthority('xxx')}：那会让待改密用户连改密码都做不到，只能永久卡在强制改密弹窗上。
+     * <p>
+     * 但<b>必须显式排除开户确认态</b>（ONBOARDING）。它是第三方登录后"还没注册、还没绑定"的临时身份，
+     * 不属于任何成员，却同样满足 {@code isAuthenticated()}（见 JwtAuthenticationFilter 里为它构造的
+     * 认证对象），所以 {@code anyRequest().authenticated()} 拦不住它。全项目其余成员接口都是这个口径
+     * （AccountProfileController / AccountSessionController / AccountIdentityController /
+     * NotificationController / DepartmentChangeController / RealtimeController），只有这里漏了。
+     * <p>
+     * 漏掉的代价不是越权（{@code AccessPolicy.actor()} 按用户名查不到开户态用户，写操作不会执行），
+     * 而是<b>错误的状态码与错误的提示</b>：它返回 401，而前端把 401 一律当作"会话过期"去静默续期
+     * （开户态的续期还会成功），于是多两次无谓往返、搅动全局续期状态，极端情况下（续期恰好失败）
+     * 还会把用户清会话踢回登录页并提示"登录状态已失效"——而事实只是"你没有权限调用这个接口"。
+     * 显式拒绝后返回 403：前端不续期、只提示无权限（状态码约定见 utils/request.ts）。
      */
     @PutMapping("/me/password")
+    @PreAuthorize("isAuthenticated() and !hasAuthority('onboarding:access')")
     @OperationLog(module = "个人中心", action = "修改密码")
     Result<Void> changeOwnPassword(@Valid @RequestBody PasswordChangeRequest request) {
         service.changeOwnPassword(request);

@@ -5,7 +5,11 @@ spring:
     active: local
   jackson:
     time-zone: Asia/Shanghai
-  # Replace this development-only value with an environment variable or Kubernetes Secret in production.
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 11MB
+  # 该值仅供开发环境使用；生产环境请改用环境变量或 Kubernetes Secret。
 jasypt:
   encryptor:
     password: kariya
@@ -18,8 +22,14 @@ jasypt:
 mybatis-plus:
   global-config:
     banner: false
-
 lbl:
+  file-upload:
+    staging-directory: ${FILE_STAGING_DIRECTORY:./data/uploads/staging}
+    max-bytes: ${FILE_UPLOAD_MAX_BYTES:10485760}
+    allowed-extensions: ${FILE_UPLOAD_EXTENSIONS:csv,xlsx}
+    allowed-content-types: ${FILE_UPLOAD_CONTENT_TYPES:text/csv,application/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/octet-stream}
+    ttl: ${FILE_UPLOAD_TTL:PT30M}
+    cleanup-interval-ms: ${FILE_UPLOAD_CLEANUP_INTERVAL_MS:600000}
   security:
     jwt-secret: lbl-shit-development-secret-must-be-at-least-32-characters
     access-token-minutes: 15
@@ -37,6 +47,13 @@ lbl:
     # 留空 = 完全忽略转发头、直接使用 TCP 源地址（直连部署下的正确默认值）。
     # 部署在 Nginx 后面时必须填写，否则所有用户共享网关地址，登录限流会互相误伤。
     trusted-proxies: ${TRUSTED_PROXIES:}
+    # 注册接口的图形验证码。默认开启。仅本地开发想省事时才置 false ——
+    # 关闭后 /api/auth/register 对匿名请求没有任何门槛，启动日志里会有明确告警。
+    # 注意：验证码图片依赖运行环境的系统字体，精简容器镜像需要先装 fontconfig + 基础字体，
+    # 否则应用会主动拒绝启动并提示处理方式（见 CaptchaService）。
+    captcha-enabled: ${CAPTCHA_ENABLED:true}
+    # 密码最大使用天数。0 表示关闭；未来改成正整数后，过期用户会复用现有的强制改密流程。
+    password-max-age-days: ${PASSWORD_MAX_AGE_DAYS:0}
   log:
     # 审计日志保留策略。到期后由 LogRetentionJob 分批物理删除，避免日志表无限膨胀。
     # 关闭清理（enabled: false）后日志只增不删，需要自己安排归档。
@@ -47,3 +64,17 @@ lbl:
       batch-size: 2000
       max-batches: 50
       cron: "0 30 3 * * *"
+  # AI 助手（Agent）配置。密钥一律走环境变量，禁止写进仓库 —— 与 lbl.security.jwt-secret 同一纪律。
+  # base-url 是 OpenAI 兼容网关的根地址（不含 /chat/completions）；若网关把版本号放进根地址
+  # （如 https://gw/v1），则把 chat-path 改成 /chat/completions。详见 docs/AI-AGENT.md「内网部署」。
+  agent:
+    enabled: ${AI_ENABLED:true}
+    base-url: ${LLM_BASE_URL:}
+    api-key: ${LLM_API_KEY:}
+    model: ${LLM_MODEL:}
+    user-agent: ${LLM_USER_AGENT:KariyaAdmin-Agent/1.0}
+    chat-path: ${LLM_CHAT_PATH:/v1/chat/completions}
+    max-steps: 5
+    temperature: 0.1
+    timeout-seconds: 60
+    sse-timeout-millis: 120000

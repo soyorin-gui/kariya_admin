@@ -7,8 +7,45 @@ export interface LoginResult {
   accessToken: string;
   user: Pick<CurrentUser, 'id' | 'username' | 'realName' | 'passwordChangeRequired'>;
 }
+export interface RegistrationRequest {
+  username: string;
+  realName: string;
+  phone?: string;
+  email?: string;
+  password: string;
+  confirmPassword: string;
+  rememberMe: boolean;
+  /** 图形验证码的题目 id；验证码功能关闭时后端返回 null，这里不传。 */
+  captchaId?: string;
+  captchaCode?: string;
+}
+/**
+ * 图形验证码题目。
+ * enabled=false 时 captchaId / image 都是 null，前端必须把输入框整个隐藏
+ * ——否则会出现一个永远不可能通过的必填项。
+ */
+export interface CaptchaChallenge {
+  enabled: boolean;
+  captchaId: string | null;
+  image: string | null;
+}
+export interface ExternalProvider {
+  key: string;
+  displayName: string;
+  icon: string;
+  protocol: string;
+  enabled: boolean;
+}
+export interface OnboardingProfile {
+  providerKey: string;
+  displayName?: string;
+  email?: string;
+  employeeNo?: string;
+}
 export interface AuthProfile {
-  user: CurrentUser;
+  principalType: 'MEMBER' | 'ONBOARDING';
+  user?: CurrentUser;
+  onboarding?: OnboardingProfile;
   permissions: string[];
   /** 当前用户有权访问的菜单树（含祖先节点与已授权的按钮）。这是前端一切路由与菜单渲染的唯一依据。 */
   menus: MenuRoute[];
@@ -28,6 +65,7 @@ export interface CurrentUser {
   username: string;
   realName: string;
   passwordChangeRequired: boolean;
+  hasPassword: boolean;
   superAdmin: boolean;
 }
 /**

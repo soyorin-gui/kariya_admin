@@ -151,7 +151,7 @@ export default function MenuPage() {
           }}
         />
       </div>
-      <MenuDialog open={dialogOpen} menu={editing} menus={menus} onClose={() => setDialogOpen(false)} onSaved={() => void load()} />
+      <MenuDialog open={dialogOpen} menuId={editing?.id ?? null} menus={menus} onClose={() => setDialogOpen(false)} onSaved={() => void load()} />
     </div>
   );
 }

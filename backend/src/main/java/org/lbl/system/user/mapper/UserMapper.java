@@ -5,6 +5,7 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.lbl.system.user.entity.UserEntity;
+import java.util.List;
 
 @Mapper
 public interface UserMapper extends BaseMapper<UserEntity> {
@@ -19,4 +20,17 @@ public interface UserMapper extends BaseMapper<UserEntity> {
      */
     @Select("SELECT COUNT(1) FROM sys_user WHERE username = #{username}")
     long countIncludingDeletedByUsername(@Param("username") String username);
+
+    /** 串行化同一账号的登录方式变更，避免两个并发解绑请求同时通过“仍有另一种方式”的检查。 */
+    @Select("SELECT * FROM sys_user WHERE id = #{id} AND deleted = 0 FOR UPDATE")
+    UserEntity selectByIdForUpdate(@Param("id") Long id);
+
+    @Select("""
+            SELECT DISTINCT u.id FROM sys_user u
+            JOIN sys_user_role ur ON ur.user_id=u.id
+            JOIN sys_role r ON r.id=ur.role_id
+            WHERE r.role_code='super_admin' AND r.status=1 AND r.deleted=0
+              AND u.status=1 AND u.deleted=0
+            """)
+    List<Long> selectActiveSuperAdminIds();
 }

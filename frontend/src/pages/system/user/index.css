@@ -4,9 +4,9 @@
 .password-note {
   padding: 11px 13px;
   border-radius: 8px;
-  background: #f4f8ff;
-  color: #63789b;
-  font-size: 13px;
+  background: var(--surface-soft);
+  color: var(--muted);
+  font-size: var(--fs-sm);
   line-height: 1.6;
 }
 .password-note svg {
@@ -14,7 +14,7 @@
   margin-right: 7px;
 }
 .password-note strong {
-  color: #264e94;
+  color: var(--ink-soft);
 }
 .user-page .ant-table-wrapper .ant-pagination {
   margin: 16px 0 0 !important;

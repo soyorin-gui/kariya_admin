@@ -8,7 +8,7 @@ import './loadingScreen.css';
 export function LoadingScreen() {
   return (
     <div className='app-loading' role='status' aria-label='应用加载中'>
-      <div className='app-loading-mark'>LBL</div>
+      <img className='app-loading-mark' src='/favicon.ico' alt='LBL SHIT' />
       <div className='app-loading-dots' aria-hidden='true'>
         <i />
         <i />

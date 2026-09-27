@@ -28,6 +28,12 @@ public class RoleController {
         return Result.ok(service.list(keyword));
     }
 
+    @GetMapping("/{id}")
+    @PreAuthorize("hasAuthority('system:role:update')")
+    Result<RoleVO> detail(@PathVariable Long id) {
+        return Result.ok(service.detail(id));
+    }
+
     @PostMapping
     @PreAuthorize("hasAuthority('system:role:add')")
     @OperationLog(module = "角色管理", action = "新增角色")

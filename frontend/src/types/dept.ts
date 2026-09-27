@@ -10,7 +10,7 @@ export interface Dept {
   status: number;
   builtin: number;
   createdTime?: string;
-  /** Read-only ancestor records are returned to keep the tree structurally complete. */
+  /** 返回只读祖先记录是为了保持部门树结构完整。 */
   manageable: boolean;
   canCreateChildren: boolean;
 }
@@ -24,8 +24,12 @@ export interface DeptRequest {
   status: number;
 }
 
+/**
+ * 新增/编辑部门表单的候选数据。
+ * canCreateRoot 由后端给出：它决定「上级部门」能不能被清空（清空 = 建顶级部门），
+ * 而这条规则的唯一依据在后端 AccessPolicy.canCreateRootDept，前端推不出来。
+ */
 export interface DeptFormOptions {
-  departments: { value: number; label: string }[];
   leaders: { value: number; label: string }[];
-  canCreate: boolean;
+  canCreateRoot: boolean;
 }

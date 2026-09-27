@@ -7,7 +7,7 @@
   padding: 28px 32px;
   background: var(--surface);
   border: 1px solid var(--line);
-  border-left: 4px solid #faad14;
+  border-left: 4px solid var(--warning);
   border-radius: 12px;
 }
 
@@ -27,7 +27,7 @@
   padding: 14px 16px;
   background: #f7f9fd;
   border-radius: 8px;
-  font-size: 13px;
+  font-size: var(--fs-sm);
 }
 
 .page-unavailable dt {

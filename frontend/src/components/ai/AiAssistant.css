@@ -1,1 +1,214 @@
-.ai-workbench{position:fixed;z-index:1000;right:16px;bottom:96px;width:400px;max-height:calc(100vh - 122px);padding:0 20px 14px;display:flex;flex-direction:column;background:rgba(255,255,255,.98);border:1px solid #e2eafa;border-radius:14px;box-shadow:0 18px 44px rgba(21,50,96,.2);animation:ai-enter .18s ease-out}.ai-workbench:after{content:'';position:absolute;right:20px;bottom:-9px;width:16px;height:16px;background:rgba(255,255,255,.98);border-right:1px solid #e2eafa;border-bottom:1px solid #e2eafa;transform:rotate(45deg);border-radius:0 0 3px 0;box-shadow:5px 5px 12px rgba(21,50,96,.04)}.ai-workbench-head{height:48px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);color:#495b7c;font-size:14px}.ai-workbench-head span{display:flex;gap:8px;align-items:center}.ai-workbench-head button{color:#536581}.ai-welcome{padding:19px 0 14px}.ai-welcome-title{display:flex;align-items:center;gap:10px;margin-bottom:7px}.ai-avatar{flex:0 0 auto;background:linear-gradient(135deg,#287eff,#85b7ff)}.ai-welcome h2{margin:0;color:#162957;font-size:20px;line-height:1.35}.ai-welcome p{margin:0;color:#71829e;font-size:13px;line-height:1.65}.ai-suggestions{display:grid;gap:8px;margin-bottom:12px}.ai-suggestions button{display:flex;gap:9px;align-items:center;width:100%;min-height:39px;padding:8px 12px;text-align:left;background:#fff;border:1px solid #dbe5f4;border-radius:20px;color:#405475;cursor:pointer;transition:.15s}.ai-suggestions button:hover{border-color:var(--brand);color:var(--brand);background:#f4f8ff}.ai-suggestions svg{color:var(--brand)}.ai-suggestions span{margin-left:auto;font-size:17px}.ai-messages{max-height:150px;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:13px}.bubble{max-width:85%;padding:10px 13px;border-radius:10px;line-height:1.6}.bubble.assistant{background:#f1f6fd;align-self:flex-start}.bubble.user{background:var(--brand);color:#fff;align-self:flex-end}.ai-input{margin-top:auto;display:flex;gap:8px;align-items:flex-end;padding:7px;border:1px solid #dbe5f4;border-radius:10px}.ai-input .ant-input{font-size:13px}.ai-input .ant-btn{align-self:flex-end;flex:0 0 auto}@keyframes ai-enter{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}@media (max-width:900px){.ai-workbench{right:10px;bottom:92px;width:calc(100vw - 20px);max-height:calc(100vh - 106px)}}
+/* AI 助手浮窗。
+   面板高度由 React 内联 style 控制（可拖拽调整），因此这里不再写死 height / max-height；
+   布局约定：头部、欢迎语、建议、输入框固定高度，消息区用 flex:1 吃掉剩余空间并自行滚动。 */
+.ai-workbench {
+  position: fixed;
+  z-index: 1000;
+  right: 16px;
+  bottom: 96px;
+  width: 400px;
+  padding: 0 20px 14px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--surface-elevated);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: 0 18px 44px var(--shadow);
+  animation: ai-enter 0.18s ease-out;
+}
+/* 悬浮按钮上方的气泡尾巴。 */
+.ai-workbench:after {
+  content: '';
+  position: absolute;
+  right: 20px;
+  bottom: -9px;
+  width: 16px;
+  height: 16px;
+  background: var(--surface-elevated);
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  transform: rotate(45deg);
+  border-radius: 0 0 3px 0;
+}
+
+/* 拖拽手柄：贴在面板顶部边框，整条都是热区，中间短横线只是"这里能拖"的视觉提示。
+   手柄覆盖在 head 的上半部分 —— head 的内容是垂直居中的，顶部这段是空的，不会挡到按钮。 */
+.ai-resize-handle {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 12px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: ns-resize;
+  touch-action: none; /* 触摸设备上把手势交给 JS，否则浏览器会拿去滚动页面 */
+  -webkit-tap-highlight-color: transparent;
+}
+.ai-resize-handle:after {
+  content: '';
+  width: 40px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--line);
+  transition: background 0.15s ease, width 0.15s ease;
+}
+.ai-resize-handle:hover:after,
+.ai-workbench.resizing .ai-resize-handle:after {
+  width: 60px;
+  background: var(--brand);
+}
+/* 拖拽过程中：面板内禁止选中文本，手柄保持 active 光标。 */
+.ai-workbench.resizing {
+  user-select: none;
+  cursor: ns-resize;
+}
+
+.ai-workbench-head {
+  height: 48px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: var(--fs-base);
+}
+.ai-workbench-head span {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.ai-workbench-head button {
+  color: var(--muted);
+}
+
+.ai-welcome {
+  padding: 19px 0 14px;
+}
+.ai-welcome-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.ai-avatar {
+  flex: 0 0 auto;
+  background: linear-gradient(135deg, var(--brand), #85b7ff);
+}
+.ai-welcome h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--fs-xl);
+  line-height: 1.35;
+}
+.ai-welcome p {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  line-height: 1.65;
+}
+
+.ai-suggestions {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.ai-suggestions button {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  width: 100%;
+  min-height: 39px;
+  padding: 8px 12px;
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: 0.15s;
+}
+.ai-suggestions button:hover {
+  border-color: var(--brand);
+  color: var(--brand);
+  background: var(--surface-soft);
+}
+.ai-suggestions svg {
+  color: var(--brand);
+}
+.ai-suggestions span {
+  margin-left: auto;
+  font-size: var(--fs-lg);
+}
+
+/* 消息区吃掉面板的剩余高度：面板被拉高时它跟着变高，被压矮时它先收缩。 */
+.ai-messages {
+  flex: 1 1 auto;
+  min-height: 44px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+}
+.bubble {
+  max-width: 85%;
+  padding: 10px 13px;
+  border-radius: 10px;
+  line-height: 1.6;
+  word-break: break-word;
+}
+.bubble.assistant {
+  background: var(--surface-soft);
+  align-self: flex-start;
+}
+.bubble.user {
+  background: var(--brand);
+  color: #fff;
+  align-self: flex-end;
+}
+
+/* 工具调用进度提示：显示在消息区底部（替代纯 spinner）。 */
+.ai-tool-status {
+  align-self: flex-start;
+  font-size: var(--fs-sm);
+  color: var(--muted);
+  padding: 4px 8px;
+}
+
+.ai-input {
+  margin-top: auto;
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  padding: 7px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.ai-input .ant-input {
+  font-size: var(--fs-sm);
+}
+.ai-input .ant-btn {
+  align-self: flex-end;
+  flex: 0 0 auto;
+}
+
+@keyframes ai-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 900px) {
+  .ai-workbench {
+    right: 10px;
+    bottom: 92px;
+    width: calc(100vw - 20px);
+  }
+}

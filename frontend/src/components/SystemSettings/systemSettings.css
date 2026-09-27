@@ -1,0 +1,48 @@
+.setting-section {
+  padding: 6px 0 24px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 20px;
+}
+.setting-section h3 {
+  margin: 0 0 6px;
+  color: var(--ink);
+  font-size: var(--fs-lg);
+}
+.setting-section p {
+  margin: 0 0 16px;
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  line-height: 1.6;
+}
+/* "自定义颜色" 一行：文字在左、取色器在右。
+   注意取色器的圆角由 AntD 的 borderRadius token 统一控制，这里不要写死。 */
+.setting-inline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+  color: var(--muted);
+  font-size: var(--fs-sm);
+}
+.theme-color-swatch {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 0 0 1px var(--line);
+}
+.theme-color-swatch[aria-pressed='true'] {
+  border-color: var(--surface);
+  box-shadow: 0 0 0 2px var(--brand);
+}
+.setting-current {
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: var(--page);
+  color: var(--muted);
+  font-size: var(--fs-sm);
+}

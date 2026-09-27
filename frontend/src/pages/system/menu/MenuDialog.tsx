@@ -1,15 +1,15 @@
-import { useEffect, useMemo } from 'react';
-import { App, AutoComplete, Form, Input, InputNumber, Modal, Radio, Select, TreeSelect } from 'antd';
-import { createMenu, updateMenu } from '../../../api/menu';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { App, AutoComplete, Form, Input, InputNumber, Modal, Radio, Select, Spin, TreeSelect } from 'antd';
+import { createMenu, getMenu, updateMenu } from '../../../api/menu';
 import { availableComponents } from '../../../router/componentRegistry';
 import { MENU_ICON_OPTIONS } from '../../../router/iconRegistry';
 import type { MenuRequest, SystemMenu } from '../../../types/menu';
 import { getApiErrorMessage } from '../../../utils/apiError';
-import { FieldLabel } from '../FieldLabel';
+import { FieldLabel } from '../../../components/FieldLabel';
 
 interface MenuDialogProps {
   open: boolean;
-  menu: SystemMenu | null;
+  menuId: number | null;
   menus: SystemMenu[];
   onClose: () => void;
   onSaved: () => void;
@@ -17,7 +17,7 @@ interface MenuDialogProps {
 
 const typeOptions = [{ value: 'DIR', label: '目录' }, { value: 'MENU', label: '菜单' }, { value: 'BUTTON', label: '按钮' }];
 interface MenuTreeNode { value: number; title: string; disabled?: boolean; children?: MenuTreeNode[] }
-const treeData = (menus: SystemMenu[], parentId = 0, disabledIds: Set<number>): MenuTreeNode[] => menus.filter((menu) => menu.parentId === parentId).map((menu) => ({ value: menu.id, title: menu.menuName, disabled: disabledIds.has(menu.id), children: treeData(menus, menu.id, disabledIds) }));
+const treeData = (menus: SystemMenu[], parentId = 0, disabledIds: Set<number>): MenuTreeNode[] => menus.filter((menu) => menu.parentId === parentId).map((menu) => ({ value: menu.id, title: menu.menuName, disabled: disabledIds.has(menu.id) || menu.menuType === 'BUTTON', children: treeData(menus, menu.id, disabledIds) }));
 function blockedIds(menus: SystemMenu[], id?: number) {
   const blocked = new Set<number>();
   if (!id) return blocked;
@@ -26,10 +26,14 @@ function blockedIds(menus: SystemMenu[], id?: number) {
   return blocked;
 }
 
-export function MenuDialog({ open, menu, menus, onClose, onSaved }: MenuDialogProps) {
+export function MenuDialog({ open, menuId, menus, onClose, onSaved }: MenuDialogProps) {
   const [form] = Form.useForm<MenuRequest>();
   const { message } = App.useApp();
-  const editing = menu !== null;
+  const [submitting, setSubmitting] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [menu, setMenu] = useState<SystemMenu>();
+  const submittingRef = useRef(false);
+  const editing = menuId !== null;
   const menuType = Form.useWatch('menuType', form);
   const parents = useMemo(() => treeData(menus, 0, blockedIds(menus, menu?.id)), [menu?.id, menus]);
 
@@ -41,23 +45,45 @@ export function MenuDialog({ open, menu, menus, onClose, onSaved }: MenuDialogPr
    */
   const componentOptions = availableComponents().map((value) => ({ value, label: value }));
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!open) return;
-    form.setFieldsValue(menu ? { parentId: menu.parentId || undefined, menuName: menu.menuName, menuType: menu.menuType, routeName: menu.routeName, routePath: menu.routePath, component: menu.component, permissionCode: menu.permissionCode, icon: menu.icon, sortOrder: menu.sortOrder, visible: menu.visible, status: menu.status, keepAlive: menu.keepAlive } : { parentId: undefined, menuName: '', menuType: 'MENU', routeName: '', routePath: '', component: '', permissionCode: '', icon: '', sortOrder: 0, visible: 1, status: 1, keepAlive: 0 });
-  }, [form, menu, open]);
+    let active = true;
+    form.resetFields(); setMenu(undefined); setLoading(false);
+    if (menuId === null) {
+      form.setFieldsValue({ parentId: undefined, menuName: '', menuType: 'MENU', routeName: '', routePath: '', component: '', permissionCode: '', icon: '', sortOrder: 0, visible: 1, status: 1, keepAlive: 0 });
+      return;
+    }
+    setLoading(true);
+    void getMenu(menuId).then((detail) => {
+      if (!active) return;
+      setMenu(detail);
+      form.setFieldsValue({ parentId: detail.parentId || undefined, menuName: detail.menuName, menuType: detail.menuType, routeName: detail.routeName, routePath: detail.routePath, component: detail.component, permissionCode: detail.permissionCode, icon: detail.icon, sortOrder: detail.sortOrder, visible: detail.visible, status: detail.status, keepAlive: detail.keepAlive });
+    }).catch((error) => {
+      if (!active) return;
+      message.error(getApiErrorMessage(error, '无法加载菜单详情')); onClose();
+    }).finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [form, menuId, message, open]);
 
+  /**
+   * 防重复提交：ref 同步挡住同一轮渲染内的第二次调用，state 负责按钮加载效果。
+   */
   const submit = async () => {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    setSubmitting(true);
     try {
       const values = await form.validateFields();
-      // keepAlive 已从表单移除（React 没有原生页面缓存，该开关此前只是存了个值却没生效）。
-      // 字段仍然是后端 @NotNull 的必填项，所以这里显式回传原值，不擅自改变已有菜单的配置。
       const payload: MenuRequest = { ...values, keepAlive: values.keepAlive ?? menu?.keepAlive ?? 0 };
-      const response = editing ? await updateMenu(menu.id, payload) : await createMenu(payload);
+      const response = editing ? await updateMenu(menuId!, payload) : await createMenu(payload);
       message.success(response.message || (editing ? '修改菜单成功' : '新增菜单成功'));
       onSaved(); onClose();
     } catch (error) {
       if ((error as { errorFields?: unknown }).errorFields) return;
       message.error(getApiErrorMessage(error, '保存菜单失败'));
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
     }
   };
 
@@ -71,10 +97,16 @@ export function MenuDialog({ open, menu, menus, onClose, onSaved }: MenuDialogPr
       cancelText='取消'
       onCancel={onClose}
       onOk={() => void submit()}
+      confirmLoading={submitting}
+      okButtonProps={{ disabled: loading }}
+      cancelButtonProps={{ disabled: submitting || loading }}
+      closable={!submitting && !loading}
+      maskClosable={!submitting && !loading}
+      keyboard={!submitting && !loading}
       destroyOnHidden
       forceRender
     >
-      <Form form={form} layout='horizontal' labelCol={{ flex: '0 0 96px' }} colon={false} labelWrap requiredMark={false}>
+      {loading ? <div className='dialog-loading'><Spin /><span>正在加载菜单详情...</span></div> : <Form form={form} layout='horizontal' labelCol={{ flex: '0 0 96px' }} colon={false} labelWrap requiredMark={false}>
         <Form.Item name='menuName' label='菜单名称' rules={[{ required: true, message: '请输入菜单名称' }, { max: 80, message: '菜单名称最长 80 个字符' }]}>
           <Input placeholder='例如：操作日志' />
         </Form.Item>
@@ -82,7 +114,7 @@ export function MenuDialog({ open, menu, menus, onClose, onSaved }: MenuDialogPr
           <Select options={typeOptions} disabled={menu?.builtin === 1} />
         </Form.Item>
         <Form.Item name='parentId' label='上级菜单'>
-          <TreeSelect allowClear treeDefaultExpandAll treeData={parents} placeholder='顶级菜单' />
+          <TreeSelect showSearch treeNodeFilterProp='title' allowClear treeDefaultExpandAll treeData={parents} placeholder='请选择或搜索上级菜单' />
         </Form.Item>
         <Form.Item name='sortOrder' label={<FieldLabel text='显示排序' hint='数字越小越靠前。只能填 0 及以上的整数。' />} rules={[{ required: true, message: '请输入排序值' }]}>
           <InputNumber min={0} step={1} precision={0} style={{ width: '100%' }} placeholder='例如：10' />
@@ -136,7 +168,10 @@ export function MenuDialog({ open, menu, menus, onClose, onSaved }: MenuDialogPr
             <Radio value={0}>停用</Radio>
           </Radio.Group>
         </Form.Item>
-      </Form>
+        {menuType === 'MENU' && <Form.Item name='keepAlive' label={<FieldLabel text='页面缓存' hint='开启后，在后台菜单之间切换时保留该页面的组件状态和查询条件。刷新浏览器后缓存会清空。' />}>
+          <Radio.Group><Radio value={1}>开启</Radio><Radio value={0}>关闭</Radio></Radio.Group>
+        </Form.Item>}
+      </Form>}
     </Modal>
   );
 }

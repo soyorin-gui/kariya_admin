@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ItemType } from 'antd/es/menu/interface';
-import { App, Avatar, Breadcrumb, Button, Dropdown, Form, Input, Layout, Menu, Modal, Space, Tooltip } from 'antd';
-import { BellOutlined, LockOutlined, LogoutOutlined, SearchOutlined, SettingOutlined } from '@ant-design/icons';
+import { App, Avatar, Badge, Breadcrumb, Button, Dropdown, Form, Input, Layout, List, Menu, Modal, Popover, Space, Tooltip } from 'antd';
+import { BellOutlined, LockOutlined, LogoutOutlined, MenuFoldOutlined, MenuUnfoldOutlined, SearchOutlined, SettingOutlined, UserOutlined } from '@ant-design/icons';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { SiderBrand } from './SiderBrand';
 import { AiAssistant } from '../components/ai/AiAssistant';
@@ -10,10 +10,16 @@ import { clearSession } from '../store/authSlice';
 import { logout } from '../api/auth';
 import { changeOwnPassword } from '../api/user';
 import { getApiErrorMessage } from '../utils/apiError';
+import { PASSWORD_MESSAGE, PASSWORD_PATTERN } from '../utils/passwordPolicy';
 import type { MenuRoute } from '../types/auth';
 import { ancestorMenuKeys, findMenuByPath, firstAvailablePath, menuBreadcrumb, navigateTarget } from '../router/menu';
 import { resolveMenuIcon } from '../router/iconRegistry';
 import { UserActivityManager } from '../services/UserActivityManager';
+import { RealtimeClient } from '../services/RealtimeClient';
+import type { SystemNotification } from '../api/notifications';
+import { loadNotifications, readAllNotifications, readNotification } from '../store/notificationSlice';
+import { SystemSettings } from '../components/SystemSettings';
+import '../pages/system/shared.css';
 
 const { Sider, Header, Content } = Layout;
 const HOME_ROUTE = '/home';
@@ -52,21 +58,115 @@ function buildMenu(routes: MenuRoute[]): ItemType[] {
 export function AppLayout() {
   const { message } = App.useApp();
   const [passwordOpen, setPasswordOpen] = useState(false);
+  const [notificationOpen, setNotificationOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [siderCollapsed, setSiderCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem('lbl-sider-collapsed') === 'true';
+    } catch {
+      return false;
+    }
+  });
   const [changingPassword, setChangingPassword] = useState(false);
+  const passwordSubmitLocked = useRef(false);
   const [passwordForm] = Form.useForm<{ oldPassword: string; newPassword: string; confirmPassword: string }>();
   const location = useLocation();
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
   const user = useAppSelector((s) => s.auth.user);
+  const displayName = user?.realName?.trim() || user?.username || '管理员';
   const menus = useAppSelector((s) => s.auth.menus);
+  /**
+   * 通知数据来自全局 store（见 store/notificationSlice），顶栏与消息中心<b>共用一份</b>：
+   * 在消息中心点"全部标为已读"后，这里的小红点会立刻归零，不再依赖下一次实时事件或
+   * 切换浏览器标签页。此前这里是自己的 useState，两边各改各的，表现为"读完了红点还在"。
+   */
+  const notifications = useAppSelector((s) => s.notifications.items);
+  const unreadCount = useAppSelector((s) => s.notifications.unreadCount);
   const items = useMemo(() => buildMenu(menus), [menus]);
-  // Keep the server session alive only while the user is actually interacting. The server
-  // still enforces the idle window and (for remember-me sessions) the 14-day absolute deadline.
+  const toggleSider = () => {
+    setSiderCollapsed((current) => {
+      try {
+        localStorage.setItem('lbl-sider-collapsed', String(!current));
+      } catch {
+        /* 隐私模式下仍允许本次会话切换。 */
+      }
+      return !current;
+    });
+  };
+  // 仅在用户确实进行交互时续期服务端会话。服务端仍会执行空闲超时限制，
+  // 对“记住我”会话还会执行 14 天的绝对有效期限制。
   useEffect(() => {
     const activity = new UserActivityManager();
     activity.start();
     return () => activity.stop();
   }, []);
+  useEffect(() => {
+    void dispatch(loadNotifications());
+    const realtime = new RealtimeClient((event) => {
+      if (event.type === 'notification.created' || event.type === 'department.request.updated') void dispatch(loadNotifications());
+    });
+    realtime.start();
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void dispatch(loadNotifications());
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      realtime.stop();
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [dispatch]);
+  const openNotification = async (item: SystemNotification) => {
+    // 标记已读由 store 统一处理：本地这一条变已读、未读数减一，消息中心页同步生效。
+    if (!item.readTime) await dispatch(readNotification(item.id));
+    setNotificationOpen(false);
+    navigate(`/account/notifications${item.businessId ? `?businessId=${item.businessId}` : ''}`);
+  };
+  const notificationPanel = (
+    <div className='notification-panel'>
+      <div className='notification-panel-head'>
+        <strong>消息通知</strong>
+        <Button type='link' size='small' onClick={() => void dispatch(readAllNotifications())}>
+          全部已读
+        </Button>
+      </div>
+      <div className='notification-panel-body'>
+        <List
+          size='small'
+          dataSource={notifications}
+          locale={{ emptyText: '暂无消息' }}
+          renderItem={(item) => (
+            <List.Item onClick={() => void openNotification(item)} style={{ cursor: 'pointer', paddingInline: 4 }}>
+              <List.Item.Meta
+                title={
+                  <Space size={6}>
+                    {item.title}
+                    {!item.readTime && <Badge status='processing' />}
+                  </Space>
+                }
+                description={
+                  <>
+                    <div>{item.content}</div>
+                    <small>{item.createdTime?.replace('T', ' ')}</small>
+                  </>
+                }
+              />
+            </List.Item>
+          )}
+        />
+      </div>
+      <Button
+        type='link'
+        block
+        onClick={() => {
+          setNotificationOpen(false);
+          navigate('/account/notifications');
+        }}
+      >
+        查看全部消息
+      </Button>
+    </div>
+  );
   // 展开的目录不再写死：按当前地址在菜单树里的祖先链自动展开，并保留用户手动展开的其他目录。
   const [openKeys, setOpenKeys] = useState<string[]>([]);
   const ancestors = useMemo(() => ancestorMenuKeys(menus, location.pathname), [menus, location.pathname]);
@@ -93,8 +193,10 @@ export function AppLayout() {
     }
   };
   const submitPassword = async () => {
+    if (passwordSubmitLocked.current) return;
     try {
       const values = await passwordForm.validateFields();
+      passwordSubmitLocked.current = true;
       setChangingPassword(true);
       await changeOwnPassword({ oldPassword: values.oldPassword, newPassword: values.newPassword });
       message.success('密码已修改，请重新登录');
@@ -103,13 +205,24 @@ export function AppLayout() {
     } catch (error) {
       if (!(error as { errorFields?: unknown }).errorFields) message.error(getApiErrorMessage(error, '修改密码失败'));
     } finally {
+      passwordSubmitLocked.current = false;
       setChangingPassword(false);
     }
   };
   const crumb = menuBreadcrumb(location.pathname, menus).map((title) => ({ title }));
   return (
     <Layout className='app-shell'>
-      <Sider width={240} theme='light' className='app-sider'>
+      <Sider
+        width={240}
+        collapsedWidth={72}
+        collapsed={siderCollapsed}
+        theme='light'
+        className='app-sider'
+        breakpoint='lg'
+        onBreakpoint={(broken) => {
+          if (broken) setSiderCollapsed(true);
+        }}
+      >
         <SiderBrand />
         <Menu mode='inline' selectedKeys={[location.pathname]} openKeys={openKeys} onOpenChange={setOpenKeys} items={items} />
         <div className='sider-foot'>
@@ -121,6 +234,16 @@ export function AppLayout() {
       <Layout className='app-main-layout'>
         <Header className='app-header'>
           <div className='header-navigation'>
+            <Tooltip title={siderCollapsed ? '展开菜单' : '收起菜单'}>
+              <Button
+                className='sider-trigger'
+                type='text'
+                shape='circle'
+                aria-label={siderCollapsed ? '展开菜单' : '收起菜单'}
+                icon={siderCollapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+                onClick={toggleSider}
+              />
+            </Tooltip>
             {/*
               没有可用落点时整条入口不渲染：以前回退成写死的 /home，而账号可能压根没有
               这个页面（未配置/未授权），点一下就是 404/403。首页入口宁可不显示，
@@ -142,23 +265,26 @@ export function AppLayout() {
           </div>
           <Space size={20}>
             <Input className='quick-search' prefix={<SearchOutlined />} placeholder='搜索功能、文档或快捷操作...' />
-            <Tooltip title='通知'>
-              <Button type='text' shape='circle' icon={<BellOutlined />} />
-            </Tooltip>
+            <Popover trigger='click' placement='bottomRight' open={notificationOpen} onOpenChange={setNotificationOpen} content={notificationPanel}>
+              <Badge count={unreadCount} size='small' overflowCount={99}>
+                <Button type='text' shape='circle' aria-label='消息通知' icon={<BellOutlined />} />
+              </Badge>
+            </Popover>
             <Tooltip title='系统设置'>
-              <Button type='text' shape='circle' icon={<SettingOutlined />} />
+              <Button type='text' shape='circle' aria-label='系统设置' icon={<SettingOutlined />} onClick={() => setSettingsOpen(true)} />
             </Tooltip>
             <Dropdown
               menu={{
                 items: [
-                  { key: 'password', icon: <LockOutlined />, label: '修改密码', onClick: () => setPasswordOpen(true) },
+                  { key: 'account', icon: <UserOutlined />, label: '登录与安全', onClick: () => navigate('/account/security') },
+                  ...(user?.hasPassword ? [{ key: 'password', icon: <LockOutlined />, label: '修改密码', onClick: () => setPasswordOpen(true) }] : []),
                   { key: 'logout', icon: <LogoutOutlined />, label: '退出登录', onClick: exit },
                 ],
               }}
             >
               <Space className='user-menu'>
-                <Avatar style={{ backgroundColor: 'var(--brand)' }}>{user?.username.slice(0, 1).toUpperCase()}</Avatar>
-                <span>{user?.username ?? 'admin'}</span>
+                <Avatar style={{ backgroundColor: 'var(--brand)' }}>{displayName.slice(0, 1).toUpperCase()}</Avatar>
+                <span>{displayName}</span>
               </Space>
             </Dropdown>
           </Space>
@@ -168,27 +294,50 @@ export function AppLayout() {
         </Content>
       </Layout>
       <AiAssistant />
+      <SystemSettings open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <Modal
-        title={user?.passwordChangeRequired ? '首次登录，请修改密码' : '修改密码'}
+        className='system-dialog'
+        width={560}
+        title={<div className='system-dialog-title'>{user?.passwordChangeRequired ? '密码需要更新' : '修改密码'}</div>}
         open={Boolean(user?.passwordChangeRequired || passwordOpen)}
-        closable={!user?.passwordChangeRequired}
-        maskClosable={!user?.passwordChangeRequired}
+        closable={!user?.passwordChangeRequired && !changingPassword}
+        maskClosable={!user?.passwordChangeRequired && !changingPassword}
+        keyboard={!user?.passwordChangeRequired && !changingPassword}
         okText='确认修改'
         cancelText={user?.passwordChangeRequired ? '退出登录' : '取消'}
         confirmLoading={changingPassword}
         onOk={() => void submitPassword()}
-        onCancel={() => user?.passwordChangeRequired ? void exit() : setPasswordOpen(false)}
+        cancelButtonProps={{ disabled: changingPassword }}
+        onCancel={() => (changingPassword ? undefined : user?.passwordChangeRequired ? void exit() : setPasswordOpen(false))}
         destroyOnHidden
       >
-        <Form form={passwordForm} layout='vertical'>
+        <Form form={passwordForm} labelCol={{ flex: '96px' }} wrapperCol={{ flex: 1 }} labelWrap colon={false} requiredMark={false}>
           <Form.Item name='oldPassword' label='原密码' rules={[{ required: true, message: '请输入原密码' }]}>
             <Input.Password autoComplete='current-password' />
           </Form.Item>
-          <Form.Item name='newPassword' label='新密码' rules={[{ required: true, min: 12, max: 72, message: '新密码长度需为 12-72 位' }]}>
+          <Form.Item
+            name='newPassword'
+            label='新密码'
+            rules={[
+              { required: true, message: '请输入新密码' },
+              { pattern: PASSWORD_PATTERN, message: PASSWORD_MESSAGE },
+            ]}
+          >
             <Input.Password autoComplete='new-password' />
           </Form.Item>
-          <Form.Item name='confirmPassword' label='确认新密码' dependencies={['newPassword']} rules={[{ required: true, message: '请确认新密码' },
-            ({ getFieldValue }) => ({ validator(_, value) { return !value || getFieldValue('newPassword') === value ? Promise.resolve() : Promise.reject(new Error('两次输入的密码不一致')); } })]}>
+          <Form.Item
+            name='confirmPassword'
+            label='确认新密码'
+            dependencies={['newPassword']}
+            rules={[
+              { required: true, message: '请确认新密码' },
+              ({ getFieldValue }) => ({
+                validator(_, value) {
+                  return !value || getFieldValue('newPassword') === value ? Promise.resolve() : Promise.reject(new Error('两次输入的密码不一致'));
+                },
+              }),
+            ]}
+          >
             <Input.Password autoComplete='new-password' />
           </Form.Item>
         </Form>

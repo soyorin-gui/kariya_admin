@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useLayoutEffect, useMemo, useState } from 'react';
 import type { Key } from 'react';
 import { App, Modal, Spin, Tree } from 'antd';
 import type { DataNode } from 'antd/es/tree';
@@ -31,13 +31,16 @@ export function RolePermissionDialog({ open, role, onClose, onSaved }: RolePermi
   const [saving, setSaving] = useState(false);
   const treeData = useMemo(() => toTree(menus), [menus]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!open || !role) return;
+    let active = true;
+    setMenus([]); setCheckedKeys([]);
     setLoading(true);
     void Promise.all([getGrantableMenus(), getRoleMenuIds(role.id)])
-      .then(([allMenus, granted]) => { setMenus(allMenus); setCheckedKeys(granted); })
-      .catch((error) => message.error(getApiErrorMessage(error, '无法加载菜单权限')))
-      .finally(() => setLoading(false));
+      .then(([allMenus, granted]) => { if (active) { setMenus(allMenus); setCheckedKeys(granted); } })
+      .catch((error) => { if (active) { message.error(getApiErrorMessage(error, '无法加载菜单权限')); onClose(); } })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
   }, [message, open, role]);
 
   const save = async () => {
@@ -55,7 +58,7 @@ export function RolePermissionDialog({ open, role, onClose, onSaved }: RolePermi
     }
   };
 
-  return <Modal className='system-dialog role-grant-dialog' open={open} width={720} title={role ? `菜单权限授权 · ${role.roleName}` : '菜单权限授权'} okText='保存授权' cancelText='取消' onCancel={onClose} onOk={() => void save()} confirmLoading={saving} destroyOnHidden>
+  return <Modal className='system-dialog role-grant-dialog' open={open} width={720} title={role ? `菜单权限授权 · ${role.roleName}` : '菜单权限授权'} okText='保存授权' cancelText='取消' onCancel={onClose} onOk={() => void save()} okButtonProps={{ disabled: loading }} cancelButtonProps={{ disabled: loading || saving }} closable={!loading && !saving} maskClosable={!loading && !saving} keyboard={!loading && !saving} confirmLoading={saving} destroyOnHidden>
     <p className='dialog-description'>勾选该角色可以访问的目录、菜单和操作按钮；取消勾选后权限会立即收回。</p>
     <div className='permission-tree'>
       {loading ? <Spin /> : <Tree checkable defaultExpandAll checkedKeys={checkedKeys} onCheck={(keys) => setCheckedKeys(Array.isArray(keys) ? keys : keys.checked)} treeData={treeData} />}

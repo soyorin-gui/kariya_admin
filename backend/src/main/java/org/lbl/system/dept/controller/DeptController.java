@@ -27,6 +27,12 @@ public class DeptController {
         return Result.ok(service.list());
     }
 
+    @GetMapping("/{id}")
+    @PreAuthorize("hasAuthority('system:dept:update')")
+    Result<DeptVO> detail(@PathVariable Long id) {
+        return Result.ok(service.detail(id));
+    }
+
     @GetMapping("/form-options")
     @PreAuthorize("hasAnyAuthority('system:dept:add', 'system:dept:update')")
     Result<DeptFormOptions> formOptions() {

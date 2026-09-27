@@ -1,11 +1,11 @@
 .today {
-  color: #7182a3;
-  font-size: 14px;
+  color: var(--muted);
+  font-size: var(--fs-base);
 }
 .stat-card {
   border: 1px solid var(--line);
   border-radius: 12px;
-  box-shadow: 0 8px 24px rgba(19, 56, 120, 0.045);
+  box-shadow: 0 8px 24px var(--shadow);
 }
 .stat-card .ant-card-body {
   display: flex;
@@ -15,17 +15,18 @@
 .stat-card span,
 .stat-card small {
   display: block;
-  color: #7a8ba9;
-  font-size: 14px;
+  color: var(--muted);
+  font-size: var(--fs-base);
 }
 .stat-card strong {
   display: block;
-  font-size: 32px;
+  font-size: var(--fs-display);
   margin: 8px 0;
   color: var(--ink);
 }
 .stat-card small {
-  color: #18a66a;
+  /* 曾经写死 #18a66a：与 AntD 的 colorSuccess 是同一个值，但改 tokens.ts 时它不会跟着变。 */
+  color: var(--success);
 }
 .stat-icon {
   width: 46px;
@@ -33,7 +34,7 @@
   border-radius: 12px;
   display: grid;
   place-items: center;
-  font-size: 23px;
+  font-size: var(--fs-2xl);
 }
 .dash-row {
   margin-top: 18px;
@@ -42,7 +43,7 @@
 .recent-card {
   border: 1px solid var(--line);
   border-radius: 12px;
-  box-shadow: 0 8px 24px rgba(19, 56, 120, 0.045);
+  box-shadow: 0 8px 24px var(--shadow);
 }
 .chart {
   height: 285px;
@@ -57,7 +58,7 @@
   align-items: center;
   gap: 12px;
   padding: 11px 0;
-  border-bottom: 1px solid #eff3f9;
+  border-bottom: 1px solid var(--line);
 }
 .login-row:last-child {
   border-bottom: none;
@@ -68,9 +69,9 @@
   display: grid;
   place-items: center;
   color: var(--brand);
-  background: #eaf2ff;
+  background: color-mix(in srgb, var(--brand) 13%, var(--surface));
   border-radius: 50%;
-  font-size: 12px;
+  font-size: var(--fs-xs);
 }
 .login-row strong,
 .login-row small {
@@ -78,8 +79,8 @@
 }
 .login-row small,
 .login-row > span:not(.avatar-dot) {
-  color: #7c8eaa;
-  font-size: 13px;
+  color: var(--muted);
+  font-size: var(--fs-sm);
 }
 .system-info {
   display: grid;
@@ -88,12 +89,12 @@
   margin: 2px 0;
 }
 .system-info dt {
-  color: #7c8eaa;
+  color: var(--muted);
 }
 .system-info dd {
   margin: 0;
   text-align: right;
-  color: #23365e;
+  color: var(--ink-soft);
 }
 @media (max-width: 700px) {
   .today {

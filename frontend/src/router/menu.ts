@@ -84,7 +84,8 @@ export function ancestorMenuKeys(menus: MenuRoute[], pathname: string): string[]
   return keys;
 }
 
-export function menuBreadcrumb(pathname: string, menus: MenuRoute[]): string[] {  const byId = new Map(menus.map((m) => [m.id, m]));
+export function menuBreadcrumb(pathname: string, menus: MenuRoute[]): string[] {
+  const byId = new Map(menus.map((m) => [m.id, m]));
   const item = menus.find((m) => m.routePath === pathname);
   if (!item) return [];
   const chain: string[] = [];

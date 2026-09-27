@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.HashSet;
 import java.util.Set;
+import java.time.LocalDateTime;
 
 @Service
 public class MenuService {
@@ -35,6 +36,11 @@ public class MenuService {
     public List<MenuEntity> list() {
         access.requireSuperAdmin(access.actor());
         return menus.selectList(new LambdaQueryWrapper<MenuEntity>().orderByAsc(MenuEntity::getParentId).orderByAsc(MenuEntity::getSortOrder).orderByAsc(MenuEntity::getId));
+    }
+
+    public MenuEntity detail(Long id) {
+        access.requireSuperAdmin(access.actor());
+        return require(id);
     }
 
     @Transactional
@@ -84,6 +90,8 @@ public class MenuService {
             throw new BusinessException("请先删除该菜单下的子菜单");
         }
         roleMenus.deleteByMenuId(id);
+        menu.setDeletedTime(LocalDateTime.now());
+        menus.updateById(menu);
         menus.deleteById(id);
     }
 
@@ -105,11 +113,16 @@ public class MenuService {
         // 但更应该在配置阶段就拦住，避免库里存下一条永远打不开的菜单。
         if ("MENU".equals(type) && component == null) throw new BusinessException("菜单类型必须填写前端组件");
         if ("BUTTON".equals(type) && permission == null) throw new BusinessException("按钮类型必须填写权限标识");
-        if (routePath != null && menus.selectCount(new LambdaQueryWrapper<MenuEntity>().eq(MenuEntity::getRoutePath, routePath).ne(currentId != null, MenuEntity::getId, currentId)) > 0) {
-            throw new BusinessException("路由地址已存在");
+        // 查重口径必须与 sys_menu 的唯一索引一致：逻辑删除只置 deleted=1，行与索引项都还在，
+        // 所以"删掉一条菜单再建同路径/同权限标识的"会被数据库挡住。用 MyBatis-Plus 的
+        // selectCount（自动附加 deleted = 0）做预检就会出现"校验通过、插入失败"。
+        // 见 MenuMapper#countIncludingDeletedByRoutePath 与 UserMapper 里的同类约定。
+        long excludeSelf = currentId == null ? 0L : currentId;
+        if (routePath != null && menus.countIncludingDeletedByRoutePath(routePath, excludeSelf) > 0) {
+            throw new BusinessException("路由地址已被占用（已删除菜单占用的地址不会被释放，请换一个）");
         }
-        if (permission != null && menus.selectCount(new LambdaQueryWrapper<MenuEntity>().eq(MenuEntity::getPermissionCode, permission).ne(currentId != null, MenuEntity::getId, currentId)) > 0) {
-            throw new BusinessException("权限标识已存在");
+        if (permission != null && menus.countIncludingDeletedByPermissionCode(permission, excludeSelf) > 0) {
+            throw new BusinessException("权限标识已被占用（已删除菜单占用的标识不会被释放，请换一个）");
         }
         menu.setParentId(parentId);
         menu.setMenuName(request.menuName().trim());

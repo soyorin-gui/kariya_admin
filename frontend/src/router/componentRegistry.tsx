@@ -1,4 +1,5 @@
 import { lazy, type ComponentType } from 'react';
+import { trackProgress } from '../services/progress';
 
 /**
  * 构建期页面组件注册表 —— 整套「动态路由」里唯一需要理解的一点。
@@ -15,7 +16,10 @@ import { lazy, type ComponentType } from 'react';
  *
  * error/ 目录被排除：那是错误页，不是业务页面，不应该出现在菜单的组件候选里。
  */
-const modules = import.meta.glob(['../pages/**/*.tsx', '!../pages/error/**']) as Record<string, () => Promise<{ default: ComponentType }>>;
+const modules = import.meta.glob(['../pages/**/*.tsx', '!../pages/error/**', '!../pages/login/**', '!../pages/register/**', '!../pages/auth/**', '!../pages/account/**']) as Record<
+  string,
+  () => Promise<{ default: ComponentType }>
+>;
 
 const PREFIX = '../pages/';
 const SUFFIX = '.tsx';
@@ -28,7 +32,10 @@ const SUFFIX = '.tsx';
 const resolved = new Map<string, ComponentType>();
 
 function normalize(component: string): string {
-  return component.trim().replace(/^\/+/, '').replace(/\.tsx$/i, '');
+  return component
+    .trim()
+    .replace(/^\/+/, '')
+    .replace(/\.tsx$/i, '');
 }
 
 /**
@@ -42,7 +49,10 @@ export function resolveMenuComponent(component?: string | null): ComponentType |
   if (cached) return cached;
   const loader = modules[key];
   if (!loader) return null;
-  const page = lazy(loader);
+  // 用 trackProgress 包一层：顶部进度条反映的是"真的在下载这个页面的代码"，
+  // 而不是一个与真实耗时无关的假动画。因为 React.lazy 会缓存 Promise，
+  // 所以只有**首次**进入某个页面时看得到 —— 后续切换是瞬时的，进度条也不会闪。
+  const page = lazy(() => trackProgress(loader));
   resolved.set(key, page);
   return page;
 }

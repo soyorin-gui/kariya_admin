@@ -1,7 +1,15 @@
 @import './theme.css';
 @import './reset.css';
+/* 顶部进度条（nprogress）的品牌色适配。
+   基础样式来自 'nprogress/nprogress.css'（在 main.tsx 引入），它把颜色硬编码成了 #29d。
+   这里必须同时覆盖两处，否则会看到"品牌色的线 + 蓝紫色的拖尾光晕"这种怪组合：
+   - .bar 是进度条本体；
+   - .peg 是末端那个用 box-shadow 画出来的光晕。 */
 #nprogress .bar {
   background: var(--brand) !important;
+}
+#nprogress .peg {
+  box-shadow: 0 0 10px var(--brand), 0 0 5px var(--brand) !important;
 }
 .ant-layout {
   min-height: 100vh;
@@ -12,17 +20,25 @@
 }
 .page-kicker {
   color: var(--brand);
-  font-size: 12px;
+  font-size: var(--fs-xs);
   font-weight: 800;
   letter-spacing: 0.14em;
   margin-bottom: 8px;
 }
 .table-card {
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 12px;
-  box-shadow: 0 10px 30px rgba(19, 56, 120, 0.06);
+  box-shadow: 0 10px 30px var(--shadow);
   padding: 24px;
+}
+
+:root[data-density='compact'] .table-card {
+  padding: 18px;
+}
+
+:root[data-theme='dark'] * {
+  scrollbar-color: rgba(174, 194, 225, 0.25) transparent;
 }
 .page-head {
   display: flex;

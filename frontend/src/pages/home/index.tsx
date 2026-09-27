@@ -1,19 +1,36 @@
-import { useEffect, useRef } from 'react';
+import { useMemo } from 'react';
 import { Card, Col, Row, Tag, Typography } from 'antd';
 import { ApartmentOutlined, MenuOutlined, SafetyOutlined, TeamOutlined } from '@ant-design/icons';
 import * as echarts from 'echarts';
+import type { EChartsOption } from 'echarts';
+import { BaseChart } from '../../components/BaseChart';
+import { StatusTag } from '../../components/StatusTag';
+import { useThemePreference } from '../../theme/ThemeProvider';
 import './home.css';
-const stats = [
-  { title: '用户数量', value: '1,286', note: '较上月 +8.6%', icon: <TeamOutlined />, color: '#1677ff' },
-  { title: '角色数量', value: '18', note: '本月新增 2 个', icon: <SafetyOutlined />, color: '#805ad5' },
-  { title: '部门数量', value: '12', note: '组织架构稳定', icon: <ApartmentOutlined />, color: '#11a572' },
-  { title: '菜单数量', value: '46', note: '可用功能项', icon: <MenuOutlined />, color: '#f29224' },
-];
+
+/**
+ * HEX → rgba 字符串。
+ * <p>
+ * 为什么需要它：**ECharts（Canvas）画不出 CSS 变量，也不认 `color-mix()`** ——
+ * 它需要一个真实的颜色字符串，而图表渐变必须带透明度，HEX 又没法直接加 alpha。
+ * 这正是"在设置里换了主题色、图表却纹丝不动"的根因：之前图表里的颜色全是写死的 HEX。
+ */
+function withAlpha(hex: string, alpha: number): string {
+  const value = hex.replace('#', '');
+  const r = parseInt(value.slice(0, 2), 16);
+  const g = parseInt(value.slice(2, 4), 16);
+  const b = parseInt(value.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+/** 固定的辅助强调色（用来在多系列图表里区分不同项）。刻意不跟主题变，作为"第二色"。 */
+const ACCENT_PURPLE = '#8c6cff';
+
 function Chart({ kind }: { kind: 'trend' | 'dept' }) {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const chart = echarts.init(ref.current!);
-    chart.setOption(
+  // 主题色与语义色从 ThemeProvider 取，而不是写死 —— 换品牌色 / 切深色时图表会一起变。
+  const { primaryColor, semantic } = useThemePreference();
+  const option = useMemo<EChartsOption>(
+    () =>
       kind === 'trend'
         ? {
             grid: { left: 38, right: 18, top: 25, bottom: 28 },
@@ -27,11 +44,12 @@ function Chart({ kind }: { kind: 'trend' | 'dept' }) {
                 smooth: true,
                 symbol: 'circle',
                 symbolSize: 7,
-                lineStyle: { width: 3, color: '#1677ff' },
+                lineStyle: { width: 3, color: primaryColor },
+                itemStyle: { color: primaryColor },
                 areaStyle: {
                   color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                    { offset: 0, color: 'rgba(22,119,255,.28)' },
-                    { offset: 1, color: 'rgba(22,119,255,.02)' },
+                    { offset: 0, color: withAlpha(primaryColor, 0.28) },
+                    { offset: 1, color: withAlpha(primaryColor, 0.02) },
                   ]),
                 },
               },
@@ -47,25 +65,28 @@ function Chart({ kind }: { kind: 'trend' | 'dept' }) {
                 avoidLabelOverlap: true,
                 label: { show: false },
                 data: [
-                  { value: 486, name: '技术部', itemStyle: { color: '#1677ff' } },
-                  { value: 314, name: '产品部', itemStyle: { color: '#52c41a' } },
-                  { value: 260, name: '运营部', itemStyle: { color: '#8c6cff' } },
-                  { value: 226, name: '其他', itemStyle: { color: '#b3c8e8' } },
+                  { value: 486, name: '技术部', itemStyle: { color: primaryColor } },
+                  { value: 314, name: '产品部', itemStyle: { color: semantic.success } },
+                  { value: 260, name: '运营部', itemStyle: { color: ACCENT_PURPLE } },
+                  { value: 226, name: '其他', itemStyle: { color: withAlpha(primaryColor, 0.35) } },
                 ],
               },
             ],
           },
-    );
-    const resize = () => chart.resize();
-    window.addEventListener('resize', resize);
-    return () => {
-      window.removeEventListener('resize', resize);
-      chart.dispose();
-    };
-  }, [kind]);
-  return <div ref={ref} className='chart' />;
+    [kind, primaryColor, semantic.success],
+  );
+  return <BaseChart option={option} height={285} className='chart' />;
 }
 export default function HomePage() {
+  const { primaryColor, semantic } = useThemePreference();
+  // 四个卡片的强调色：第 1 个跟品牌色，第 3/4 个跟语义色。
+  // 之前四个都是写死的 HEX，换品牌色时它们不会动。
+  const stats = [
+    { title: '用户数量', value: '1,286', note: '较上月 +8.6%', icon: <TeamOutlined />, color: primaryColor },
+    { title: '角色数量', value: '18', note: '本月新增 2 个', icon: <SafetyOutlined />, color: ACCENT_PURPLE },
+    { title: '部门数量', value: '12', note: '组织架构稳定', icon: <ApartmentOutlined />, color: semantic.success },
+    { title: '菜单数量', value: '46', note: '可用功能项', icon: <MenuOutlined />, color: semantic.warning },
+  ];
   return (
     <div>
       <div className='page-head'>
@@ -119,7 +140,7 @@ export default function HomePage() {
                   <span>
                     2026-09-21 {10 - i}:2{i}
                   </span>
-                  <Tag color='success'>登录成功</Tag>
+                  <StatusTag status='success' label='登录成功' />
                 </div>
               ))}
             </div>
@@ -131,7 +152,9 @@ export default function HomePage() {
               <dt>系统名称</dt>
               <dd>LBL Shit</dd>
               <dt>运行环境</dt>
-              <dd>Spring Boot 3 · React 19</dd>
+              {/* 曾经这里写的是 "React 19"，而 package.json 里是 ^18.3.1 —— 界面上写了一句假话。
+                  现在如实反映。如果以后升级 React/AntD，记得同时改 package.json 和这一行。 */}
+              <dd>Spring Boot 3 · React 18</dd>
               <dt>数据库</dt>
               <dd>MySQL 8.0</dd>
               <dt>缓存服务</dt>

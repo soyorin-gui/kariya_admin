@@ -7,6 +7,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.lbl.auth.session.*;
 import org.lbl.security.context.CurrentUser;
+import org.lbl.security.context.OnboardingPrincipal;
 import org.lbl.security.jwt.JwtService;
 import org.lbl.system.menu.entity.MenuEntity;
 import org.lbl.system.menu.mapper.MenuMapper;
@@ -45,14 +46,28 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             Claims c = jwt.parse(h.substring(7));
             String sid = c.get("sid", String.class);
             LoginSession s = sessions.find(sid);
+            if (s != null && s.onboarding() && ("onboarding:" + s.onboardingId()).equals(c.getSubject())) {
+                OnboardingPrincipal principal = new OnboardingPrincipal(s.onboardingId(), s.providerKey(), s.displayName());
+                List<SimpleGrantedAuthority> authorities = List.of(
+                        new SimpleGrantedAuthority("onboarding:access"),
+                        new SimpleGrantedAuthority("onboarding:account:create"),
+                        new SimpleGrantedAuthority("onboarding:account:bind"));
+                SecurityContextHolder.getContext().setAuthentication(
+                        new UsernamePasswordAuthenticationToken(principal, null, authorities));
+                chain.doFilter(req, res);
+                return;
+            }
             UserEntity user = s == null ? null : users.selectById(s.userId());
             if (user != null && user.getStatus() == 1 && user.getAuthVersion().equals(s.authVersion())
                     && s.username().equals(c.getSubject()) && s.authVersion() == c.get("authVersion", Number.class).longValue()) {
-                List<SimpleGrantedAuthority> authorities = (user.getPasswordChangeRequired() == 1 ? List.<MenuEntity>of() : menus.selectByUserId(s.userId())).stream()
+                boolean pendingPasswordChange = "PASSWORD".equals(s.authMethod()) && s.passwordChangeRequired();
+                List<SimpleGrantedAuthority> authorities = (pendingPasswordChange ? List.<MenuEntity>of() : menus.selectByUserId(s.userId())).stream()
                         .map(MenuEntity::getPermissionCode).filter(code -> code != null && !code.isBlank())
                         .map(SimpleGrantedAuthority::new).toList();
                 CurrentUser principal = new CurrentUser(user.getId(), user.getUsername(), user.getDeptId());
-                SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(principal, null, authorities));
+                UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(principal, null, authorities);
+                authentication.setDetails(sid);
+                SecurityContextHolder.getContext().setAuthentication(authentication);
             }
         } catch (JwtException | IllegalArgumentException ex) {
             // 令牌过期/被篡改：属于正常的"未认证"场景，交给 SecurityFilterChain 输出 401，前端会尝试静默续期。
@@ -67,6 +82,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest req) {
-        return req.getRequestURI().startsWith("/api/auth/") || req.getRequestURI().startsWith("/swagger") || req.getRequestURI().startsWith("/v3/");
+        String uri = req.getRequestURI();
+        return uri.startsWith("/api/auth/") && !uri.startsWith("/api/auth/onboarding/")
+                || uri.startsWith("/swagger") || uri.startsWith("/v3/");
     }
 }

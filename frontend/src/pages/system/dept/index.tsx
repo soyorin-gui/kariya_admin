@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { App, Button, Input, Popconfirm, Space, Table, Tag } from 'antd';
+import { useRef, useState } from 'react';
+import { App, Button, Input, Popconfirm, Space, Tag } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { ApartmentOutlined, DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
 import { deleteDept, getDepts } from '../../../api/dept';
@@ -7,6 +7,7 @@ import { Permission } from '../../../permission/Permission';
 import type { Dept } from '../../../types/dept';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { DeptDialog } from './DeptDialog';
+import { SmartTable, type SmartTableRef } from '../../../components/SmartTable';
 import './index.css';
 
 interface DeptRow extends Dept {
@@ -20,36 +21,23 @@ function toTree(depts: Dept[], parentId = 0): DeptRow[] {
       return children.length ? { ...dept, children } : { ...dept };
     });
 }
+function filterTree(depts: Dept[], keyword: string): DeptRow[] {
+  const normalized = keyword.trim().toLowerCase();
+  const matches = (dept: Dept) => !normalized || [dept.deptName, dept.deptCode, dept.leaderName].some((value) => value?.toLowerCase().includes(normalized));
+  const prune = (items: DeptRow[]): DeptRow[] => items.flatMap((item) => {
+    const children = prune(item.children ?? []);
+    return matches(item) || children.length ? [{ ...item, children: children.length ? children : undefined }] : [];
+  });
+  return prune(toTree(depts));
+}
+type DeptSearch = { keyword: string };
 
 export default function DeptPage() {
   const { message } = App.useApp();
+  const tableRef = useRef<SmartTableRef<DeptSearch>>(null);
   const [depts, setDepts] = useState<Dept[]>([]);
-  const [keyword, setKeyword] = useState('');
-  const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState<Dept | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const load = async () => {
-    try {
-      setLoading(true);
-      setDepts(await getDepts());
-    } catch (error) {
-      message.error(getApiErrorMessage(error, '无法获取部门列表'));
-    } finally {
-      setLoading(false);
-    }
-  };
-  useEffect(() => {
-    void load();
-  }, []);
-  const rows = useMemo(() => {
-    const match = (dept: Dept) => !keyword.trim() || [dept.deptName, dept.deptCode, dept.leaderName].some((value) => value?.toLowerCase().includes(keyword.toLowerCase()));
-    const prune = (items: DeptRow[]): DeptRow[] =>
-      items.flatMap((item) => {
-        const children = prune(item.children ?? []);
-        return match(item) || children.length ? [{ ...item, children }] : [];
-      });
-    return prune(toTree(depts));
-  }, [depts, keyword]);
   const openDialog = (dept: Dept | null = null) => {
     setEditing(dept);
     setDialogOpen(true);
@@ -94,7 +82,7 @@ export default function DeptPage() {
                 void deleteDept(row.id)
                   .then(() => {
                     message.success('删除部门成功');
-                    void load();
+                    tableRef.current?.reload();
                   })
                   .catch((error) => message.error(getApiErrorMessage(error)))
               }
@@ -117,24 +105,24 @@ export default function DeptPage() {
         </div>
       </div>
       <div className='table-card'>
-        <div className='table-toolbar'>
-          <Input value={keyword} onChange={(event) => setKeyword(event.target.value)} prefix={<SearchOutlined />} placeholder='搜索部门名称、编码或负责人' />
-          <Space wrap>
-            <Button icon={<ReloadOutlined />} onClick={() => void load()}>
-              刷新
-            </Button>
-            {canCreate && <Permission code='system:dept:add'>
-              <Button type='primary' icon={<PlusOutlined />} onClick={() => openDialog()}>
-                新增部门
-              </Button>
-            </Permission>}
-          </Space>
-        </div>
-        <Table
+        <SmartTable<DeptRow, DeptSearch>
+          ref={tableRef}
           rowKey='id'
           columns={columns}
-          dataSource={rows}
-          loading={loading}
+          initialSearch={{ keyword: '' }}
+          request={async ({ search }) => {
+            const list = await getDepts();
+            setDepts(list);
+            const tree = filterTree(list, search.keyword);
+            return { list: tree, total: tree.length };
+          }}
+          onRequestError={(error) => message.error(getApiErrorMessage(error, '无法获取部门列表'))}
+          toolbarClassName='table-toolbar'
+          searchRender={({ search, setSearch, submit }) => <Input value={search.keyword} onChange={(event) => setSearch({ keyword: event.target.value })} onPressEnter={() => submit()} prefix={<SearchOutlined />} placeholder='搜索部门名称、编码或负责人' />}
+          toolbarRender={({ submit }) => <Space wrap>
+            <Button icon={<ReloadOutlined />} onClick={() => submit()}>刷新</Button>
+            {canCreate && <Permission code='system:dept:add'><Button type='primary' icon={<PlusOutlined />} onClick={() => openDialog()}>新增部门</Button></Permission>}
+          </Space>}
           pagination={false}
           scroll={{ x: 980 }}
           expandable={{
@@ -147,7 +135,7 @@ export default function DeptPage() {
           }}
         />
       </div>
-      <DeptDialog open={dialogOpen} dept={editing} allDepts={depts} onClose={() => setDialogOpen(false)} onSaved={() => void load()} />
+      <DeptDialog open={dialogOpen} deptId={editing?.id ?? null} allDepts={depts} onClose={() => setDialogOpen(false)} onSaved={() => tableRef.current?.reload()} />
     </div>
   );
 }

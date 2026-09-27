@@ -20,6 +20,13 @@ public class DeptEntity {
     private Integer builtin;
     @TableLogic
     private Integer deleted;
+    @TableField(fill = FieldFill.INSERT)
+    private Long createdBy;
+    @TableField(fill = FieldFill.INSERT_UPDATE)
+    private Long updatedBy;
+    @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdTime;
+    @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updatedTime;
+    private LocalDateTime deletedTime;
 }

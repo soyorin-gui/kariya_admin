@@ -5,6 +5,7 @@ import org.lbl.common.exception.BusinessException;
 import org.lbl.common.exception.UnauthorizedException;
 import org.lbl.system.dept.entity.DeptEntity;
 import org.lbl.system.dept.mapper.DeptMapper;
+import org.lbl.system.dept.support.DeptPaths;
 import org.lbl.system.menu.entity.MenuEntity;
 import org.lbl.system.menu.mapper.MenuMapper;
 import org.lbl.system.role.entity.RoleEntity;
@@ -52,21 +53,29 @@ public class AccessPolicy {
         Set<Long> visibleDepartments = new HashSet<>();
         boolean all = superAdmin;
         boolean self = false;
+        // 注意：这里刻意<b>不看部门的 status</b>。
+        // 「停用部门」的语义是产品决定的一句话：停用只表示"不能再往这个部门里放人"
+        // （DeptService.formOptions 不再返回它、UserService.validateAssignment 拒绝分配到它），
+        // <b>已经在里面的人不受任何影响</b> —— 他们照常登录，数据范围照常以这个部门为根展开。
+        // 把停用做成"整条分支下线"（例如在这里过滤掉停用部门、或停用时级联处理子树）
+        // 不是 bug 修复，而是另一套业务规则，改之前先确认需求。
+        // 代码里唯一的解释入口在 DeptDialog 的"状态"字段说明，两边必须一致。
         for (RoleEntity role : assigned) {
             if (role.getStatus() != 1) continue;
             switch (role.getDataScope()) {
                 case "ALL" -> all = true;
                 case "DEPT_AND_CHILDREN" -> {
-                    visibleDepartments.add(user.getDeptId());
-                    DeptEntity ownDept = depts.selectById(user.getDeptId());
+                    if (user.getDeptId() != null) visibleDepartments.add(user.getDeptId());
+                    DeptEntity ownDept = user.getDeptId() == null ? null : depts.selectById(user.getDeptId());
                     if (ownDept != null) {
-                        String path = ownDept.getAncestors() + "," + ownDept.getId();
-                        depts.selectList(new LambdaQueryWrapper<DeptEntity>().and(query ->
-                                        query.eq(DeptEntity::getAncestors, path).or().likeRight(DeptEntity::getAncestors, path + ",")))
+                        // 子树范围与 DeptService 移动部门时重写路径用的是同一口径（含逗号边界），
+                        // 见 DeptPaths：两边若不一致，就会出现"范围算到的部门"和"路径被改写的部门"
+                        // 不是同一批，且不会有任何报错。
+                        depts.selectList(DeptPaths.subtreeQuery(DeptPaths.selfPath(ownDept)))
                                 .stream().map(DeptEntity::getId).forEach(visibleDepartments::add);
                     }
                 }
-                case "DEPT" -> visibleDepartments.add(user.getDeptId());
+                case "DEPT" -> { if (user.getDeptId() != null) visibleDepartments.add(user.getDeptId()); }
                 case "SELF" -> self = true;
                 default -> throw new BusinessException("角色的数据范围配置无效");
             }
@@ -88,11 +97,18 @@ public class AccessPolicy {
         if (actor.superAdmin()) return true;
         if (target.getId().equals(actor.user().getId()) || target.getBuiltin() == 1 || !canSeeUser(actor, target)) return false;
         List<RoleEntity> targetRoles = roles.selectAssignedByUserId(target.getId());
-        if (containsSuperAdmin(targetRoles)) return false;
-        Set<String> targetPermissions = permissions(target.getId());
+        return canManageUser(actor, target, containsSuperAdmin(targetRoles), permissions(target.getId()),
+                targetRoles.stream().filter(role -> role.getStatus() == 1).map(RoleEntity::getDataScope).toList());
+    }
+
+    /** 使用列表批量预取的数据执行同一套授权判断，不再在每一行内部访问数据库。 */
+    public boolean canManageUser(Actor actor, UserEntity target, boolean targetSuperAdmin,
+                                 Set<String> targetPermissions, List<String> targetScopes) {
+        if (actor.superAdmin()) return true;
+        if (target.getId().equals(actor.user().getId()) || target.getBuiltin() == 1 || !canSeeUser(actor, target)) return false;
+        if (targetSuperAdmin) return false;
         return actor.permissions().containsAll(targetPermissions) && !actor.permissions().equals(targetPermissions)
-                && targetRoles.stream().filter(role -> role.getStatus() == 1)
-                .allMatch(role -> scopeRank(role.getDataScope()) <= actor.maxScopeRank());
+                && targetScopes.stream().allMatch(scope -> scopeRank(scope) <= actor.maxScopeRank());
     }
 
     public void requireManageUser(Actor actor, UserEntity target) {
@@ -103,15 +119,22 @@ public class AccessPolicy {
         if (role.getStatus() != 1) return false;
         if (actor.superAdmin()) return true;
         if (role.getBuiltin() == 1 || "super_admin".equals(role.getRoleCode())) return false;
-        Set<String> granted = rolePermissions(role.getId());
+        return canAssignRole(actor, role, rolePermissions(role.getId()));
+    }
+
+    public boolean canAssignRole(Actor actor, RoleEntity role, Set<String> granted) {
+        if (role.getStatus() != 1) return false;
+        if (actor.superAdmin()) return true;
+        if (role.getBuiltin() == 1 || "super_admin".equals(role.getRoleCode())) return false;
         return actor.permissions().containsAll(granted) && !actor.permissions().equals(granted)
                 && scopeRank(role.getDataScope()) <= actor.maxScopeRank();
     }
 
     public void requireAssignableRoles(Actor actor, List<RoleEntity> assigned) {
         if (actor.superAdmin()) return;
-        Set<String> combined = new HashSet<>();
-        assigned.forEach(role -> combined.addAll(rolePermissions(role.getId())));
+        List<Long> roleIds = assigned.stream().map(RoleEntity::getId).toList();
+        Set<String> combined = roleIds.isEmpty() ? Set.of() : roleMenus.selectPermissionCodesByRoleIds(roleIds).stream()
+                .map(org.lbl.system.role.vo.RolePermissionAssignment::getPermissionCode).collect(Collectors.toSet());
         if (combined.equals(actor.permissions())) throw new BusinessException("不能分配与自身同级的权限组合");
     }
 
@@ -119,9 +142,17 @@ public class AccessPolicy {
         if (!canManageRole(actor, role)) throw new BusinessException("不能管理同级或更高权限的角色");
     }
 
+    public void requireManageRole(Actor actor, RoleEntity role, Set<String> granted) {
+        if (!canManageRole(actor, role, granted)) throw new BusinessException("不能管理同级或更高权限的角色");
+    }
+
     public boolean canManageRole(Actor actor, RoleEntity role) {
         if (actor.superAdmin()) return true;
-        Set<String> granted = rolePermissions(role.getId());
+        return canManageRole(actor, role, rolePermissions(role.getId()));
+    }
+
+    public boolean canManageRole(Actor actor, RoleEntity role, Set<String> granted) {
+        if (actor.superAdmin()) return true;
         return role.getBuiltin() != 1 && actor.permissions().containsAll(granted)
                 && !actor.permissions().equals(granted) && scopeRank(role.getDataScope()) <= actor.maxScopeRank();
     }
@@ -258,7 +289,7 @@ public class AccessPolicy {
         }
     }
 
-    /** Menu definitions change global routes and API permission codes, so they are platform-only. */
+    /** 菜单定义会改变全局路由与 API 权限码，因此只能由平台级管理员操作。 */
     public void requireSuperAdmin(Actor actor) {
         if (!actor.superAdmin()) throw new AccessDeniedException("仅超级管理员可维护全局菜单配置");
     }
@@ -271,9 +302,25 @@ public class AccessPolicy {
         return actor.all() || actor.maxScopeRank() >= 3 && actor.departments().contains(parent.getId());
     }
 
+    /**
+     * 能否新增<b>顶级部门</b>（即 {@code parentId <= 0}）。
+     * <p>
+     * 只有 {@code ALL} 数据范围的账号可以：其它范围的账号建立的顶级部门一定落在自己可见范围之外，
+     * 建完就看不见、也管不了。前端需要用这个判定决定"上级部门"能不能清空
+     * （清空 = 建顶级部门），因此它必须与 {@link #requireCreateDept} 的判断完全同源，
+     * 否则会出现"表单允许提交、后端一律 403"。
+     */
+    public boolean canCreateRootDept(Actor actor) {
+        return actor.all();
+    }
+
     public void requireCreateDept(Actor actor, Long parentId) {
+        if (parentId == null || parentId <= 0) {
+            if (!canCreateRootDept(actor)) throw new AccessDeniedException("只有全部数据范围的账号可以新增顶级部门");
+            return;
+        }
         if (actor.all()) return;
-        if (parentId == null || parentId <= 0 || actor.maxScopeRank() < 3 || !actor.departments().contains(parentId)) {
+        if (actor.maxScopeRank() < 3 || !actor.departments().contains(parentId)) {
             throw new AccessDeniedException("只能在本部门及下级部门范围内新增子部门");
         }
     }
@@ -321,12 +368,7 @@ public class AccessPolicy {
     }
 
     private Set<String> rolePermissions(Long roleId) {
-        Set<String> values = new HashSet<>();
-        for (Long menuId : roleMenus.selectMenuIds(roleId)) {
-            MenuEntity menu = menus.selectById(menuId);
-            if (menu != null && menu.getStatus() == 1 && menu.getPermissionCode() != null) values.add(menu.getPermissionCode());
-        }
-        return values;
+        return new HashSet<>(roleMenus.selectPermissionCodes(roleId));
     }
 
     private int scopeRank(String scope) {

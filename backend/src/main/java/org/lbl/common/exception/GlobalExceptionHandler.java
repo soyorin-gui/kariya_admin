@@ -1,5 +1,6 @@
 package org.lbl.common.exception;
 
+import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import org.lbl.common.result.Result;
 import org.slf4j.Logger;
@@ -9,8 +10,12 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.transaction.CannotCreateTransactionException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.validation.BindingResult;
+import org.springframework.validation.FieldError;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
+import java.lang.reflect.RecordComponent;
 import java.util.Map;
 
 @RestControllerAdvice
@@ -32,6 +37,9 @@ class GlobalExceptionHandler {
             Map.entry("oldPassword", "原密码"),
             Map.entry("newPassword", "新密码"),
             Map.entry("password", "密码"),
+            Map.entry("confirmPassword", "确认密码"),
+            Map.entry("captchaId", "验证码标识"),
+            Map.entry("captchaCode", "验证码"),
             Map.entry("roleName", "角色名称"),
             Map.entry("roleCode", "角色标识"),
             Map.entry("dataScope", "数据范围"),
@@ -56,6 +64,13 @@ class GlobalExceptionHandler {
     Result<Void> business(BusinessException ex) {
         log.warn("Business request rejected: {}", ex.getMessage());
         return Result.fail(400, ex.getMessage());
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    @ResponseStatus(HttpStatus.PAYLOAD_TOO_LARGE)
+    Result<Void> uploadTooLarge(MaxUploadSizeExceededException ex) {
+        log.warn("Upload rejected because it exceeds the multipart limit");
+        return Result.fail(413, "文件过大，请压缩或拆分后重试");
     }
 
     @ExceptionHandler(UnauthorizedException.class)
@@ -105,7 +120,7 @@ class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     Result<Void> duplicateKey(DuplicateKeyException ex) {
         log.warn("Unique constraint violated", ex);
-        return Result.fail(400, "数据已存在：用户名、角色标识或部门编码等唯一字段重复");
+        return Result.fail(400, "数据已存在：用户名、角色标识、部门编码、菜单路由或权限标识等唯一字段重复");
     }
 
     /**
@@ -115,8 +130,8 @@ class GlobalExceptionHandler {
      * 得到的提示和"用户名太长"完全一样，只能自己一个个字段猜。而这个项目的其他地方
      * （重名校验、唯一约束兜底）都在刻意避免这种"看不出原因的失败"。
      * <p>
-     * 只回显字段名与约束类型，不回显用户输入的值，也不回显内部类名/regex——
-     * 后者会把后端校验规则的具体实现泄露出去（例如完整邮箱正则），没有必要。
+     * 提示语的优先级见 {@code authoredOrFallback}：先用记录上<b>手写</b>的那句，
+     * 没有才退回"字段标签 + 约束类型"。
      */
     @ExceptionHandler({MethodArgumentNotValidException.class, ConstraintViolationException.class})
     @ResponseStatus(HttpStatus.BAD_REQUEST)
@@ -127,19 +142,93 @@ class GlobalExceptionHandler {
 
     private String describeFirstViolation(Exception ex) {
         if (ex instanceof MethodArgumentNotValidException invalid) {
-            return invalid.getBindingResult().getFieldErrors().stream()
+            BindingResult binding = invalid.getBindingResult();
+            return binding.getFieldErrors().stream()
                     .findFirst()
-                    .map(error -> violationMessage(error.getField(), error.getCode()))
+                    .map(error -> authoredOrFallback(error, binding))
                     .orElse("参数校验失败");
         }
         if (ex instanceof ConstraintViolationException violations) {
             return violations.getConstraintViolations().stream()
                     .findFirst()
-                    .map(violation -> violationMessage(lastNode(violation.getPropertyPath().toString()),
-                            violation.getConstraintDescriptor().getAnnotation().annotationType().getSimpleName()))
+                    .map(this::authoredOrFallback)
                     .orElse("参数校验失败");
         }
         return "参数校验失败";
+    }
+
+    /**
+     * 决定给用户看哪一句：<b>优先用注解上手写的 message</b>。
+     * <p>
+     * 手写文案的信息量远大于"字段 + 约束类型"的机械拼装。密码规则就是最典型的例子：
+     * 手写的是 {@link org.lbl.auth.service.PasswordRules#MESSAGE} 这类完整、可直接展示的业务规则，
+     * 拼装出来的只有「密码格式不正确」—— 前者能让人改对，后者等于没说。
+     * <p>
+     * <b>但绝不能无条件采用框架解析出来的那句话。</b>Bean Validation 的内置提示会
+     * <b>按 JVM 默认语言本地化</b>，而 {@code @Pattern} 的内置提示会把正则插值进去：
+     * 在中文环境下它是「需要匹配 ^(?=.*[a-z])…」，把整条密码正则原样交给调用方。
+     * 所以不能靠"是不是中文/英文"来区分（本项目正是在中文环境下跑的），
+     * 必须<b>直接判断注解有没有写 message</b>：
+     * <ul>
+     *   <li>{@link ConstraintViolationException} 一侧有现成的 {@code getMessageTemplate()}，
+     *       没写 message 时它以 {@code {} 开头（形如 {@code {jakarta.validation.constraints.Pattern.message}}）；</li>
+     *   <li>{@link MethodArgumentNotValidException} 一侧 Spring 不暴露模板，
+     *       改为从被校验对象上把注解反射出来读它的 {@code message} 属性。</li>
+     * </ul>
+     * 两条路都判断不出来时退回 {@link #violationMessage}，也就是改动前的行为 ——
+     * 失败方向是安全的（宁可少给信息，也不把正则漏出去）。
+     */
+    private String authoredOrFallback(FieldError error, BindingResult binding) {
+        String authored = declaredMessage(binding.getTarget(), error.getField(), error.getCode());
+        // getDefaultMessage 是已经插值过的最终文案；只在确认注解写了 message 之后才用它。
+        return authored != null ? authored : violationMessage(error.getField(), error.getCode());
+    }
+
+    private String authoredOrFallback(ConstraintViolation<?> violation) {
+        String template = violation.getMessageTemplate();
+        // 没写 message 时，模板是 "{jakarta.validation.constraints.X.message}" 这种包引用。
+        if (template == null || template.isBlank() || template.startsWith("{")) {
+            return violationMessage(lastNode(violation.getPropertyPath().toString()),
+                    violation.getConstraintDescriptor().getAnnotation().annotationType().getSimpleName());
+        }
+        return violation.getMessage();
+    }
+
+    /**
+     * 反射读出被校验对象上某个字段的、指定约束注解所声明的 message。
+     *
+     * @return 手写的 message；注解没写、或该字段/注解找不到时返回 {@code null}（调用方退回拼装提示）
+     */
+    private static String declaredMessage(Object target, String field, String constraint) {
+        if (target == null || field == null || constraint == null) return null;
+        try {
+            Class<?> type = target.getClass();
+            // 本项目的请求体都是 record，注解会同时传播到访问器与字段上，任一处能读到即可。
+            for (RecordComponent component : type.getRecordComponents()) {
+                if (!component.getName().equals(field)) continue;
+                String declared = declaredMessage(component.getAccessor().getAnnotations(), constraint);
+                if (declared != null) return declared;
+                break;
+            }
+            return declaredMessage(type.getDeclaredField(field).getAnnotations(), constraint);
+        } catch (ReflectiveOperationException | RuntimeException ex) {
+            // 嵌套路径（如 items[0].name）、非 record 目标、字段名对不上 —— 一律退回拼装提示。
+            return null;
+        }
+    }
+
+    private static String declaredMessage(java.lang.annotation.Annotation[] annotations, String constraint) {
+        for (java.lang.annotation.Annotation annotation : annotations) {
+            if (!annotation.annotationType().getSimpleName().equals(constraint)) continue;
+            try {
+                Object value = annotation.annotationType().getMethod("message").invoke(annotation);
+                // 以 "{" 开头说明是引用消息包的模板（等于没写手写文案）。
+                if (value instanceof String text && !text.isBlank() && !text.startsWith("{")) return text;
+            } catch (ReflectiveOperationException ex) {
+                return null;
+            }
+        }
+        return null;
     }
 
     private String lastNode(String propertyPath) {
@@ -147,6 +236,13 @@ class GlobalExceptionHandler {
         return separator < 0 ? propertyPath : propertyPath.substring(separator + 1);
     }
 
+    /**
+     * 兜底提示：只在拿不到手写 message 时使用（见 {@code authoredOrFallback}）。
+     * <p>
+     * 因此 {@link #FIELD_LABELS} 缺项的表现是<b>字段的 Java 名直接出现在中文界面里</b>
+     * （例如「captchaCode 长度不合法」而不是「验证码长度不合法」）。
+     * 目前全项目的校验注解里只有极少数没有手写 message，这条路很少会走到。
+     */
     private String violationMessage(String field, String code) {
         String label = FIELD_LABELS.getOrDefault(field, field);
         return switch (code) {

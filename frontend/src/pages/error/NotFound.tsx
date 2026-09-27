@@ -20,7 +20,8 @@ export default function NotFound() {
           <p className='not-found-code'>404</p>
           <h1 id='not-found-title'>糟糕，页面飘进银河了</h1>
           <p>
-            宇航员找了一圈，也没发现你要找的页面。<br />
+            宇航员找了一圈，也没发现你要找的页面。
+            <br />
             它可能改名了、下线了，或者正在宇宙里摸鱼。
           </p>
           {landing ? (

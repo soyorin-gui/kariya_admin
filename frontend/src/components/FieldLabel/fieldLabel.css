@@ -1,0 +1,13 @@
+.field-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.field-label-hint {
+  color: #9aabc4;
+  font-size: var(--fs-sm);
+  cursor: help;
+}
+.field-label-hint:hover {
+  color: var(--brand);
+}

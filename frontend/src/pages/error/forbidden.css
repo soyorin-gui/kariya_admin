@@ -23,7 +23,7 @@
 
 .forbidden-code {
   margin: 0;
-  font-size: 56px;
+  font-size: var(--fs-huge);
   font-weight: 700;
   line-height: 1;
   letter-spacing: 2px;

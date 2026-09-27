@@ -1,9 +1,74 @@
+/**
+ * ============================================================================
+ *  CSS 变量：设计令牌的"CSS 侧"
+ * ============================================================================
+ *
+ * 分工（改之前请先读 `theme/tokens.ts` 顶部那张所有权表）：
+ *
+ * - **中性色**（--ink / --muted / --line / --page / --surface / --shadow）
+ *   由本文件拥有，靠下方的 `[data-theme='dark']` 切换，JS 不参与。
+ *
+ * - **品牌色 / 字体 / 字号 / 语义色**
+ *   这里写的值只是**首屏兜底** —— React 挂载前（`index.html` 那段内联 loading 之后、
+ *   ThemeProvider 的 effect 跑起来之前）会用到它们，避免"先闪一下默认色再变成你的主题色"。
+ *   一旦 React 挂载，ThemeProvider 会用 `documentElement.style.setProperty(...)` **覆盖**它们，
+ *   而 inline style 优先级高于样式表 —— 所以**改这里的品牌色是没有效果的**，要改默认值请改
+ *   `theme/tokens.ts`。
+ *
+ * 字号阶梯全部用 `calc()` 从 `--fs-base` 派生，所以**只需要改一个变量，全站字号一起动**。
+ * 除了 `--fs-base` 自己，下面没有任何一个字号是写死的。
+ */
+
 :root {
+  /* ---------- 品牌色（JS 覆盖；这里只是首屏兜底） ---------- */
   --brand: #1677ff;
-  --brand-deep: #0f57d1;
+  /* 深色变体：hover / 渐变 / 阴影用。
+     用 color-mix 从 --brand 自动派生，所以用户选任意颜色（包括公司 VI 色）都能得到一个协调的深色，
+     不需要 JS 做色值计算。项目里本来就在用 color-mix（见 pages/home/home.css），所以没有兼容性新增成本。 */
+  --brand-deep: color-mix(in srgb, var(--brand) 82%, #000);
+
+  /* ---------- 字体（JS 覆盖） ---------- */
+  --font-sans: Inter, 'PingFang SC', 'Microsoft YaHei', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+  /* ---------- 字号阶梯（JS 只覆盖 --fs-base，其余自动派生） ---------- */
+  --fs-base: 14px;
+  --fs-xs: calc(var(--fs-base) - 2px);   /* 12 —— 辅助说明、小标签 */
+  --fs-sm: calc(var(--fs-base) - 1px);   /* 13 —— 次要正文、表格单元 */
+  --fs-lg: calc(var(--fs-base) + 2px);   /* 16 —— 卡片标题 */
+  --fs-xl: calc(var(--fs-base) + 4px);   /* 18 —— 区块标题 */
+  --fs-2xl: calc(var(--fs-base) + 8px);  /* 22 —— 页面标题 */
+  --fs-3xl: calc(var(--fs-base) + 10px); /* 24 —— 页面大标题 */
+  /* 展示型字号用倍数而不是加减：这样字号调大时大标题仍保持比例感，不会显得"标题没怎么变、正文变了很多"。 */
+  --fs-display: calc(var(--fs-base) * 2.3); /* ≈32 —— 看板数字 */
+  --fs-hero: calc(var(--fs-base) * 3);      /* 42 —— 错误页主标题 */
+  --fs-huge: calc(var(--fs-base) * 4);      /* 56 —— 错误页大字 */
+  --fs-mega: calc(var(--fs-base) * 4.6);    /* ≈64 —— 登录页主标题 */
+
+  /* ---------- 语义色（JS 按亮暗覆盖，见 tokens.ts 的 SEMANTIC_COLORS） ---------- */
+  --success: #18a66a;
+  --warning: #faad14;
+  --error: #ff4d4f;
+
+  /* ---------- 中性色（本文件独占，JS 不碰） ---------- */
   --ink: #132047;
+  --ink-soft: #23365e;
   --muted: #7483a7;
   --line: #e7edf8;
   --page: #f5f8fd;
   --surface: #fff;
+  --surface-soft: #fafcff;
+  --surface-elevated: #fff;
+  --shadow: rgba(19, 56, 120, 0.08);
+}
+
+:root[data-theme='dark'] {
+  --ink: #edf3ff;
+  --ink-soft: #d6e1f5;
+  --muted: #91a4c4;
+  --line: #293752;
+  --page: #0e1625;
+  --surface: #151f31;
+  --surface-soft: #111b2c;
+  --surface-elevated: #1a263a;
+  --shadow: rgba(0, 0, 0, 0.32);
 }

@@ -4,6 +4,7 @@ import type { Role, RoleRequest } from '../types/role';
 import type { SystemMenu } from '../types/menu';
 
 export const getRoles = (keyword?: string) => request.get<Result<Role[]>>('/system/roles', { params: { keyword } }).then((response) => response.data.data);
+export const getRole = (id: number) => request.get<Result<Role>>(`/system/roles/${id}`).then((response) => response.data.data);
 export const createRole = (data: RoleRequest) => request.post<Result<Role>>('/system/roles', data).then((response) => response.data);
 export const updateRole = (id: number, data: RoleRequest) => request.put<Result<Role>>(`/system/roles/${id}`, data).then((response) => response.data);
 export const deleteRole = (id: number) => request.delete(`/system/roles/${id}`);

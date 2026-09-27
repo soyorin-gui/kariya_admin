@@ -67,7 +67,7 @@
 .not-found-copy > p:not(.not-found-code) {
   margin: 0 0 30px;
   color: var(--muted);
-  font-size: 16px;
+  font-size: var(--fs-lg);
   line-height: 1.8;
 }
 

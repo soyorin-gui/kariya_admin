@@ -1,4 +1,4 @@
-import { Suspense, useMemo } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { Button, Result } from 'antd';
 import Forbidden from '../pages/error/Forbidden';
@@ -32,21 +32,51 @@ export function DynamicPage() {
   const catalog = useAppSelector((s) => s.auth.routes);
   const menu = useMemo(() => findMenuByPath(menus, pathname), [menus, pathname]);
   const Page = useMemo(() => resolveMenuComponent(menu?.component), [menu?.component]);
+  const [cachedPaths, setCachedPaths] = useState<string[]>([]);
+  useEffect(() => {
+    if (menu?.keepAlive === 1 && Page) {
+      setCachedPaths((paths) => (paths.includes(pathname) ? paths : [...paths, pathname]));
+    }
+  }, [Page, menu?.keepAlive, pathname]);
+  useEffect(() => {
+    setCachedPaths((paths) =>
+      paths.filter((path) => {
+        const cached = findMenuByPath(menus, path);
+        return cached?.keepAlive === 1 && resolveMenuComponent(cached.component) !== null;
+      }),
+    );
+  }, [menus]);
 
   if (menu) {
     if (!Page) {
       return <PageUnavailable menuName={menu.menuName} component={menu.component} file={expectedPageFile(menu.component)} />;
     }
+    const currentIsCached = menu.keepAlive === 1;
     return (
-      <Suspense fallback={<LoadingScreen />}>
-        {/* 页面是 lazy 加载的：echarts 这类重依赖会因此被拆成独立 chunk，只在真正访问时下载。 */}
-        <Page />
-      </Suspense>
+      <>
+        {cachedPaths.map((path) => {
+          const cachedMenu = findMenuByPath(menus, path);
+          const CachedPage = resolveMenuComponent(cachedMenu?.component);
+          if (!CachedPage) return null;
+          return (
+            <div key={path} style={{ display: path === pathname ? undefined : 'none' }}>
+              <Suspense fallback={<LoadingScreen />}>
+                <CachedPage />
+              </Suspense>
+            </div>
+          );
+        })}
+        {(!currentIsCached || !cachedPaths.includes(pathname)) && (
+          <Suspense fallback={<LoadingScreen />}>
+            <Page />
+          </Suspense>
+        )}
+      </>
     );
   }
   if (catalog.some((item) => item.routePath === pathname)) return <Forbidden />;
-  // 404 intentionally leaves the workbench shell. It is a standalone browser page rather
-  // than an empty slot between the sidebar and header.
+  // 404 页面刻意离开工作台外壳：它应当是独立浏览器页面，
+  // 而不是侧边栏与顶栏之间的一块空白内容区。
   return <Navigate to='/404' replace />;
 }
 

@@ -26,6 +26,12 @@ public class MenuController {
         return Result.ok(service.list());
     }
 
+    @GetMapping("/{id}")
+    @PreAuthorize("hasAuthority('system:menu:update')")
+    Result<MenuEntity> detail(@PathVariable Long id) {
+        return Result.ok(service.detail(id));
+    }
+
     @PostMapping
     @PreAuthorize("hasAuthority('system:menu:add')")
     @OperationLog(module = "菜单管理", action = "新增菜单")

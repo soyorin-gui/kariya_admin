@@ -1,3 +1,6 @@
+/* ⚠️ 这个文件与 index.html 里那段内联 <style> 是**同一段视觉的两份实现**。
+   不能合并：index.html 那份必须在 React 挂载前就显示，那时还没有任何 JS 样式。
+   改这里的任何一条，必须同步改 index.html，反之亦然。 */
 .app-loading {
   position: fixed;
   inset: 0;
@@ -8,25 +11,21 @@
   justify-content: center;
   gap: 18px;
   overflow: hidden;
+  /* 曾经这里是三个写死的浅蓝渐变（#eef6ff / #dcecff / #f7fbff）：
+     换品牌色不跟、切深色主题会闪一块白。现在全部从主题变量派生。 */
   background:
-    radial-gradient(circle at 50% 42%, rgba(77, 161, 255, 0.18), transparent 31%),
-    linear-gradient(135deg, #eef6ff, #dcecff 48%, #f7fbff);
+    radial-gradient(circle at 50% 42%, color-mix(in srgb, var(--brand) 18%, transparent), transparent 31%),
+    linear-gradient(135deg, var(--page), color-mix(in srgb, var(--brand) 8%, var(--page)) 48%, var(--surface));
 }
 
 .app-loading-mark {
-  display: grid;
-  width: 52px;
-  height: 52px;
-  place-items: center;
-  border: 1px solid rgba(255, 255, 255, 0.88);
-  border-radius: 16px;
-  background: linear-gradient(145deg, #4aa5ff, var(--brand-deep, #0961d8));
-  box-shadow: 0 12px 28px rgba(24, 119, 241, 0.22);
-  color: #fff;
-  font-family: Inter, 'PingFang SC', 'Microsoft YaHei', sans-serif;
-  font-size: 15px;
-  font-weight: 800;
-  letter-spacing: -0.5px;
+  display: block;
+  width: 62px;
+  height: 62px;
+  border: 1px solid var(--surface-elevated);
+  border-radius: 19px;
+  object-fit: cover;
+  box-shadow: 0 12px 28px color-mix(in srgb, var(--brand) 22%, transparent);
 }
 
 /* 八颗圆点固定成环，放大的亮点按顺时针方向依次轮转。 */
@@ -39,35 +38,78 @@
 .app-loading-dots i {
   position: absolute;
   display: block;
-  width: 11px;
-  height: 11px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
-  background: var(--brand, #1677ff);
-  box-shadow: 0 2px 7px rgba(22, 119, 255, 0.22);
-  animation: loading-dot-orbit 1.9s ease-in-out infinite;
+  /* 曾经写死 #1677ff：换品牌色时这圈点不变。 */
+  background: var(--brand);
+  box-shadow: 0 2px 7px color-mix(in srgb, var(--brand) 22%, transparent);
+  animation: loading-dot-orbit 2.8s ease-in-out infinite;
 }
 
-.app-loading-dots i:nth-child(1) { left: 41px; top: 5px; animation-delay: 0s; }
-.app-loading-dots i:nth-child(2) { left: 66px; top: 15px; animation-delay: -0.238s; }
-.app-loading-dots i:nth-child(3) { left: 77px; top: 41px; animation-delay: -0.475s; }
-.app-loading-dots i:nth-child(4) { left: 66px; top: 66px; animation-delay: -0.713s; }
-.app-loading-dots i:nth-child(5) { left: 41px; top: 77px; animation-delay: -0.95s; }
-.app-loading-dots i:nth-child(6) { left: 15px; top: 66px; animation-delay: -1.188s; }
-.app-loading-dots i:nth-child(7) { left: 5px; top: 41px; animation-delay: -1.425s; }
-.app-loading-dots i:nth-child(8) { left: 15px; top: 15px; animation-delay: -1.663s; }
+.app-loading-dots i:nth-child(1) {
+  left: 41px;
+  top: 5px;
+  animation-delay: 0s;
+}
+.app-loading-dots i:nth-child(2) {
+  left: 66px;
+  top: 15px;
+  animation-delay: -0.35s;
+}
+.app-loading-dots i:nth-child(3) {
+  left: 77px;
+  top: 41px;
+  animation-delay: -0.7s;
+}
+.app-loading-dots i:nth-child(4) {
+  left: 66px;
+  top: 66px;
+  animation-delay: -1.05s;
+}
+.app-loading-dots i:nth-child(5) {
+  left: 41px;
+  top: 77px;
+  animation-delay: -1.4s;
+}
+.app-loading-dots i:nth-child(6) {
+  left: 15px;
+  top: 66px;
+  animation-delay: -1.75s;
+}
+.app-loading-dots i:nth-child(7) {
+  left: 5px;
+  top: 41px;
+  animation-delay: -2.1s;
+}
+.app-loading-dots i:nth-child(8) {
+  left: 15px;
+  top: 15px;
+  animation-delay: -2.45s;
+}
 
 @keyframes loading-dot-orbit {
-  0%, 100% { opacity: 0.18; transform: scale(0.3); }
-  50% { opacity: 1; transform: scale(1.7); }
+  0%,
+  100% {
+    opacity: 0.18;
+    transform: scale(0.3);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.45);
+  }
 }
 
 .app-loading-text {
   margin: -3px 0 0;
-  color: var(--muted, #7483a7);
-  font-family: Inter, 'PingFang SC', 'Microsoft YaHei', sans-serif;
-  font-size: 13px;
+  color: var(--muted);
+  /* 曾经写死字体栈：在设置里换字体时这段文案不变。 */
+  font-family: var(--font-sans);
+  font-size: var(--fs-sm);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .app-loading-dots i { animation: none; }
+  .app-loading-dots i {
+    animation: none;
+  }
 }

@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { App, Button, DatePicker, Input, Popconfirm, Select, Space, Table, Tag } from 'antd';
+import { useRef, useState } from 'react';
+import { App, Button, DatePicker, Input, Popconfirm, Select, Space, Tag } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import type { Dayjs } from 'dayjs';
 import { DeleteOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
@@ -7,6 +7,7 @@ import { deleteOperationLogs, getOperationLogs } from '../../../api/operationLog
 import { Permission } from '../../../permission/Permission';
 import type { LogResult, OperationLog } from '../../../types/log';
 import { getApiErrorMessage } from '../../../utils/apiError';
+import { SmartTable, type SmartTableRef } from '../../../components/SmartTable';
 import './index.css';
 
 const RESULT_META: Record<string, { text: string; color: string }> = {
@@ -18,69 +19,27 @@ const RESULT_OPTIONS = [
   { value: 'FAILURE', label: '失败' },
 ];
 const TIME_FORMAT = 'YYYY-MM-DDTHH:mm:ss';
-const PAGE_SIZE = 10;
 
-interface LogFilters {
+type LogFilters = {
   keyword: string;
   module: string;
   result?: LogResult;
   range: [Dayjs, Dayjs] | null;
-}
+};
 
 export default function OperationLogPage() {
   const { message } = App.useApp();
-  const [records, setRecords] = useState<OperationLog[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [page, setPage] = useState(1);
+  const tableRef = useRef<SmartTableRef<LogFilters>>(null);
+  const currentRecordCount = useRef(0);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
-  const [draft, setDraft] = useState<LogFilters>({ keyword: '', module: '', range: null });
-  const [query, setQuery] = useState<LogFilters>(draft);
-  const [reloadToken, setReloadToken] = useState(0);
-
-  useEffect(() => {
-    let active = true;
-    const run = async () => {
-      try {
-        setLoading(true);
-        const data = await getOperationLogs({
-          pageNum: page,
-          pageSize: PAGE_SIZE,
-          keyword: query.keyword.trim() || undefined,
-          module: query.module.trim() || undefined,
-          result: query.result,
-          beginTime: query.range?.[0]?.format(TIME_FORMAT),
-          endTime: query.range?.[1]?.format(TIME_FORMAT),
-        });
-        if (!active) return;
-        setRecords(data.records);
-        setTotal(data.total);
-        setSelectedIds([]);
-      } catch (error) {
-        if (active) message.error(getApiErrorMessage(error, '无法获取操作日志'));
-      } finally {
-        if (active) setLoading(false);
-      }
-    };
-    void run();
-    return () => {
-      active = false;
-    };
-  }, [message, page, query, reloadToken]);
-
-  const search = () => {
-    setPage(1);
-    setQuery({ ...draft });
-    setReloadToken((value) => value + 1);
-  };
 
   const remove = async () => {
     try {
       const response = await deleteOperationLogs(selectedIds);
       message.success(response.message || '删除成功');
+      const page = tableRef.current?.getQueryParams().page ?? 1;
       setSelectedIds([]);
-      if (records.length === selectedIds.length && page > 1) setPage(page - 1);
-      setReloadToken((value) => value + 1);
+      tableRef.current?.reload({ page: currentRecordCount.current === selectedIds.length && page > 1 ? page - 1 : page });
     } catch (error) {
       message.error(getApiErrorMessage(error, '删除失败，请稍后重试'));
     }
@@ -105,36 +64,31 @@ export default function OperationLogPage() {
         </div>
       </div>
       <div className='table-card'>
-        <div className='table-toolbar log-toolbar'>
-          <Space wrap>
-            <Input value={draft.keyword} onChange={(event) => setDraft({ ...draft, keyword: event.target.value })} onPressEnter={search} prefix={<SearchOutlined />} placeholder='搜索操作人或操作名称' allowClear />
-            <Input value={draft.module} onChange={(event) => setDraft({ ...draft, module: event.target.value })} onPressEnter={search} placeholder='模块，例如：用户管理' allowClear style={{ width: 190 }} />
-            <Select value={draft.result} onChange={(value) => setDraft({ ...draft, result: value })} options={RESULT_OPTIONS} placeholder='操作结果' allowClear style={{ width: 130 }} />
-            <DatePicker.RangePicker showTime value={draft.range} onChange={(value) => setDraft({ ...draft, range: value as [Dayjs, Dayjs] | null })} placeholder={['开始时间', '结束时间']} />
-            <Button type='primary' icon={<SearchOutlined />} onClick={search}>
-              查询
-            </Button>
-          </Space>
-          <Space wrap>
-            <Button icon={<ReloadOutlined />} onClick={() => setReloadToken((value) => value + 1)}>
-              刷新
-            </Button>
-            <Permission code='system:operatelog:delete'>
-              <Popconfirm title='确定删除选中的操作日志？' description='日志删除后不可恢复，且删除动作本身会被记入操作日志。' okText='删除' cancelText='取消' disabled={!selectedIds.length} onConfirm={() => void remove()}>
-                <Button danger icon={<DeleteOutlined />} disabled={!selectedIds.length}>
-                  删除{selectedIds.length ? `（${selectedIds.length}）` : ''}
-                </Button>
-              </Popconfirm>
-            </Permission>
-          </Space>
-        </div>
-        <Table
+        <SmartTable<OperationLog, LogFilters>
+          ref={tableRef}
           rowKey='id'
           columns={columns}
-          dataSource={records}
-          loading={loading}
+          initialSearch={{ keyword: '', module: '', range: null }}
+          request={async ({ page, pageSize, search }) => {
+            const data = await getOperationLogs({ pageNum: page, pageSize, keyword: search.keyword.trim() || undefined, module: search.module.trim() || undefined, result: search.result, beginTime: search.range?.[0]?.format(TIME_FORMAT), endTime: search.range?.[1]?.format(TIME_FORMAT) });
+            return { list: data.records, total: data.total };
+          }}
+          onRequestError={(error) => message.error(getApiErrorMessage(error, '无法获取操作日志'))}
+          onDataLoaded={({ list }) => { currentRecordCount.current = list.length; setSelectedIds([]); }}
+          toolbarClassName='table-toolbar log-toolbar'
+          searchRender={({ search, setSearch, submit }) => <Space wrap>
+            <Input value={search.keyword} onChange={(event) => setSearch({ ...search, keyword: event.target.value })} onPressEnter={() => submit()} prefix={<SearchOutlined />} placeholder='搜索操作人或操作名称' allowClear />
+            <Input value={search.module} onChange={(event) => setSearch({ ...search, module: event.target.value })} onPressEnter={() => submit()} placeholder='模块，例如：用户管理' allowClear style={{ width: 190 }} />
+            <Select value={search.result} onChange={(value) => setSearch({ ...search, result: value })} options={RESULT_OPTIONS} placeholder='操作结果' allowClear style={{ width: 130 }} />
+            <DatePicker.RangePicker showTime value={search.range} onChange={(value) => setSearch({ ...search, range: value as [Dayjs, Dayjs] | null })} placeholder={['开始时间', '结束时间']} />
+            <Button type='primary' icon={<SearchOutlined />} onClick={() => submit()}>查询</Button>
+          </Space>}
+          toolbarRender={({ reload }) => <Space wrap>
+            <Button icon={<ReloadOutlined />} onClick={() => reload()}>刷新</Button>
+            <Permission code='system:operatelog:delete'><Popconfirm title='确定删除选中的操作日志？' description='日志删除后不可恢复，且删除动作本身会被记入操作日志。' okText='删除' cancelText='取消' disabled={!selectedIds.length} onConfirm={() => void remove()}><Button danger icon={<DeleteOutlined />} disabled={!selectedIds.length}>删除{selectedIds.length ? `（${selectedIds.length}）` : ''}</Button></Popconfirm></Permission>
+          </Space>}
           rowSelection={{ selectedRowKeys: selectedIds, onChange: (keys) => setSelectedIds(keys.map(Number)) }}
-          pagination={{ current: page, total, pageSize: PAGE_SIZE, showSizeChanger: false, onChange: setPage, showTotal: (value) => `共 ${value} 条记录` }}
+          pagination={{ pageSize: 10, showSizeChanger: false, showTotal: (value) => `共 ${value} 条记录` }}
           scroll={{ x: 1050 }}
         />
       </div>

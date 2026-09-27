@@ -4,6 +4,7 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import org.lbl.config.SecurityProperties;
+import org.lbl.auth.session.LoginSession;
 import org.springframework.stereotype.Service;
 
 import javax.crypto.SecretKey;
@@ -25,6 +26,16 @@ public class JwtService {
     public String issue(String sid, String username, long authVersion) {
         Instant now = Instant.now();
         return Jwts.builder().subject(username).claims(Map.of("sid", sid, "authVersion", authVersion)).issuedAt(Date.from(now)).expiration(Date.from(now.plusSeconds(properties.accessTokenMinutes() * 60))).signWith(key).compact();
+    }
+
+    public String issue(String sid, LoginSession session) {
+        Instant now = Instant.now();
+        String subject = session.onboarding() ? "onboarding:" + session.onboardingId() : session.username();
+        return Jwts.builder().subject(subject)
+                .claims(Map.of("sid", sid, "authVersion", session.authVersion(), "principalType", session.principalType()))
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(now.plusSeconds(properties.accessTokenMinutes() * 60)))
+                .signWith(key).compact();
     }
 
     public Claims parse(String token) {

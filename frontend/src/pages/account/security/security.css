@@ -1,0 +1,92 @@
+.account-security-page {
+  max-width: 980px;
+  margin: 0 auto;
+  /* 第三方平台的品牌色。它们是"平台身份"而不是"我们的主题"，所以刻意不跟 --brand 走。
+     但必须定义为变量：GitHub 的品牌色是近黑（#24292f），在深色主题下等于不可见，
+     所以下方 data-theme='dark' 里给了浅色替换值。
+     图标底色一律用 color-mix 从品牌色 + 当前 surface 派生，因此亮暗主题下都是协调的浅底。 */
+  --provider-wechat: #07c160;
+  --provider-github: #24292f;
+  --provider-google: #ea4335;
+}
+:root[data-theme='dark'] .account-security-page {
+  --provider-github: #e6edf3;
+}
+.identity-card {
+  padding: 8px 24px 16px;
+}
+.account-security-card {
+  min-height: 560px;
+}
+.account-security-loading {
+  display: grid;
+  min-height: 500px;
+  place-items: center;
+}
+.account-section-divider {
+  margin: 64px 0 30px;
+  /* 曾经这里是 var(--text-strong) —— 那个变量**全项目从未定义过**，
+     所以这行一直在静默失效（分隔线标题继承父级 color，而不是预期的强调色）。
+     用 --ink（主文字色）来表达同样的意图。 */
+  color: var(--ink);
+  font-size: var(--fs-xl) !important;
+  font-weight: 650 !important;
+}
+.account-section-divider:first-child {
+  margin-top: 12px;
+}
+.account-section-divider.ant-divider-horizontal.ant-divider-with-text::before,
+.account-section-divider.ant-divider-horizontal.ant-divider-with-text::after {
+  border-block-start-width: 2px;
+}
+.account-section {
+  padding: 0 36px 16px;
+}
+.account-section-head {
+  width: 100%;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+.account-section-head .ant-typography {
+  margin-bottom: 0;
+}
+.identity-icon {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  /* 曾经写死 #edf4ff（浅蓝）：既不跟品牌色变，在深色主题下还是一块刺眼的亮色。
+     现在从 --brand 与当前 surface 派生，两个问题一起解决。 */
+  background: color-mix(in srgb, var(--brand) 12%, var(--surface));
+  color: var(--brand);
+  font-size: var(--fs-2xl);
+}
+.identity-wechat {
+  color: var(--provider-wechat);
+  background: color-mix(in srgb, var(--provider-wechat) 14%, var(--surface));
+}
+.identity-github {
+  color: var(--provider-github);
+  background: color-mix(in srgb, var(--provider-github) 12%, var(--surface));
+}
+.identity-google {
+  color: var(--provider-google);
+  background: color-mix(in srgb, var(--provider-google) 12%, var(--surface));
+}
+.identity-card .ant-list-item {
+  padding-block: 18px;
+}
+
+@media (max-width: 640px) {
+  .identity-card {
+    padding-inline: 4px;
+  }
+  .account-section {
+    padding-inline: 4px;
+  }
+  .account-section-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

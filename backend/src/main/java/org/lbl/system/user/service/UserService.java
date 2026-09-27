@@ -4,6 +4,11 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import jakarta.servlet.http.HttpServletResponse;
 import org.lbl.auth.session.SessionService;
+import org.lbl.auth.session.SessionView;
+import org.lbl.auth.service.PasswordRules;
+import org.lbl.auth.identity.LocalCredentialEntity;
+import org.lbl.auth.identity.LocalCredentialMapper;
+import org.lbl.auth.identity.ExternalIdentityMapper;
 import org.lbl.common.exception.BusinessException;
 import org.lbl.common.exception.TooManyRequestsException;
 import org.lbl.common.result.PageResult;
@@ -21,9 +26,14 @@ import org.lbl.system.user.mapper.UserMapper;
 import org.lbl.system.user.mapper.UserRoleMapper;
 import org.lbl.system.user.request.PasswordChangeRequest;
 import org.lbl.system.user.request.UserRequest;
-import org.lbl.system.user.vo.UserCreated;
+import org.lbl.system.user.request.UserCreateRequest;
+import org.lbl.system.user.request.ContactUpdateRequest;
+import org.lbl.system.user.vo.ContactProfile;
 import org.lbl.system.user.vo.UserFormOptions;
 import org.lbl.system.user.vo.UserVO;
+import org.lbl.system.user.vo.UserListVO;
+import org.lbl.system.user.vo.UserRoleAssignment;
+import org.lbl.system.user.vo.UserPermissionAssignment;
 import org.lbl.system.user.vo.UsernameAvailability;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -36,8 +46,10 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Base64;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -60,10 +72,12 @@ public class UserService {
     private final AccessPolicy access;
     private final StringRedisTemplate redis;
     private final SecureRandom random = new SecureRandom();
+    private final LocalCredentialMapper credentials;
+    private final ExternalIdentityMapper externalIdentities;
 
     public UserService(UserMapper mapper, UserRoleMapper userRoles, DeptMapper depts, RoleMapper roles, RoleMenuMapper roleMenus,
                        MenuMapper allMenus, PasswordEncoder passwords, SessionService sessions, AccessPolicy access,
-                       StringRedisTemplate redis) {
+                       StringRedisTemplate redis, LocalCredentialMapper credentials, ExternalIdentityMapper externalIdentities) {
         this.mapper = mapper;
         this.userRoles = userRoles;
         this.depts = depts;
@@ -74,15 +88,37 @@ public class UserService {
         this.sessions = sessions;
         this.access = access;
         this.redis = redis;
+        this.credentials = credentials;
+        this.externalIdentities = externalIdentities;
     }
 
-    public PageResult<UserVO> page(long page, long size, String keyword) {
+    public PageResult<UserListVO> page(long page, long size, String keyword) {
         if (page < 1 || size < 1 || size > 100) throw new BusinessException("分页参数无效，每页最多 100 条");
         AccessPolicy.Actor actor = access.actor();
         LambdaQueryWrapper<UserEntity> query = query(keyword);
         access.applyUserScope(query, actor);
         Page<UserEntity> result = mapper.selectPage(Page.of(page, size), query.orderByDesc(UserEntity::getCreatedTime).orderByDesc(UserEntity::getId));
-        return new PageResult<>(result.getRecords().stream().map(user -> toView(user, actor)).toList(), result.getTotal(), page, size);
+        return new PageResult<>(toListViews(result.getRecords(), actor), result.getTotal(), page, size);
+    }
+
+    /** 编辑弹窗按需加载最新详情；列表不再携带 roleIds、deptId 等编辑态字段。 */
+    public UserVO detail(Long id) {
+        AccessPolicy.Actor actor = access.actor();
+        UserEntity user = require(id);
+        List<RoleEntity> assigned = roles.selectAssignedByUserId(id);
+        List<RoleEntity> active = assigned.stream().filter(role -> role.getStatus() == 1).toList();
+        Set<String> targetPermissions = actor.superAdmin() ? Set.of() : allMenus.selectByUserId(id).stream()
+                .map(org.lbl.system.menu.entity.MenuEntity::getPermissionCode).filter(Objects::nonNull)
+                .filter(code -> !code.isBlank()).collect(Collectors.toSet());
+        boolean superAdminTarget = AccessPolicy.containsSuperAdmin(active);
+        boolean manageable = access.canManageUser(actor, user, superAdminTarget, targetPermissions,
+                active.stream().map(RoleEntity::getDataScope).toList());
+        if (!manageable) throw new BusinessException("不能管理同级或更高权限的用户");
+        DeptEntity department = user.getDeptId() == null ? null : depts.selectById(user.getDeptId());
+        return new UserVO(user.getId(), user.getUsername(), user.getRealName(), user.getPhone(), user.getEmail(), user.getDeptId(),
+                department == null ? "-" : department.getDeptName(), active.stream().map(RoleEntity::getId).toList(),
+                active.stream().map(RoleEntity::getRoleName).collect(Collectors.joining("、")), user.getStatus(),
+                user.getCreatedTime(), true, user.getBuiltin() != 1, actor.superAdmin() && !superAdminTarget);
     }
 
     /**
@@ -96,24 +132,60 @@ public class UserService {
      */
     public UserFormOptions formOptions() {
         AccessPolicy.Actor actor = access.actor();
-        List<UserFormOptions.Option> departments = depts.selectList(new LambdaQueryWrapper<DeptEntity>()
+        List<UserFormOptions.DepartmentOption> departments = depts.selectList(new LambdaQueryWrapper<DeptEntity>()
                         .eq(DeptEntity::getStatus, 1)
                         .orderByAsc(DeptEntity::getSortOrder)).stream()
                 .filter(value -> actor.superAdmin() || actor.all() || actor.departments().contains(value.getId()))
-                .map(value -> new UserFormOptions.Option(value.getId(), value.getDeptName()))
+                .map(value -> new UserFormOptions.DepartmentOption(value.getId(), value.getDeptName(), value.getParentId()))
                 .toList();
-        List<UserFormOptions.Option> assignableRoles = roles.selectList(new LambdaQueryWrapper<RoleEntity>()
-                        .eq(RoleEntity::getStatus, 1)).stream()
-                .filter(value -> access.canAssignRole(actor, value))
+        List<RoleEntity> candidates = roles.selectList(new LambdaQueryWrapper<RoleEntity>().eq(RoleEntity::getStatus, 1));
+        Map<Long, Set<String>> permissionsByRole = actor.superAdmin() ? Map.of()
+                : rolePermissions(candidates.stream().map(RoleEntity::getId).toList());
+        List<UserFormOptions.Option> assignableRoles = candidates.stream()
+                .filter(value -> access.canAssignRole(actor, value, permissionsByRole.getOrDefault(value.getId(), Set.of())))
                 .map(value -> new UserFormOptions.Option(value.getId(), value.getRoleName()))
                 .toList();
         return new UserFormOptions(departments, assignableRoles);
     }
 
+    public List<SessionView> managedSessions(Long userId, String currentSid) {
+        UserEntity target = require(userId);
+        access.requireManageUser(access.actor(), target);
+        return sessions.listMemberSessions(userId, currentSid);
+    }
+
+    public void removeManagedSession(Long userId, String reference) {
+        UserEntity target = require(userId);
+        access.requireManageUser(access.actor(), target);
+        if (!sessions.removeByReference(userId, reference)) throw new BusinessException("登录会话不存在或已失效");
+    }
+
+    public void removeAllManagedSessions(Long userId) {
+        UserEntity target = require(userId);
+        access.requireManageUser(access.actor(), target);
+        sessions.removeAll(userId);
+    }
+
+    public ContactProfile currentContactProfile() {
+        UserEntity user = access.actor().user();
+        return new ContactProfile(user.getUsername(), user.getRealName(), user.getPhone(), user.getEmail());
+    }
+
     @Transactional
-    public UserCreated create(UserRequest request) {
+    public ContactProfile updateOwnContact(ContactUpdateRequest request) {
+        UserEntity user = access.actor().user();
+        user.setPhone(blankToNull(request.phone()));
+        user.setEmail(blankToNull(request.email()));
+        mapper.updateById(user);
+        return new ContactProfile(user.getUsername(), user.getRealName(), user.getPhone(), user.getEmail());
+    }
+
+    @Transactional
+    public UserVO create(UserCreateRequest createRequest) {
+        PasswordRules.requireConfirmed(createRequest.password(), createRequest.confirmPassword());
+        UserRequest request = createRequest.userRequest();
         AccessPolicy.Actor actor = access.actor();
-        validateAssignment(actor, request);
+        validateAssignment(actor, request, null);
         requireUsernameAvailable(request.username().trim());
         UserEntity user = new UserEntity();
         user.setUsername(request.username().trim());
@@ -121,14 +193,15 @@ public class UserService {
         user.setPhone(request.phone());
         user.setEmail(request.email());
         user.setDeptId(request.deptId());
+        user.setEmployeeNoVerified(0);
+        user.setRegistrationSource("ADMIN");
         user.setStatus(request.status());
         user.setAuthVersion(1L);
-        String temporaryPassword = temporaryPassword();
-        user.setPasswordHash(passwords.encode(temporaryPassword));
-        user.setPasswordChangeRequired(1);
+        user.setBuiltin(0);
         mapper.insert(user);
+        saveCredential(user.getId(), createRequest.password(), 0);
         replaceRoles(user.getId(), request.roleIds());
-        return new UserCreated(toView(user, actor), temporaryPassword);
+        return toView(user, actor);
     }
 
     @Transactional
@@ -136,7 +209,7 @@ public class UserService {
         AccessPolicy.Actor actor = access.actor();
         UserEntity user = require(id);
         access.requireManageUser(actor, user);
-        validateAssignment(actor, request);
+        validateAssignment(actor, request, user);
         if (user.getBuiltin() == 1 && request.status() != 1) throw new BusinessException("内置管理员不能禁用");
         // 注意这里刻意 <b>不</b> 复用 AccessPolicy.isSuperAdmin：那个方法还要求角色 status=1，
         // 而这一条问的是"内置管理员的角色分配里是否仍然保留着 super_admin 这个角色"。
@@ -151,7 +224,16 @@ public class UserService {
         user.setEmail(request.email());
         user.setDeptId(request.deptId());
         user.setStatus(request.status());
-        replaceRoles(id, request.roleIds());
+        // basic_role 是自助开户账号的最低权限角色，由开户流程维护。
+        // 管理员在此只是在其上叠加业务角色，不能因为编辑表单整组覆盖而
+        // 意外抹掉基础身份；这也让无权分配内置角色的普通管理员能够正常编辑用户。
+        List<Long> effectiveRoleIds = new ArrayList<>(request.roleIds());
+        roles.selectAssignedByUserId(id).stream()
+                .filter(role -> "basic_role".equals(role.getRoleCode()))
+                .map(RoleEntity::getId)
+                .filter(roleId -> !effectiveRoleIds.contains(roleId))
+                .forEach(effectiveRoleIds::add);
+        replaceRoles(id, effectiveRoleIds);
         user.setAuthVersion(user.getAuthVersion() + 1);
         mapper.updateById(user);
         sessions.removeAll(id);
@@ -164,8 +246,12 @@ public class UserService {
         UserEntity user = require(id);
         access.requireManageUser(actor, user);
         if (user.getBuiltin() == 1) throw new BusinessException("内置用户不能删除");
+        user.setDeletedTime(LocalDateTime.now());
+        mapper.updateById(user);
         mapper.deleteById(id);
         userRoles.deleteByUserId(id);
+        credentials.deleteById(id);
+        externalIdentities.deleteByUserId(id);
         sessions.removeAll(id);
     }
 
@@ -178,8 +264,7 @@ public class UserService {
             throw new BusinessException("仅超级管理员可重置普通用户密码");
         }
         String temporaryPassword = temporaryPassword();
-        user.setPasswordHash(passwords.encode(temporaryPassword));
-        user.setPasswordChangeRequired(1);
+        saveCredential(user.getId(), temporaryPassword, 1);
         user.setAuthVersion(user.getAuthVersion() + 1);
         mapper.updateById(user);
         sessions.removeAll(id);
@@ -207,15 +292,19 @@ public class UserService {
         }
         // 只算一次哈希校验：BCrypt 是有成本的，之前同样的比较做了两次（一次判原密码、
         // 一次判新旧是否相同），这里复用第一次的结果。
-        boolean oldPasswordMatches = passwords.matches(request.oldPassword(), user.getPasswordHash());
-        if (!oldPasswordMatches || passwords.matches(request.newPassword(), user.getPasswordHash())) {
+        LocalCredentialEntity credential = credentials.selectById(user.getId());
+        if (credential == null || credential.getEnabled() != 1) throw new BusinessException("当前账号未设置登录密码");
+        boolean oldPasswordMatches = passwords.matches(request.oldPassword(), credential.getPasswordHash());
+        if (!oldPasswordMatches || passwords.matches(request.newPassword(), credential.getPasswordHash())) {
             recordPasswordChangeFailure(failKey);
             // 两种情况统一成一句话：区分"原密码错误"与"新密码与原密码相同"会向
             // 尚未通过验证的调用者泄露"原密码是对的"，没有必要。
             throw new BusinessException("原密码不正确，或新密码与当前密码相同");
         }
-        user.setPasswordHash(passwords.encode(request.newPassword()));
-        user.setPasswordChangeRequired(0);
+        credential.setPasswordHash(passwords.encode(request.newPassword()));
+        credential.setPasswordChangeRequired(0);
+        credential.setPasswordChangedTime(LocalDateTime.now());
+        credentials.updateById(credential);
         user.setAuthVersion(user.getAuthVersion() + 1);
         mapper.updateById(user);
         sessions.removeAll(user.getId());
@@ -246,10 +335,10 @@ public class UserService {
         AccessPolicy.Actor actor = access.actor();
         String filename = "用户列表_" + DateTimeFormatter.ofPattern("yyyyMMddHHmmss").format(LocalDateTime.now()) + ".xlsx";
         ExcelExportUtil.write(response, filename, "用户列表", List.of(
-                new ExcelExportColumn<>("用户名", UserVO::username), new ExcelExportColumn<>("姓名", UserVO::realName),
-                new ExcelExportColumn<>("手机号", UserVO::phone), new ExcelExportColumn<>("邮箱", UserVO::email),
-                new ExcelExportColumn<>("角色", UserVO::roleNames), new ExcelExportColumn<>("部门", UserVO::deptName),
-                new ExcelExportColumn<>("状态", value -> value.status() == 1 ? "启用" : "禁用"), new ExcelExportColumn<>("创建时间", UserVO::createdTime)
+                new ExcelExportColumn<>("用户名", UserExportRow::username), new ExcelExportColumn<>("姓名", UserExportRow::realName),
+                new ExcelExportColumn<>("手机号", UserExportRow::phone), new ExcelExportColumn<>("邮箱", UserExportRow::email),
+                new ExcelExportColumn<>("角色", UserExportRow::roleNames), new ExcelExportColumn<>("部门", UserExportRow::deptName),
+                new ExcelExportColumn<>("状态", value -> value.status() == 1 ? "启用" : "禁用"), new ExcelExportColumn<>("创建时间", UserExportRow::createdTime)
         ), writer -> {
             long page = 1;
             while (true) {
@@ -257,7 +346,7 @@ public class UserService {
                 access.applyUserScope(query, actor);
                 Page<UserEntity> batch = mapper.selectPage(new Page<>(page, EXPORT_BATCH_SIZE, false),
                         query.orderByDesc(UserEntity::getCreatedTime).orderByDesc(UserEntity::getId));
-                for (UserEntity user : batch.getRecords()) writer.write(toView(user, actor));
+                for (UserExportRow row : toExportRows(batch.getRecords())) writer.write(row);
                 if (batch.getRecords().size() < EXPORT_BATCH_SIZE) return;
                 page++;
             }
@@ -293,9 +382,27 @@ public class UserService {
         if (!availability.available()) throw new BusinessException(availability.message());
     }
 
-    private void validateAssignment(AccessPolicy.Actor actor, UserRequest request) {
+    /**
+     * 校验用户的部门与角色分配。
+     * <p>
+     * 停用部门不再接收新用户，但已经在其中的用户仍可修改资料，也可以迁往启用部门。
+     * 否则部门一旦停用，连禁用其中的用户账号这种必要操作也无法执行。
+     *
+     * @param current 编辑时的原用户；新增时传 {@code null}
+     */
+    private void validateAssignment(AccessPolicy.Actor actor, UserRequest request, UserEntity current) {
+        // 这里刻意分成三句话，而不是原来那句"部门不存在或已停用"。
+        // 管理员能看到的信息只有这一句，混在一起就会把人引向错误方向：
+        // 自助注册创建的账号本来就没有部门，但提示会说它"不存在或已停用"。
+        // （deptId 为 null 的请求由 UserRequest 上的 @NotNull 挡在前面，到不了这里。）
         DeptEntity department = depts.selectById(request.deptId());
-        if (department == null || department.getStatus() != 1) throw new BusinessException("部门不存在或已停用");
+        if (department == null) {
+            throw new BusinessException("所选部门不存在（可能已被删除），请重新选择");
+        }
+        boolean staysInCurrentDept = current != null && Objects.equals(current.getDeptId(), request.deptId());
+        if (department.getStatus() != 1 && !staysInCurrentDept) {
+            throw new BusinessException("所选部门已停用，不能将用户迁入该部门；原本就在该部门的用户不受影响");
+        }
         if (!actor.superAdmin() && !actor.departments().contains(request.deptId()) && !actor.all()) {
             throw new BusinessException("不能将用户分配到数据范围之外的部门");
         }
@@ -318,14 +425,31 @@ public class UserService {
 
     private void replaceRoles(Long userId, List<Long> roleIds) { userRoles.deleteByUserId(userId); roleIds.stream().distinct().forEach(roleId -> userRoles.insert(userId, roleId)); }
     private String temporaryPassword() {
-        byte[] bytes = new byte[18];
-        random.nextBytes(bytes);
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+        return PasswordRules.randomCompliantPassword(random, 16);
+    }
+    private void saveCredential(Long userId, String rawPassword, int passwordChangeRequired) {
+        LocalCredentialEntity credential = credentials.selectById(userId);
+        if (credential == null) {
+            credential = new LocalCredentialEntity();
+            credential.setUserId(userId);
+            credential.setEnabled(1);
+            credential.setPasswordHash(passwords.encode(rawPassword));
+            credential.setPasswordChangeRequired(passwordChangeRequired);
+            credential.setPasswordChangedTime(LocalDateTime.now());
+            credentials.insert(credential);
+        } else {
+            credential.setEnabled(1);
+            credential.setPasswordHash(passwords.encode(rawPassword));
+            credential.setPasswordChangeRequired(passwordChangeRequired);
+            credential.setPasswordChangedTime(LocalDateTime.now());
+            credentials.updateById(credential);
+        }
     }
     private UserEntity require(Long id) { UserEntity user = mapper.selectById(id); if (user == null) throw new BusinessException("用户不存在"); return user; }
+    private String blankToNull(String value) { return value == null || value.isBlank() ? null : value.trim(); }
     private UserVO toView(UserEntity user, AccessPolicy.Actor actor) {
         List<RoleEntity> assignedRoles = roles.selectByUserId(user.getId());
-        DeptEntity department = depts.selectById(user.getDeptId());
+        DeptEntity department = user.getDeptId() == null ? null : depts.selectById(user.getDeptId());
         boolean manageable = access.canManageUser(actor, user);
         // 分配到的角色里有"停用的 super_admin"不算超管目标（停用角色不授予权限），
         // 与 AccessPolicy.isSuperAdmin 同一口径。注意 assignedRoles 用的是 selectByUserId
@@ -338,4 +462,56 @@ public class UserService {
                 user.getCreatedTime(), manageable, manageable && user.getBuiltin() != 1,
                 manageable && actor.superAdmin() && !superAdminTarget);
     }
+
+    private List<UserListVO> toListViews(List<UserEntity> users, AccessPolicy.Actor actor) {
+        if (users.isEmpty()) return List.of();
+        List<Long> userIds = users.stream().map(UserEntity::getId).toList();
+        Map<Long, List<UserRoleAssignment>> rolesByUser = roles.selectAssignedByUserIds(userIds).stream()
+                .collect(Collectors.groupingBy(UserRoleAssignment::getUserId));
+        Set<Long> deptIds = users.stream().map(UserEntity::getDeptId).filter(Objects::nonNull).collect(Collectors.toSet());
+        Map<Long, String> departmentNames = deptIds.isEmpty() ? Map.of() : depts.selectBatchIds(deptIds).stream()
+                .collect(Collectors.toMap(DeptEntity::getId, DeptEntity::getDeptName));
+        Map<Long, Set<String>> permissionsByUser = new HashMap<>();
+        if (!actor.superAdmin()) {
+            for (UserPermissionAssignment permission : allMenus.selectPermissionCodesByUserIds(userIds)) {
+                permissionsByUser.computeIfAbsent(permission.getUserId(), ignored -> new java.util.HashSet<>()).add(permission.getPermissionCode());
+            }
+        }
+        return users.stream().map(user -> {
+            List<UserRoleAssignment> assigned = rolesByUser.getOrDefault(user.getId(), List.of());
+            List<UserRoleAssignment> active = assigned.stream().filter(role -> role.getStatus() == 1).toList();
+            boolean superAdminTarget = active.stream().anyMatch(role -> "super_admin".equals(role.getRoleCode()));
+            boolean manageable = access.canManageUser(actor, user, superAdminTarget,
+                    permissionsByUser.getOrDefault(user.getId(), Set.of()), active.stream().map(UserRoleAssignment::getDataScope).toList());
+            return new UserListVO(user.getId(), user.getUsername(), user.getRealName(), user.getPhone(),
+                    user.getDeptId() == null ? "-" : departmentNames.getOrDefault(user.getDeptId(), "-"),
+                    active.stream().map(UserRoleAssignment::getRoleName).collect(Collectors.joining("、")), user.getStatus(),
+                    user.getCreatedTime(), manageable, manageable && user.getBuiltin() != 1,
+                    manageable && actor.superAdmin() && !superAdminTarget);
+        }).toList();
+    }
+
+    private List<UserExportRow> toExportRows(List<UserEntity> users) {
+        if (users.isEmpty()) return List.of();
+        List<Long> userIds = users.stream().map(UserEntity::getId).toList();
+        Map<Long, List<UserRoleAssignment>> rolesByUser = roles.selectAssignedByUserIds(userIds).stream()
+                .filter(role -> role.getStatus() == 1).collect(Collectors.groupingBy(UserRoleAssignment::getUserId));
+        Set<Long> deptIds = users.stream().map(UserEntity::getDeptId).filter(Objects::nonNull).collect(Collectors.toSet());
+        Map<Long, String> departmentNames = deptIds.isEmpty() ? Map.of() : depts.selectBatchIds(deptIds).stream()
+                .collect(Collectors.toMap(DeptEntity::getId, DeptEntity::getDeptName));
+        return users.stream().map(user -> new UserExportRow(user.getUsername(), user.getRealName(), user.getPhone(), user.getEmail(),
+                rolesByUser.getOrDefault(user.getId(), List.of()).stream().map(UserRoleAssignment::getRoleName).collect(Collectors.joining("、")),
+                user.getDeptId() == null ? "-" : departmentNames.getOrDefault(user.getDeptId(), "-"), user.getStatus(), user.getCreatedTime())).toList();
+    }
+
+    private Map<Long, Set<String>> rolePermissions(List<Long> roleIds) {
+        if (roleIds.isEmpty()) return Map.of();
+        Map<Long, Set<String>> result = new HashMap<>();
+        roleMenus.selectPermissionCodesByRoleIds(roleIds).forEach(row ->
+                result.computeIfAbsent(row.getRoleId(), ignored -> new java.util.HashSet<>()).add(row.getPermissionCode()));
+        return result;
+    }
+
+    private record UserExportRow(String username, String realName, String phone, String email,
+                                 String roleNames, String deptName, Integer status, LocalDateTime createdTime) { }
 }

@@ -5,6 +5,11 @@ import Forbidden from '../pages/error/Forbidden';
 import NotFound from '../pages/error/NotFound';
 import { AuthGuard } from '../components/common/AuthGuard';
 import { DynamicPage, MenuHomeRedirect } from './DynamicPage';
+import RegisterPage from '../pages/register';
+import CallbackPage from '../pages/auth/CallbackPage';
+import AccountSetupPage from '../pages/account/setup';
+import AccountSecurityPage from '../pages/account/security';
+import NotificationsPage from '../pages/account/notifications';
 
 /**
  * 静态骨架 + 一个动态出口。
@@ -28,6 +33,16 @@ import { DynamicPage, MenuHomeRedirect } from './DynamicPage';
  */
 export const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
+  { path: '/register', element: <RegisterPage /> },
+  { path: '/auth/callback', element: <CallbackPage /> },
+  {
+    path: '/account/setup',
+    element: (
+      <AuthGuard>
+        <AccountSetupPage />
+      </AuthGuard>
+    ),
+  },
   {
     // 404 刻意不套 AuthGuard：它是"这个地址不存在"，与登录状态无关。
     // 之前套了 AuthGuard，于是未登录用户访问任意不存在的地址会被送去登录页，
@@ -47,6 +62,8 @@ export const router = createBrowserRouter([
       { index: true, element: <MenuHomeRedirect /> },
       // 403 页面不是业务菜单，保留显式路由便于单独预览自己设计的效果（静态段优先于 * 匹配）。
       { path: '403', element: <Forbidden /> },
+      { path: 'account/security', element: <AccountSecurityPage /> },
+      { path: 'account/notifications', element: <NotificationsPage /> },
       { path: '*', element: <DynamicPage /> },
     ],
   },

@@ -3,9 +3,21 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.ico" />
+    <link rel="icon" type="image/png" href="/favicon.ico" />
     <title>LBL SHIT</title>
     <style>
+      /*
+       * 首屏 loading 样式。
+       *
+       * ⚠️ 这段是 components/common/loadingScreen.css 的**副本**，必须内联在这里 ——
+       * 它要在 React 挂载之前就显示，那时还没有任何 JS 样式可用。
+       * 改这里的任何一条，必须同步改 loadingScreen.css，反之亦然。
+       *
+       * 颜色一律写成 var(--变量, 兜底值)：
+       *   - React 挂载后由 ThemeProvider 把 --brand / --fs-base 等写到 <html> 上；
+       *   - 挂载前若 theme.css 已加载，则用它的首屏兜底值；
+       *   - 两者都还没有时（极早期的几十毫秒），用 fallback 里的默认值。
+       */
       #app-loading {
         position: fixed;
         inset: 0;
@@ -17,23 +29,35 @@
         gap: 18px;
         overflow: hidden;
         background:
-          radial-gradient(circle at 50% 42%, rgba(77, 161, 255, 0.18), transparent 31%),
-          linear-gradient(135deg, #eef6ff, #dcecff 48%, #f7fbff);
+          radial-gradient(circle at 50% 42%, color-mix(in srgb, var(--brand, #1677ff) 18%, transparent), transparent 31%),
+          linear-gradient(
+            135deg,
+            var(--page, #f5f8fd),
+            color-mix(in srgb, var(--brand, #1677ff) 8%, var(--page, #f5f8fd)) 48%,
+            var(--surface, #fff)
+          );
+      }
+
+      /* 系统是深色、但 React 还没挂载（data-theme 还没写上）时兜住，
+         否则会先闪一块白再变黑。
+         选择器必须带 html:not([data-theme])：一旦 React 挂载并写下 data-theme，
+         这个规则就失效，避免"用户手动选了浅色但系统是深色"时被它覆盖。 */
+      @media (prefers-color-scheme: dark) {
+        html:not([data-theme]) #app-loading {
+          background:
+            radial-gradient(circle at 50% 42%, color-mix(in srgb, var(--brand, #1677ff) 22%, transparent), transparent 31%),
+            linear-gradient(135deg, #0e1625, #111b2c 48%, #151f31);
+        }
       }
 
       .app-loading-mark {
-        display: grid;
-        width: 52px;
-        height: 52px;
-        place-items: center;
-        border: 1px solid rgba(255, 255, 255, 0.88);
-        border-radius: 16px;
-        background: linear-gradient(145deg, #4aa5ff, #0961d8);
+        display: block;
+        width: 62px;
+        height: 62px;
+        border: 1px solid var(--surface-elevated, rgba(255, 255, 255, 0.88));
+        border-radius: 19px;
+        object-fit: cover;
         box-shadow: 0 12px 28px rgba(24, 119, 241, 0.22);
-        color: #fff;
-        font-size: 15px;
-        font-weight: 800;
-        letter-spacing: -0.5px;
       }
 
       .app-loading-dots {
@@ -45,40 +69,44 @@
       .app-loading-dots i {
         position: absolute;
         display: block;
-        width: 11px;
-        height: 11px;
+        width: 9px;
+        height: 9px;
         border-radius: 50%;
-        background: #1677ff;
+        background: var(--brand, #1677ff);
         box-shadow: 0 2px 7px rgba(22, 119, 255, 0.22);
-        animation: loading-dot-orbit 1.9s ease-in-out infinite;
+        animation: loading-dot-orbit 2.8s ease-in-out infinite;
       }
 
       .app-loading-dots i:nth-child(1) { left: 41px; top: 5px; animation-delay: 0s; }
-      .app-loading-dots i:nth-child(2) { left: 66px; top: 15px; animation-delay: -0.238s; }
-      .app-loading-dots i:nth-child(3) { left: 77px; top: 41px; animation-delay: -0.475s; }
-      .app-loading-dots i:nth-child(4) { left: 66px; top: 66px; animation-delay: -0.713s; }
-      .app-loading-dots i:nth-child(5) { left: 41px; top: 77px; animation-delay: -0.95s; }
-      .app-loading-dots i:nth-child(6) { left: 15px; top: 66px; animation-delay: -1.188s; }
-      .app-loading-dots i:nth-child(7) { left: 5px; top: 41px; animation-delay: -1.425s; }
-      .app-loading-dots i:nth-child(8) { left: 15px; top: 15px; animation-delay: -1.663s; }
+      .app-loading-dots i:nth-child(2) { left: 66px; top: 15px; animation-delay: -0.35s; }
+      .app-loading-dots i:nth-child(3) { left: 77px; top: 41px; animation-delay: -0.7s; }
+      .app-loading-dots i:nth-child(4) { left: 66px; top: 66px; animation-delay: -1.05s; }
+      .app-loading-dots i:nth-child(5) { left: 41px; top: 77px; animation-delay: -1.4s; }
+      .app-loading-dots i:nth-child(6) { left: 15px; top: 66px; animation-delay: -1.75s; }
+      .app-loading-dots i:nth-child(7) { left: 5px; top: 41px; animation-delay: -2.1s; }
+      .app-loading-dots i:nth-child(8) { left: 15px; top: 15px; animation-delay: -2.45s; }
 
       @keyframes loading-dot-orbit {
         0%, 100% { opacity: 0.18; transform: scale(0.3); }
-        50% { opacity: 1; transform: scale(1.7); }
+        50% { opacity: 1; transform: scale(1.45); }
       }
 
       .app-loading-text {
         margin: -3px 0 0;
-        color: #7483a7;
-        font-family: Inter, 'PingFang SC', 'Microsoft YaHei', sans-serif;
-        font-size: 13px;
+        color: var(--muted, #7483a7);
+        font-family: var(--font-sans, Inter, 'PingFang SC', 'Microsoft YaHei', sans-serif);
+        font-size: var(--fs-sm, 13px);
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .app-loading-dots i { animation: none; }
       }
     </style>
   </head>
   <body>
     <div id="root">
       <div id="app-loading" role="status" aria-label="应用加载中">
-        <div class="app-loading-mark">LBL</div>
+        <img class="app-loading-mark" src="/favicon.ico" alt="LBL SHIT" />
         <div class="app-loading-dots" aria-hidden="true">
           <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
         </div>
