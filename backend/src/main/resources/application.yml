@@ -78,3 +78,48 @@ lbl:
     temperature: 0.1
     timeout-seconds: 60
     sse-timeout-millis: 120000
+  # 第三方认证的提供方目录必须留在版本库中；客户端密钥只通过环境变量注入。
+  # 未设置 *_LOGIN_ENABLED=true 或对应的 client id/secret 时，前端会显示但禁用该入口。
+  external-auth:
+    backend-base-url: ${BACKEND_BASE_URL:http://localhost:8080}
+    frontend-base-url: ${FRONTEND_BASE_URL:http://localhost:5173}
+    # 可选 HTTP CONNECT 代理。本机代理应填写 HTTP 或 mixed 监听端口，不支持 SOCKS-only 端口。
+    # 留空 / 0 时直连。
+    proxy-host: ${EXTERNAL_AUTH_PROXY_HOST:127.0.0.1}
+    proxy-port: ${EXTERNAL_AUTH_PROXY_PORT:7890}
+    providers:
+      wechat:
+        enabled: ${WECHAT_LOGIN_ENABLED:true}
+        display-name: 微信
+        icon: wechat
+        protocol: OAUTH2
+        authorization-uri: https://open.weixin.qq.com/connect/qrconnect
+        token-uri: https://api.weixin.qq.com/sns/oauth2/access_token
+        user-info-uri: https://api.weixin.qq.com/sns/userinfo
+        client-id: ${WECHAT_APP_ID:}
+        client-secret: ${WECHAT_APP_SECRET:}
+        client-id-parameter: appid
+        client-secret-parameter: secret
+        token-method: GET
+        pkce-enabled: false
+        authorization-fragment: wechat_redirect
+        scopes: [ snsapi_login ]
+        issuer: https://open.weixin.qq.com
+        subject-claim: openid
+        display-name-claim: nickname
+        email-claim: email
+        user-info-parameters:
+          access_token: '{access_token}'
+          openid: '{openid}'
+          lang: zh_CN
+      # UIAS 的 SDK / ESF 适配器尚未在仓库实现；只有两者在内网以 Bean 形式提供时才可启用。
+      uias:
+        enabled: ${UIAS_LOGIN_ENABLED:false}
+        display-name: 内部统一认证
+        icon: enterprise
+        protocol: SAML
+        # UIAS SDK / ESF 的实际实现只在内网部署时提供；本仓库仅保留流程编排与适配端口。
+        entry-url: ${UIAS_ENTRY_URL:}
+        callback-url: ${UIAS_CALLBACK_URL:}
+        issuer: ${UIAS_ISSUER:uias}
+        target-parameter: ${UIAS_TARGET_PARAMETER:ssotarget}

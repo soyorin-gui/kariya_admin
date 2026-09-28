@@ -3,6 +3,7 @@ package org.lbl.auth.external;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.lbl.auth.identity.VerifiedIdentity;
+import org.lbl.auth.uias.UiasLoginService;
 import org.lbl.auth.model.SessionGrant;
 import org.lbl.auth.session.LoginSession;
 import org.lbl.auth.session.SessionService;
@@ -16,6 +17,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
+import java.net.InetSocketAddress;
+import java.net.ProxySelector;
 import java.net.URI;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
@@ -50,12 +53,13 @@ public class ExternalLoginService {
     private final LoginLogService loginLogs;
     private final ExternalLoginPersistence persistence;
     private final SessionService sessions;
+    private final UiasLoginService uias;
     private final SecureRandom random = new SecureRandom();
-    private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(8)).build();
+    private final HttpClient http;
 
     public ExternalLoginService(ExternalAuthProperties properties, StringRedisTemplate redis, ObjectMapper json,
                                 LoginAttemptGuard attempts, LoginLogService loginLogs,
-                                ExternalLoginPersistence persistence, SessionService sessions) {
+                                ExternalLoginPersistence persistence, SessionService sessions, UiasLoginService uias) {
         this.properties = properties;
         this.redis = redis;
         this.json = json;
@@ -63,6 +67,15 @@ public class ExternalLoginService {
         this.loginLogs = loginLogs;
         this.persistence = persistence;
         this.sessions = sessions;
+        this.uias = uias;
+        HttpClient.Builder httpBuilder = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(8));
+        if (hasText(properties.getProxyHost()) && properties.getProxyPort() > 0) {
+            httpBuilder.proxy(ProxySelector.of(new InetSocketAddress(properties.getProxyHost().trim(), properties.getProxyPort())));
+            log.info("External authentication HTTP proxy enabled: {}:{}", properties.getProxyHost().trim(), properties.getProxyPort());
+        } else if (hasText(properties.getProxyHost()) || properties.getProxyPort() > 0) {
+            log.warn("External authentication proxy is incomplete; direct connection will be used");
+        }
+        this.http = httpBuilder.build();
     }
 
     public List<ProviderView> providers() {
@@ -82,6 +95,7 @@ public class ExternalLoginService {
     public boolean isProviderUsable(String providerKey) {
         ExternalAuthProperties.Provider provider = properties.getProviders().get(providerKey);
         if (provider == null || !provider.isEnabled()) return false;
+        if ("uias".equalsIgnoreCase(providerKey)) return uias.isUsable();
         if (isSaml(provider)) return false;
         return hasText(provider.getAuthorizationUri()) && hasText(provider.getTokenUri())
                 && hasText(provider.getUserInfoUri()) && hasText(provider.getClientId())
@@ -182,6 +196,10 @@ public class ExternalLoginService {
             // 因为什么失败了都查不到。这里统一记一条 FAILURE。
             loginLogs.record(auditSubject(providerKey, transaction), null, LogResult.FAILURE,
                     "外部登录失败：" + (ex.getMessage() == null ? "未知原因" : ex.getMessage()));
+            if (isBinding(transaction)) {
+                throw new ExternalLoginCallbackException(ex.getMessage() == null ? "外部账号绑定失败" : ex.getMessage(),
+                        transaction.returnTo());
+            }
             throw ex;
         } catch (RuntimeException ex) {
             // 非业务异常（唯一键冲突、SQL 异常、NPE…）也要留痕：它们同样是"这一次登录没成功"，
@@ -189,6 +207,9 @@ public class ExternalLoginService {
             // 消息刻意不落进审计表 —— 异常文本里可能带表名/列名/SQL，细节留在应用日志即可。
             log.warn("External login failed with an internal error: provider={}", providerKey, ex);
             loginLogs.record(auditSubject(providerKey, transaction), null, LogResult.FAILURE, "外部登录失败（内部错误）");
+            if (isBinding(transaction)) {
+                throw new ExternalLoginCallbackException("外部账号绑定失败，请稍后重试", transaction.returnTo());
+            }
             throw ex;
         }
         // 成功日志刻意写在 try 之外，两个原因：
@@ -197,6 +218,25 @@ public class ExternalLoginService {
         //   ② 它也不会被上面的 catch 误判成失败 —— "记了成功"就一定是真的成功了。
         loginLogs.record(completion.audit().username(), completion.audit().userId(), LogResult.SUCCESS, completion.audit().message());
         return completion;
+    }
+
+    /**
+     * 授权平台在用户取消授权时不会带回 code，仍须消费 state 并区分它是登录还是绑定。
+     * 绑定失败应返回账户安全页，而不是把仍持有效 Cookie 的用户导航到登录页。
+     */
+    public String cancel(String providerKey, String state, String message) {
+        LoginTransaction transaction = null;
+        try {
+            transaction = consume(state);
+            if (!transaction.providerKey().equals(providerKey)) throw new BusinessException("外部登录来源不匹配");
+        } catch (BusinessException ex) {
+            loginLogs.record(auditSubject(providerKey, transaction), null, LogResult.FAILURE,
+                    "外部登录失败：" + (message == null || message.isBlank() ? "用户取消或平台拒绝授权" : message));
+            return "/login";
+        }
+        loginLogs.record(auditSubject(providerKey, transaction), null, LogResult.FAILURE,
+                "外部登录失败：" + (message == null || message.isBlank() ? "用户取消或平台拒绝授权" : message));
+        return isBinding(transaction) ? transaction.returnTo() : "/login";
     }
 
     /**
@@ -225,6 +265,10 @@ public class ExternalLoginService {
         return new VerifiedIdentity(providerKey, normalizeIssuer(provider.getIssuer()), subject,
                 claim(profile, provider.getDisplayNameClaim()), claim(profile, provider.getEmailClaim()),
                 claim(profile, provider.getEmployeeNoClaim()), profile);
+    }
+
+    private boolean isBinding(LoginTransaction transaction) {
+        return transaction != null && transaction.targetUserId() != null;
     }
 
     /**
@@ -269,6 +313,7 @@ public class ExternalLoginService {
         } catch (BusinessException ex) {
             throw ex;
         } catch (Exception ex) {
+            log.warn("Unable to reach external token endpoint: provider={}", transaction.providerKey(), ex);
             throw new BusinessException("无法连接外部认证服务");
         }
     }
@@ -292,6 +337,7 @@ public class ExternalLoginService {
         } catch (BusinessException ex) {
             throw ex;
         } catch (Exception ex) {
+            log.warn("Unable to reach external user-info endpoint", ex);
             throw new BusinessException("无法读取外部用户资料");
         }
     }

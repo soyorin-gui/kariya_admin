@@ -14,6 +14,7 @@
 > | `INTRANET-MIGRATION.md` | 移到公司内网：改名、品牌清理、配置与安全清单 |
 > | `DATA-SCOPE-ROLE-DEPT.md` | `sys_role_dept`（自定义数据范围）从零落地方案 |
 > | `THIRD-PARTY-LOGIN.md` | GitHub / 微信 / Google / UIAS 三方登录的真实可用性与启用步骤 |
+> | `UIAS-INTEGRATION.md` | UIAS SDK 与 ESF 人员目录的接入边界、配置和账号匹配策略 |
 > | `ASSESSMENT.md` | 代码质量评估、冗余清单、漏洞与不足、未完成项与路线图 |
 > | `ARCHIVE-removed-code.md` | 本次清理中删除的代码原文（其中 3 个后端文件**从未进过 git**，只能从这里找回） |
 
@@ -36,7 +37,7 @@
 | --- | --- |
 | 账号密码登录 | ✅ 完成，含失败锁定、图形验证码、首登强制改密 |
 | 三方登录（GitHub / 微信 / Google） | ⚠️ 代码完整，**从未端到端验证过**，见 `THIRD-PARTY-LOGIN.md` |
-| 内部统一认证 UIAS（SAML） | ❌ 只有接口占位，未实现（`SamlIdentityVerifier` 是空接口） |
+| 内部统一认证 UIAS | ⚠️ 流程骨架已完成；需在内网实现 UIAS SDK 与 ESF 适配器，见 `UIAS-INTEGRATION.md` |
 | 会话管理（多设备、踢下线、记住我） | ✅ 完成，基于 Redis 服务端会话 + 短寿命 JWT |
 | 用户 / 角色 / 部门 / 菜单 四大管理页 | ✅ 完成，含数据范围、越权防护、导出 |
 | RBAC 权限（菜单 + 按钮 + 后端 `@PreAuthorize`） | ✅ 完成，前后端同一份口径 |
@@ -200,11 +201,9 @@ spring:
       # password: 有密码就写
 server:
   port: 8080
-lbl:
-  external-auth:
-    backend-base-url: http://localhost:8080
-    frontend-base-url: http://localhost:5173
 ```
+
+三方登录的提供方目录已在受版本控制的 `application.yml` 中；本地或生产环境只需设置对应的 `*_LOGIN_ENABLED`、`*_CLIENT_ID` / `*_CLIENT_SECRET` 与 `BACKEND_BASE_URL`、`FRONTEND_BASE_URL` 环境变量，切勿把它们写入 `application-local.yml`。
 
 ```bash
 cd backend

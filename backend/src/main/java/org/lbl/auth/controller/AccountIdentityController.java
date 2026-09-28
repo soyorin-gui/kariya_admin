@@ -1,6 +1,7 @@
 package org.lbl.auth.controller;
 
 import org.lbl.auth.external.ExternalLoginService;
+import org.lbl.auth.uias.UiasLoginService;
 import org.lbl.auth.identity.*;
 import org.lbl.common.exception.BusinessException;
 import org.lbl.common.result.Result;
@@ -8,6 +9,7 @@ import org.lbl.security.context.CurrentUser;
 import org.lbl.system.log.aspect.OperationLog;
 import org.lbl.system.user.mapper.UserMapper;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,13 +32,15 @@ public class AccountIdentityController {
     private final ExternalIdentityMapper identities;
     private final LocalCredentialMapper credentials;
     private final ExternalLoginService external;
+    private final UiasLoginService uias;
     private final UserMapper users;
 
     public AccountIdentityController(ExternalIdentityMapper identities, LocalCredentialMapper credentials,
-                                     ExternalLoginService external, UserMapper users) {
+                                     ExternalLoginService external, UiasLoginService uias, UserMapper users) {
         this.identities = identities;
         this.credentials = credentials;
         this.external = external;
+        this.uias = uias;
         this.users = users;
     }
 
@@ -52,9 +56,16 @@ public class AccountIdentityController {
     @PostMapping("/{provider}/start")
     @OperationLog(module = "登录与安全", action = "发起第三方登录绑定")
     public Result<Map<String, String>> startBinding(@PathVariable String provider,
-                                                    @CookieValue(value = "lbl_refresh", required = false) String sid,
+                                                    Authentication authentication,
                                                     @AuthenticationPrincipal CurrentUser user) {
-        return Result.ok(Map.of("authorizationUrl", external.beginBinding(provider, user.id(), sid)));
+        // 刷新 Cookie 的 Path 是 /api/auth，刻意不会出现在 /api/account 请求中。
+        // 此端点已经由 Bearer token 认证，JWT 过滤器把对应 sid 写进 Authentication.details；
+        // 从这里取值既能可靠完成绑定，也不必扩大刷新凭据 Cookie 的发送范围。
+        String sid = authentication.getDetails() instanceof String value ? value : null;
+        String authorizationUrl = "uias".equalsIgnoreCase(provider)
+                ? uias.beginBinding(user.id(), sid)
+                : external.beginBinding(provider, user.id(), sid);
+        return Result.ok(Map.of("authorizationUrl", authorizationUrl));
     }
 
     /**

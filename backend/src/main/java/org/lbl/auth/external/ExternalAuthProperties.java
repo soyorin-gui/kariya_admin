@@ -10,12 +10,19 @@ import java.util.Map;
 public class ExternalAuthProperties {
     private String backendBaseUrl = "http://localhost:8080";
     private String frontendBaseUrl = "http://localhost:5173";
+    /** 外部 OAuth/OIDC 请求使用的可选 HTTP CONNECT 代理；留空时直连。 */
+    private String proxyHost = "";
+    private int proxyPort;
     private Map<String, Provider> providers = new LinkedHashMap<>();
 
     public String getBackendBaseUrl() { return backendBaseUrl; }
     public void setBackendBaseUrl(String backendBaseUrl) { this.backendBaseUrl = backendBaseUrl; }
     public String getFrontendBaseUrl() { return frontendBaseUrl; }
     public void setFrontendBaseUrl(String frontendBaseUrl) { this.frontendBaseUrl = frontendBaseUrl; }
+    public String getProxyHost() { return proxyHost; }
+    public void setProxyHost(String proxyHost) { this.proxyHost = proxyHost; }
+    public int getProxyPort() { return proxyPort; }
+    public void setProxyPort(int proxyPort) { this.proxyPort = proxyPort; }
     public Map<String, Provider> getProviders() { return providers; }
     public void setProviders(Map<String, Provider> providers) { this.providers = providers; }
 
@@ -27,6 +34,12 @@ public class ExternalAuthProperties {
         private String authorizationUri;
         private String tokenUri;
         private String userInfoUri;
+        /** 企业统一认证入口（UIAS 专用；OAuth/OIDC 提供方保持为空）。 */
+        private String entryUrl;
+        /** 企业统一认证回调地址（UIAS 专用）。 */
+        private String callbackUrl;
+        /** UIAS 携带回调地址时使用的参数名，默认 ssotarget。 */
+        private String targetParameter = "ssotarget";
         private String clientId;
         private String clientSecret;
         private List<String> scopes = List.of();
@@ -58,6 +71,12 @@ public class ExternalAuthProperties {
         public void setTokenUri(String tokenUri) { this.tokenUri = tokenUri; }
         public String getUserInfoUri() { return userInfoUri; }
         public void setUserInfoUri(String userInfoUri) { this.userInfoUri = userInfoUri; }
+        public String getEntryUrl() { return entryUrl; }
+        public void setEntryUrl(String entryUrl) { this.entryUrl = entryUrl; }
+        public String getCallbackUrl() { return callbackUrl; }
+        public void setCallbackUrl(String callbackUrl) { this.callbackUrl = callbackUrl; }
+        public String getTargetParameter() { return targetParameter; }
+        public void setTargetParameter(String targetParameter) { this.targetParameter = targetParameter; }
         public String getClientId() { return clientId; }
         public void setClientId(String clientId) { this.clientId = clientId; }
         public String getClientSecret() { return clientSecret; }

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { App } from 'antd';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { fetchMe, refresh } from '../../api/auth';
@@ -12,12 +12,18 @@ export default function CallbackPage() {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
   const { message } = App.useApp();
+  // React StrictMode 会在开发环境额外执行一次 effect；回调页有提示和跳转，必须只处理一次。
+  const handledRef = useRef(false);
   useEffect(() => {
+    if (handledRef.current) return;
+    handledRef.current = true;
     const params = new URLSearchParams(location.search);
     const error = params.get('error');
     if (error) {
       message.error(error);
-      navigate('/login', { replace: true });
+      // 外部账号“绑定”失败时后端会把 returnTo 指向账户安全页。Cookie 仍在，AuthGuard
+      // 会静默恢复会话；不能一律跳登录页，否则用户会误以为自己被踢下线。
+      navigate(resolveRedirect(params.get('returnTo'), window.location.origin) ?? '/login', { replace: true });
       return;
     }
     void (async () => {

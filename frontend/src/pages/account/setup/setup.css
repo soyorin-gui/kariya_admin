@@ -37,6 +37,19 @@
   box-shadow: 0 22px 60px rgba(22, 79, 154, 0.12);
   backdrop-filter: blur(24px);
 }
+.account-setup-exit {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  width: 36px;
+  height: 36px;
+  color: #6b82a5;
+  border-radius: 50%;
+}
+.account-setup-exit:hover {
+  color: #d9363e !important;
+  background: rgba(217, 54, 62, 0.08) !important;
+}
 .account-setup-badge {
   color: var(--brand);
   font-weight: 700;

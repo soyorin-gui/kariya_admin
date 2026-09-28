@@ -1,109 +1,78 @@
-.today {
-  color: var(--muted);
-  font-size: var(--fs-base);
+.component-lab-page {
+  padding-bottom: 12px;
 }
-.stat-card {
+.component-lab-head {
+  align-items: flex-start;
+}
+.component-lab-subtitle {
+  margin: 7px 0 0 !important;
+}
+.showcase-card {
+  height: 100%;
   border: 1px solid var(--line);
   border-radius: 12px;
   box-shadow: 0 8px 24px var(--shadow);
 }
-.stat-card .ant-card-body {
-  display: flex;
-  justify-content: space-between;
-  padding: 22px;
-}
-.stat-card span,
-.stat-card small {
-  display: block;
-  color: var(--muted);
-  font-size: var(--fs-base);
-}
-.stat-card strong {
-  display: block;
-  font-size: var(--fs-display);
-  margin: 8px 0;
-  color: var(--ink);
-}
-.stat-card small {
-  /* 曾经写死 #18a66a：与 AntD 的 colorSuccess 是同一个值，但改 tokens.ts 时它不会跟着变。 */
-  color: var(--success);
-}
-.stat-icon {
-  width: 46px;
-  height: 46px;
-  border-radius: 12px;
-  display: grid;
-  place-items: center;
-  font-size: var(--fs-2xl);
-}
-.dash-row {
+.showcase-row {
   margin-top: 18px;
 }
-.chart-card,
-.recent-card {
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  box-shadow: 0 8px 24px var(--shadow);
+.demo-label {
+  margin-bottom: 10px;
+  color: var(--ink-soft);
+  font-weight: 600;
 }
-.chart {
-  height: 285px;
+.demo-input-stack {
+  width: min(100%, 480px);
 }
-.login-list {
+.mini-status-panel {
   display: flex;
+  min-height: 166px;
   flex-direction: column;
+  gap: 18px;
+  justify-content: center;
+  padding: 22px;
+  border: 1px solid color-mix(in srgb, var(--brand) 22%, var(--line));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--brand) 5%, var(--surface));
+  transition: padding 160ms ease;
 }
-.login-row {
-  display: grid;
-  grid-template-columns: 36px 1fr 155px 84px;
+.mini-status-panel.is-dense {
+  padding: 14px;
+}
+.mini-status-top {
+  display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 11px 0;
-  border-bottom: 1px solid var(--line);
+  gap: 10px;
 }
-.login-row:last-child {
-  border-bottom: none;
-}
-.avatar-dot {
-  width: 31px;
-  height: 31px;
+.mini-status-top > div {
   display: grid;
-  place-items: center;
-  color: var(--brand);
-  background: color-mix(in srgb, var(--brand) 13%, var(--surface));
-  border-radius: 50%;
-  font-size: var(--fs-xs);
+  gap: 3px;
 }
-.login-row strong,
-.login-row small {
-  display: block;
-}
-.login-row small,
-.login-row > span:not(.avatar-dot) {
+.mini-status-top span {
   color: var(--muted);
   font-size: var(--fs-sm);
 }
-.system-info {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  row-gap: 18px;
-  margin: 2px 0;
+.mini-status-icon {
+  margin-left: auto;
+  font-size: var(--fs-xl);
 }
-.system-info dt {
-  color: var(--muted);
-}
-.system-info dd {
-  margin: 0;
-  text-align: right;
+.copy-showcase code {
+  display: block;
+  overflow-wrap: anywhere;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
   color: var(--ink-soft);
+  background: color-mix(in srgb, var(--brand) 5%, var(--surface));
+}
+.copy-showcase-action {
+  margin-top: 14px;
 }
 @media (max-width: 700px) {
-  .today {
-    display: none;
+  .showcase-row {
+    margin-top: 14px;
   }
-  .login-row {
-    grid-template-columns: 36px 1fr 74px;
-  }
-  .login-row > span:not(.avatar-dot) {
+  .component-lab-head > .ant-tag {
     display: none;
   }
 }

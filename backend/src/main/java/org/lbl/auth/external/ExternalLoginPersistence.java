@@ -102,6 +102,23 @@ public class ExternalLoginPersistence {
         return new ExternalLoginService.Completion(grant, transaction.returnTo(), audit);
     }
 
+    /**
+     * 内部统一认证按已验证工号匹配到本地员工后的登录入口。
+     * <p>
+     * 它与普通外部登录的区别是：UIAS 不允许未绑定身份直接进入自助开户页，而是必须先由管理员
+     * 为工号开通本地账号、部门和角色。身份绑定仍复用同一张表与唯一性规则。
+     */
+    @Transactional
+    public ExternalLoginService.Completion settleEmployeeLogin(LoginTransaction transaction,
+                                                               VerifiedIdentity verified, UserEntity user) {
+        if (user == null || user.getStatus() != 1) throw new BusinessException("员工账号不存在或已停用");
+        bind(user.getId(), verified);
+        SessionGrant grant = issueMember(user, transaction.rememberMe(), verified.providerKey());
+        ExternalLoginService.LoginAudit audit = new ExternalLoginService.LoginAudit(user.getId(), user.getUsername(),
+                "通过内部统一认证登录成功");
+        return new ExternalLoginService.Completion(grant, transaction.returnTo(), audit);
+    }
+
     private void bind(Long userId, VerifiedIdentity verified) {
         ExternalIdentityEntity bySubject = identities.find(verified.providerKey(), verified.issuer(), verified.subject());
         if (bySubject != null && !bySubject.getUserId().equals(userId)) throw new BusinessException("该外部身份已经绑定其他账号");

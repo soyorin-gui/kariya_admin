@@ -11,7 +11,7 @@
 > | ❌ **只开配置一定不行** | 原因有三个（见第 1 节），其中两个是**配置位置问题**，一个是**外部平台的注册要求** |
 > | ⚠️ **GitHub 大概率能跑通**（改完配置位置 + 补一个小遗漏） | 本地也能测 |
 > | ❌ **微信在本机不可能跑通** | 微信开放平台强制要求 `redirect_uri` 域名已备案注册，`localhost` / 裸 IP 一律拒绝。见 3.3 |
-> | ❌ **UIAS 完全没实现** | `SamlIdentityVerifier` 是一个**没有任何实现类的空接口**，而且被两处代码硬拦 |
+> | ⚠️ **UIAS 已有接入骨架** | 流程、会话、工号匹配和本地 RBAC 已接通；仍需在内网实现 SDK 与 ESF 适配器，见 `UIAS-INTEGRATION.md` |
 >
 > 下面按"为什么不行 → 每个平台的具体情况 → 完整启用清单 → 验证步骤"展开。
 
@@ -19,24 +19,11 @@
 
 ## 一、为什么"只开配置"一定不行
 
-### 1.1 【致命】整块三方登录配置都在一个被 `.gitignore` 忽略的文件里
+### 1.1 【已修复】提供方目录此前被放进 `.gitignore` 文件
 
-`lbl.external-auth.providers` 这段配置（`backend/src/main/resources/application-local.yml:42-109`）—— **GitHub / Google / 微信 / UIAS 四个提供方的全部配置都在这里**。
+此前 `lbl.external-auth.providers` 仅存在于被忽略的 `application-local.yml`，新克隆或生产 profile 会得到空的 `providers` Map，因而登录页不会渲染任何三方入口。
 
-而 `application-local.yml` 是被忽略的：
-
-```
-$ git check-ignore -v backend/src/main/resources/application-local.yml
-.gitignore:56:application-local.yml	backend/src/main/resources/application-local.yml
-```
-
-**后果**：
-
-| 场景 | 结果 |
-| --- | --- |
-| 任何新克隆的仓库 | `providers` 是**空 Map** → `GET /api/auth/external/providers` 返回 `[]` → **登录页一个三方按钮都不渲染** |
-| 用 `--spring.profiles.active=prod` 启动 | 同上（`application-prod.yml` **完全没有** `lbl.external-auth` 这一块，整个文件只有 18 行） |
-| 你现在这台机器 | 有配置块，但 `client-id`/`client-secret` 全是 `${GITHUB_CLIENT_ID:}` 这样的**空默认值** → `isProviderUsable()` 返回 false → 按钮渲染出来但是**灰色禁用**的，点了只弹一句"GitHub登录尚未配置" |
+现在提供方目录已恢复到受版本控制的 `backend/src/main/resources/application.yml`：GitHub、Google、微信和禁用的 UIAS 占位都会稳定存在；**所有 client id / client secret 仍只从环境变量读取，绝不提交到仓库**。因此新环境会显示禁用的入口，只有完整设置开关和凭据后才能使用。
 
 **核对一下服务的判定逻辑**（`ExternalLoginService.java:76-83`）：
 
@@ -62,9 +49,9 @@ public boolean isProviderUsable(String providerKey) {
 
 | 环境变量 | 当前位置 | 默认值 |
 | --- | --- | --- |
-| `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | `application-local.yml:55-56` | 空 |
-| `WECHAT_APP_ID` / `WECHAT_APP_SECRET` | `application-local.yml:84-85` | 空 |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | `application-local.yml:69-70` | 空 |
+| `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | `application.yml` | 空 |
+| `WECHAT_APP_ID` / `WECHAT_APP_SECRET` | `application.yml` | 空 |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | `application.yml` | 空 |
 
 （这是**好事** —— 说明没把密钥提交进仓库。但也说明**没有可用凭据**。）
 
@@ -150,7 +137,7 @@ if (subject == null && "wechat".equals(providerKey)) subject = stringValue(token
 
 > **建议改成配置项**：在 `ExternalAuthProperties.Provider` 里加 `subjectFallbackClaim`（例如微信配 `subject-fallback-claim: openid`），然后把 `:209` 改成读它。几十行改动，但消掉了"改名就静默坏掉"的隐患。
 >
-> 同样性质的硬编码还有两处：`"SAML".equalsIgnoreCase(provider.getProtocol())`（`:79`、`:105`）和 `"uias".equalsIgnoreCase(onboarding.providerKey())`（`RegistrationService.java:75`，用来决定"要不要从 UIAS 带工号"）。
+> 同样性质的硬编码还有 `"uias".equalsIgnoreCase(...)` 的路由分支；它目前只服务于一个明确的企业认证提供方。若未来要接入多个企业 IdP，应把它演进为按 provider 类型注册的适配器，而不是继续累积字符串判断。
 
 **另外注意：`protocol: OIDC` 只是一个标签。** `getProtocol()` 只被用来拒绝 SAML（`:79`、`:105`）和做展示（`:71`）。代码里**没有任何 `id_token` 解析、没有 JWKS 验签、没有 `nonce`** —— Google 走的是"拿 access_token 调 userinfo 端点"。这在安全性上可以接受（userinfo 走 TLS 且由 access_token 认证），但它**不是真正的 OIDC**。
 
@@ -231,64 +218,22 @@ if (subject == null && "wechat".equals(providerKey)) subject = stringValue(token
 - **但国内网络环境下访问 `accounts.google.com` 和 `oauth2.googleapis.com` 基本不通**，所以实际价值有限。
 - 想用的话和 GitHub 一样的步骤，加一个 `<BACKEND_BASE_URL>/api/auth/external/google/callback` 到 Google Cloud Console 的授权重定向 URI。
 
-### 3.5 UIAS（SAML）—— 完全没实现，是三个地方的"占位"
+### 3.5 UIAS —— 流程骨架已完成，等待内网 SDK/ESF 适配器
 
-**① 接口没有任何实现类。**
+`/api/auth/external/uias/start` 与 callback 已接入现有外部认证入口：它创建 Redis 一次性事务、跳转到配置的 UIAS 地址、消费 SDK 验证后的唯一工号、查询员工目录，并仅允许已预置且已验证工号的本地员工账号登录。
 
-`auth/external/SamlIdentityVerifier.java` 全文（8 行）：
-```java
-package org.lbl.auth.external;
-
-import org.lbl.auth.identity.VerifiedIdentity;
-
-/** UIAS starter 接入点：实现类负责验签、Recipient、有效期及重放校验。 */
-public interface SamlIdentityVerifier {
-    VerifiedIdentity verify(String providerKey, String samlResponse, String relayState);
-}
-```
-全仓库搜不到任何 `implements SamlIdentityVerifier`。
-
-**② 被两处代码硬拦。**
-
-```java
-// ExternalLoginService.java:105-107 —— 发起登录时直接拒绝
-if ("SAML".equalsIgnoreCase(provider.getProtocol())) {
-    throw new BusinessException("UIAS 验签适配器尚未配置，暂时不能启用该登录方式");
-}
-
-// ExternalLoginService.java:79 —— 判定"可用"时永远返回 false
-if ("SAML".equalsIgnoreCase(provider.getProtocol())) return false;
-```
-
-**③ 连接收 SAML Response 的端点都没有。**
-
-`ExternalAuthController` 只有 `@GetMapping` 的 `/start` 和 `/callback`（`:42`、`:61`）。SAML 的 `SamlResponse` 是 **HTTP POST** 到 ACS 端点的，**没有这个 POST 处理器**，所以哪怕配好了也收不到任何东西。
-
-**想启用 UIAS 需要做的事**（工作量不小，但如果你公司真有统一认证，值得做）：
-
-1. 写一个真正的 `SamlIdentityVerifier` 实现（Spring Bean），负责：
-   - 从 IdP 拉元数据 / 验签（XML 签名校验）；
-   - 校验 `Recipient`、`Audience`、`NotBefore` / `NotOnOrAfter`；
-   - **重放校验**（SAML 的 `InResponseTo` / `AssertionID` 一次性消费，可以用 Redis，参考本项目 `state` 的做法）；
-2. 加一个 **POST 的 ACS 端点**（例如 `POST /api/auth/external/uias/acs`），接收 `SAMLResponse` + `RelayState`，调 `verify()`，然后走现有的 `persistence.settle(...)` 落库流程；
-3. 去掉上面那两处硬拦；
-4. 放宽 `begin()` 的必填校验（`:108-112` 要求 `authorization-uri` / `token-uri` / `user-info-uri` / `client-id` / `client-secret` **全部非空**，而 SAML 没有 token/userinfo 概念）；
-5. 配 `employeeNo-claim`（`RegistrationService.java:78` 会用它设置 `employee_no` + `employee_no_verified=1`）—— 这是 UIAS 相比 GitHub/微信的**真正价值**：能验证员工工号，绑定到工号后可以走"内部员工"路径。
-
-**`EnterpriseDirectoryPort` / `NoopEnterpriseDirectoryAdapter` 是死代码**：接口声明了 `findByEmployeeNo(String)`，唯一实现永远返回 `Optional.empty()`，而且**没有任何类注入它**。这是给未来 ESB/人事系统查询预留的占位，目前纯粹是死代码。
+项目不携带公司 SDK 和 ESF 网络实现；内网部署只需实现 `UiasAssertionConsumer`（调用 SDK 的 `consumer.consume(request)`）和 `EnterpriseDirectoryPort`（返回在职状态、姓名、邮箱）。二者未提供时 UIAS 按钮保持禁用。详细配置、账号策略和实现边界见 `UIAS-INTEGRATION.md`。
 
 ---
 
 ## 四、完整启用清单（GitHub 为例，微信把 provider 换成 `wechat`）
 
-### 步骤 1：把 provider 配置搬到会被提交的文件里
+### 步骤 1：确认版本库内的 provider 配置没有被 profile 覆盖
 
-**这是最关键的一步。** 现在整块配置在 `application-local.yml`（被忽略）。
-
-把 `lbl.external-auth` 整块**从 `application-local.yml` 移到 `application.yml`**（或者 `application-dev.yml` + `application-prod.yml` 各一份），这样任何环境都能拿到提供方列表。
+`application.yml` 已包含 `lbl.external-auth`，任何环境都能拿到提供方列表。不要再把同名的 `providers` 放入 `application-local.yml`、`application-dev.yml` 或 `application-prod.yml`：profile 文件的同名 Map 可能整体覆盖基础配置。
 
 ```yaml
-# 加到 application.yml 末尾（或单独的 application-external-auth.yml）
+# 已存在于 application.yml；仅作结构参考
 lbl:
   external-auth:
     backend-base-url: ${BACKEND_BASE_URL:http://localhost:8080}
@@ -310,7 +255,7 @@ lbl:
         email-claim: email
 ```
 
-**同时**在 `application-local.yml` 里**删掉**这一块（避免重复定义；Spring Boot 里两个文件都定义 `lbl.external-auth.providers` 时，profile 特定的会**整体覆盖**而不是合并，很容易踩坑）。
+客户端密钥只通过步骤 3 的环境变量注入。
 
 ### 步骤 2：注册应用并记下凭据
 
@@ -351,6 +296,15 @@ FRONTEND_BASE_URL=https://你的域名
 #   application-prod.yml 里这项默认是"空" = 不放行任何跨域
 CORS_ALLOWED_ORIGINS=https://你的域名
 ```
+
+如果运行后端的机器不能直连 GitHub / Google，浏览器里的代理并不会自动交给 Java 使用。此时设置一个支持 HTTP CONNECT 的代理：
+
+```bash
+EXTERNAL_AUTH_PROXY_HOST=127.0.0.1
+EXTERNAL_AUTH_PROXY_PORT=7890
+```
+
+`7890` 只是常见本地代理的 HTTP/mixed 端口示例；请填实际的 HTTP 代理端口，不能填 SOCKS-only 端口。启动日志出现 `External authentication HTTP proxy enabled` 即表示已生效。
 
 ### 步骤 4：确认数据库和 Redis
 
@@ -547,5 +501,5 @@ attempts.requireSourceQuota("external-callback", 60, Duration.ofMinutes(1));
 
 1. **别做微信。** 内网场景下微信登录基本不可行（需要公网域名 + 企业资质的网站应用 + 审核）。
 2. **GitHub 只适合你自己用**（公司同事大多没有 GitHub 账号，而且内网可能访问不到 github.com）。
-3. **真正适合内网的是 UIAS 那条路**，虽然它现在完全没实现。这是唯一能"验证员工身份"的通道（通过 `employeeNo-claim` → `sys_user.employee_no` + `employee_no_verified=1`），也是唯一能免密登录全公司的方式。工作量集中在"写一个 SAML 验签实现 + 一个 POST ACS 端点"，其余（落库、开户、绑定、会话、审计）**现有的代码都能直接复用**。
+3. **真正适合内网的是 UIAS 那条路**。当前已有工号匹配、会话、审计与本地 RBAC 的流程骨架；剩余工作集中在接入公司 SDK 的 `consumer.consume(request)` 与 ESF 员工目录查询。详见 `UIAS-INTEGRATION.md`。
 4. **如果你的内网能出网且想快速验证这条链路**，用 GitHub 走一遍（本地就能测，成本最低）——**先把配置搬出 git-ignored 文件、修掉 7.2 和 7.3，再走一遍第五节的验证步骤**。走通之后，UIAS 的接入就只是"换一个 `verifyIdentity()` 的实现"而已。

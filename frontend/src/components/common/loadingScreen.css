@@ -108,8 +108,5 @@
   font-size: var(--fs-sm);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .app-loading-dots i {
-    animation: none;
-  }
-}
+/* 加载状态是操作反馈的一部分：即使系统声明“减少动态效果”也保留这一组低频圆点，
+   否则内网策略下会退化为无任何活动迹象的静态画面。 */

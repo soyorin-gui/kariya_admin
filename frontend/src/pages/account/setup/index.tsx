@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { App, Button, Card, Form, Input, Modal, Space, Typography } from 'antd';
-import { LinkOutlined, LogoutOutlined, PlusCircleOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
+import { App, Button, Card, Form, Input, Modal, Tooltip, Typography } from 'antd';
+import { CloseOutlined, LinkOutlined, PlusCircleOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { bindOnboardingAccount, createOnboardingAccount, fetchMe, logout } from '../../../api/auth';
 import { useAppDispatch, useAppSelector } from '../../../store/hooks';
@@ -71,6 +71,15 @@ export default function AccountSetupPage() {
       <div className='account-setup-orb account-setup-orb-one' />
       <div className='account-setup-orb account-setup-orb-two' />
       <section className='account-setup-shell'>
+        <Tooltip title='退出并返回登录页'>
+          <Button
+            className='account-setup-exit'
+            type='text'
+            aria-label='退出并返回登录页'
+            icon={<CloseOutlined />}
+            onClick={() => void exit()}
+          />
+        </Tooltip>
         <div className='account-setup-badge'>
           <SafetyCertificateOutlined /> 外部身份已验证
         </div>
@@ -95,19 +104,10 @@ export default function AccountSetupPage() {
             <p>填写开户资料并创建密码，账号默认获得基础角色和仅本人数据权限。</p>
           </Card>
         </div>
-        <Space>
-          <Button type='primary' onClick={() => setMode('create')}>
-            创建账号
-          </Button>
-          <Button onClick={() => setMode('bind')}>绑定已有账号</Button>
-          <Button type='text' icon={<LogoutOutlined />} onClick={() => void exit()}>
-            退出
-          </Button>
-        </Space>
       </section>
       <Modal
         className='system-dialog'
-        width={560}
+        width={480}
         title={<div className='system-dialog-title'>绑定已有账号</div>}
         open={mode === 'bind'}
         onCancel={() => setMode(null)}
@@ -116,7 +116,7 @@ export default function AccountSetupPage() {
         okText='确认绑定'
         destroyOnHidden
       >
-        <Form form={bindForm} labelCol={{ flex: '96px' }} wrapperCol={{ flex: 1 }} labelWrap colon={false} requiredMark={false}>
+        <Form form={bindForm} layout='horizontal' labelCol={{ flex: '0 0 80px' }} wrapperCol={{ flex: 1 }} labelWrap colon={false} requiredMark={false}>
           <Form.Item name='username' label='用户名' rules={[{ required: true, message: '请输入用户名' }]}>
             <Input autoComplete='username' />
           </Form.Item>

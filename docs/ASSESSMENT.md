@@ -38,7 +38,7 @@
 | 下班后加兴趣功能 | ✅ **完全可以** | 按 `DEVELOPMENT.md` 路径 A，5 分钟加一个页面 |
 | 加带权限的完整业务模块 | ✅ **可以** | 按 `DEVELOPMENT.md` 路径 B，模板代码都给了 |
 | 搬去公司内网当工作系统 | ⚠️ **可以，但必须先做安全整改** | 见 `INTRANET-MIGRATION.md` 第 ① 节（4 项，都在"一改就完"级别） |
-| 内网扫码/免密登录 | ❌ 不行 | 微信需公网域名（内网做不到）；UIAS/SAML 完全没实现。见 `THIRD-PARTY-LOGIN.md` |
+| 内网免密登录 | ⚠️ 接入骨架已完成 | 仍需公司 UIAS SDK 与 ESF 适配器；见 `UIAS-INTEGRATION.md` |
 | 按角色指定部门范围 | ❌ 没有 | 完整方案见 `DATA-SCOPE-ROLE-DEPT.md` |
 
 ---
@@ -660,8 +660,8 @@ if (combined.equals(actor.permissions())) throw new BusinessException("不能分
 | 9 | **消息中心点击跳转只支持一种业务类型** | `notifications/index.tsx:38` | ⚠️ 加第二个业务模块时 |
 | 10 | **文件上传前端组件没接上**（后端完成） | `components/FileUpload/`、`api/file.ts` | ⚠️ 需要导入 Excel 时 |
 | 11 | **`CodeViewer` 完成了但没用**（Monaco + JSON/XML 格式化 + 下载） | `components/CodeViewer/` | ⚠️ 操作日志页缺"看请求/响应报文"的能力 |
-| 12 | **UIAS / SAML 完全没实现** | `SamlIdentityVerifier`（空接口） | ⚠️ 需要统一认证时 |
-| 13 | **`EnterpriseDirectoryPort` 是死代码** | `auth/external/` | ⚠️ 需要按工号查人事时 |
+| 12 | **UIAS SDK / ESF 适配器待内网实现** | `auth/uias/` 的两个端口 | ⚠️ 部署到内网前 |
+| 13 | **员工工号需预置并验证** | `sys_user.employee_no` | ⚠️ 首次启用 UIAS 前 |
 | 14 | **无 i18n** | `ThemeProvider.tsx:3,88` 硬编码 `zhCN`；TSX 里约 150 处中文字面量 | ⚠️ 需要多语言时 |
 | 15 | **没有健康检查端点** | `pom.xml` 里没引 `spring-boot-starter-actuator` | ⚠️ 上容器编排时（k8s 探针需要） |
 | 16 | **日志删除不可恢复、无归档** | `loginlog/index.tsx:88`、`operatelog/index.tsx:88` 的提示文案自己写了"删除后不可恢复"；`LogRetentionJob` 也是物理删除 | ⚠️ 合规审计时 |
@@ -742,7 +742,7 @@ if (combined.equals(actor.permissions())) throw new BusinessException("不能分
 | 低 | 403 页重新设计（它自己都写着"设计占位"） |
 | 低 | i18n（如果只服务内网，可以永远不做） |
 | 低 | 引入 actuator 加健康检查端点 |
-| 按需 | UIAS / SAML 统一认证（工作量集中在"验签实现 + POST ACS 端点"） |
+| 按需 | 在内网实现 UIAS SDK 与 ESF 两个适配器（流程骨架已完成，见 `UIAS-INTEGRATION.md`） |
 
 ---
 

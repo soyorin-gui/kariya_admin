@@ -1,7 +1,9 @@
 package org.lbl.auth.controller;
 
 import jakarta.servlet.http.HttpServletResponse;
+import org.lbl.auth.external.ExternalLoginCallbackException;
 import org.lbl.auth.external.ExternalLoginService;
+import org.lbl.auth.uias.UiasLoginService;
 import org.lbl.auth.model.SessionGrant;
 import org.lbl.auth.session.LoginSession;
 import org.lbl.auth.session.SessionService;
@@ -25,11 +27,14 @@ public class ExternalAuthController {
     /** 与 AuthController / OnboardingAccountController 签发的是同一个 Cookie，拼错一个字就会变成另一个 Cookie。 */
     private static final String REFRESH_COOKIE = "lbl_refresh";
     private final ExternalLoginService service;
+    private final UiasLoginService uias;
     private final boolean secureCookie;
     private final SessionService sessions;
 
-    public ExternalAuthController(ExternalLoginService service, SecurityProperties security, SessionService sessions) {
+    public ExternalAuthController(ExternalLoginService service, UiasLoginService uias,
+                                  SecurityProperties security, SessionService sessions) {
         this.service = service;
+        this.uias = uias;
         this.secureCookie = security.secureCookie();
         this.sessions = sessions;
     }
@@ -44,7 +49,9 @@ public class ExternalAuthController {
                       @RequestParam(required = false) String returnTo,
                       @RequestParam(defaultValue = "false") boolean rememberMe,
                       HttpServletResponse response) throws IOException {
-        response.sendRedirect(service.beginLogin(provider, returnTo, rememberMe));
+        response.sendRedirect("uias".equalsIgnoreCase(provider)
+                ? uias.beginLogin(returnTo, rememberMe)
+                : service.beginLogin(provider, returnTo, rememberMe));
     }
 
     /**
@@ -58,17 +65,24 @@ public class ExternalAuthController {
      * 因此这个参数是"尽力而为"的 —— 读不到时 {@code complete} 会退回新建会话，
      * 也就是修这个 bug 之前的行为，不会让绑定流程整体失败。
      */
-    @GetMapping("/{provider}/callback")
+    // OAuth 平台通常 GET 回调；UIAS SDK 的部署可能以 POST 递交 SAMLResponse，因此同一路径兼容两者。
+    @RequestMapping(value = "/{provider}/callback", method = {RequestMethod.GET, RequestMethod.POST})
     public void callback(@PathVariable String provider,
                          @RequestParam(required = false) String code,
                          @RequestParam(required = false) String state,
                          @RequestParam(required = false) String error,
                          @RequestParam(name = "error_description", required = false) String errorDescription,
                          @CookieValue(value = REFRESH_COOKIE, required = false) String currentSid,
+                         jakarta.servlet.http.HttpServletRequest request,
                          HttpServletResponse response) throws IOException {
+        if ("uias".equalsIgnoreCase(provider)) {
+            callbackUias(state, currentSid, request, response);
+            return;
+        }
         if (error != null || code == null || state == null) {
             String message = errorDescription == null || errorDescription.isBlank() ? "外部登录已取消或认证失败" : errorDescription;
-            response.sendRedirect(service.frontendCallback("/login", message));
+            String returnTo = service.cancel(provider, state, message);
+            response.sendRedirect(service.frontendCallback(returnTo, message));
             return;
         }
         try {
@@ -81,6 +95,8 @@ public class ExternalAuthController {
             // 重新下发同一个 Cookie 是幂等的，且 age 由原会话的 rememberMe 推出，"记住我"不会再被降级。
             response.addHeader("Set-Cookie", cookie(grant.sid(), age).toString());
             response.sendRedirect(service.frontendCallback(completion.returnTo(), null));
+        } catch (ExternalLoginCallbackException ex) {
+            response.sendRedirect(service.frontendCallback(ex.getReturnTo(), ex.getMessage()));
         } catch (BusinessException | TooManyRequestsException ex) {
             // 这两类异常的消息是本项目自己写的、面向用户的（"该外部身份已经绑定其他账号"、
             // "待绑定账号不存在或已停用"），回显出去是有效信息，不是泄露。
@@ -93,6 +109,28 @@ public class ExternalAuthController {
             log.warn("External auth callback failed: provider={}", provider, ex);
             response.sendRedirect(service.frontendCallback("/login", "外部登录失败，请稍后重试或改用账号密码登录"));
         }
+    }
+
+    private void callbackUias(String state, String currentSid, jakarta.servlet.http.HttpServletRequest request,
+                              HttpServletResponse response) throws IOException {
+        try {
+            ExternalLoginService.Completion completion = uias.complete(request, state, currentSid);
+            writeCompletion(completion, response);
+        } catch (BusinessException | TooManyRequestsException ex) {
+            response.sendRedirect(service.frontendCallback("/login", ex.getMessage() == null ? "内部统一认证失败" : ex.getMessage()));
+        } catch (Exception ex) {
+            log.warn("UIAS callback failed", ex);
+            response.sendRedirect(service.frontendCallback("/login", "内部统一认证失败，请稍后重试或改用账号密码登录"));
+        }
+    }
+
+    private void writeCompletion(ExternalLoginService.Completion completion, HttpServletResponse response) throws IOException {
+        SessionGrant grant = completion.grant();
+        LoginSession session = sessions.find(grant.sid());
+        Duration age = grant.onboarding() ? Duration.ofHours(2)
+                : session != null && session.rememberMe() ? Duration.ofDays(14) : Duration.ofSeconds(-1);
+        response.addHeader("Set-Cookie", cookie(grant.sid(), age).toString());
+        response.sendRedirect(service.frontendCallback(completion.returnTo(), null));
     }
 
     private ResponseCookie cookie(String sid, Duration maxAge) {

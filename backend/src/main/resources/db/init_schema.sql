@@ -143,7 +143,7 @@ CREATE TABLE sys_department_change_request
     created_time   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_time   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_dept_change_requester (requester_id, status),
-    INDEX idx_dept_change_status (status, updat ed_time)
+    INDEX idx_dept_change_status (status, updated_time)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
 
 -- 部门变更审批步骤：每条主单的原部门/目标部门审批人与决策记录。

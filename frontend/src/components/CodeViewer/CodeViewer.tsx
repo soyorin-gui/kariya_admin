@@ -3,6 +3,7 @@ import { App, Button, Select, Space, Tooltip } from 'antd';
 import { DownloadOutlined, FontSizeOutlined, FormatPainterOutlined, FullscreenExitOutlined, FullscreenOutlined, SearchOutlined } from '@ant-design/icons';
 import Editor, { type Monaco, type OnMount } from '@monaco-editor/react';
 import type { editor } from 'monaco-editor';
+import './monaco';
 import { CopyButton } from '../CopyButton';
 import { useFullscreen } from '../../hooks/useFullscreen';
 import { downloadBlob } from '../../utils/download';
