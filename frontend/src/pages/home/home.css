@@ -16,6 +16,9 @@
 .showcase-row {
   margin-top: 18px;
 }
+.showcase-section {
+  margin-top: 18px;
+}
 .demo-label {
   margin-bottom: 10px;
   color: var(--ink-soft);
@@ -68,11 +71,54 @@
 .copy-showcase-action {
   margin-top: 14px;
 }
+.code-language-tabs .ant-tabs-nav {
+  margin-bottom: 14px;
+}
+.code-language-tabs .ant-tabs-nav-wrap {
+  overflow-x: auto;
+}
+.smart-table-demo-toolbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 20px 0 16px;
+}
+.smart-table-demo-search {
+  min-width: 0;
+}
+.smart-table-demo-actions {
+  flex: 0 0 auto;
+}
+.smart-table-keyword {
+  width: 168px;
+}
+.smart-table-filter {
+  width: 126px;
+}
+.smart-table-showcase .ant-table-wrapper {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.smart-table-showcase .ant-pagination {
+  padding-inline: 14px;
+}
 @media (max-width: 700px) {
   .showcase-row {
     margin-top: 14px;
   }
+  .showcase-section {
+    margin-top: 14px;
+  }
   .component-lab-head > .ant-tag {
     display: none;
+  }
+  .smart-table-demo-toolbar {
+    flex-direction: column;
+  }
+  .smart-table-keyword,
+  .smart-table-filter {
+    width: 100%;
   }
 }

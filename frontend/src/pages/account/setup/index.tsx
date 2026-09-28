@@ -116,7 +116,7 @@ export default function AccountSetupPage() {
         okText='确认绑定'
         destroyOnHidden
       >
-        <Form form={bindForm} layout='horizontal' labelCol={{ flex: '0 0 80px' }} wrapperCol={{ flex: 1 }} labelWrap colon={false} requiredMark={false}>
+        <Form form={bindForm} layout='horizontal' labelCol={{ flex: '0 0 80px' }} labelWrap colon={false} requiredMark={false}>
           <Form.Item name='username' label='用户名' rules={[{ required: true, message: '请输入用户名' }]}>
             <Input autoComplete='username' />
           </Form.Item>
@@ -140,7 +140,6 @@ export default function AccountSetupPage() {
           form={createForm}
           initialValues={{ realName: onboarding?.displayName, email: onboarding?.email, username: onboarding?.employeeNo }}
           labelCol={{ flex: '96px' }}
-          wrapperCol={{ flex: 1 }}
           labelWrap
           colon={false}
           requiredMark={false}

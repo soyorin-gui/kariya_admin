@@ -21,11 +21,13 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  * @param maxSteps        ReAct 工具调用循环的最大步数，防止模型反复要调工具导致死循环。
  * @param temperature     采样温度，越低越稳定。对比/排查类任务建议 0~0.2。
  * @param timeoutSeconds  单次 LLM 请求的 connect/read 超时（秒）。
+ * @param runTimeoutSeconds 一次完整 Agent 运行的总时限（秒），必须小于 SSE 总超时。
+ * @param strictToolSchema 网关是否支持 OpenAI strict 工具 Schema；兼容性不确定时保持 false。
  * @param sseTimeoutMillis SSE 连接的总体超时（毫秒），也是前端 fetch 读流的兜底。
  */
 @ConfigurationProperties(prefix = "lbl.agent")
 public record AgentProperties(
-        @DefaultValue("true") boolean enabled,
+        @DefaultValue("false") boolean enabled,
         @DefaultValue("") String baseUrl,
         @DefaultValue("") String apiKey,
         @DefaultValue("") String model,
@@ -34,5 +36,7 @@ public record AgentProperties(
         @DefaultValue("5") int maxSteps,
         @DefaultValue("0.1") double temperature,
         @DefaultValue("60") long timeoutSeconds,
+        @DefaultValue("110") long runTimeoutSeconds,
+        @DefaultValue("false") boolean strictToolSchema,
         @DefaultValue("120000") long sseTimeoutMillis) {
 }

@@ -54,7 +54,9 @@
   height: 4px;
   border-radius: 999px;
   background: var(--line);
-  transition: background 0.15s ease, width 0.15s ease;
+  transition:
+    background 0.15s ease,
+    width 0.15s ease;
 }
 .ai-resize-handle:hover:after,
 .ai-workbench.resizing .ai-resize-handle:after {
@@ -167,6 +169,17 @@
   background: var(--brand);
   color: #fff;
   align-self: flex-end;
+}
+.ai-artifact-fallback {
+  margin-top: 8px;
+  max-width: 100%;
+}
+.ai-artifact-json {
+  display: block;
+  max-height: 180px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 /* 工具调用进度提示：显示在消息区底部（替代纯 spinner）。 */

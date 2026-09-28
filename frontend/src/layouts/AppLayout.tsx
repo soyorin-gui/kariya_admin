@@ -5,6 +5,7 @@ import { BellOutlined, LockOutlined, LogoutOutlined, MenuFoldOutlined, MenuUnfol
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { SiderBrand } from './SiderBrand';
 import { AiAssistant } from '../components/ai/AiAssistant';
+import { Permission } from '../permission/Permission';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { clearSession } from '../store/authSlice';
 import { logout } from '../api/auth';
@@ -293,7 +294,9 @@ export function AppLayout() {
           <Outlet />
         </Content>
       </Layout>
-      <AiAssistant />
+      <Permission code='agent:chat:use'>
+        <AiAssistant />
+      </Permission>
       <SystemSettings open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <Modal
         className='system-dialog'
@@ -311,7 +314,7 @@ export function AppLayout() {
         onCancel={() => (changingPassword ? undefined : user?.passwordChangeRequired ? void exit() : setPasswordOpen(false))}
         destroyOnHidden
       >
-        <Form form={passwordForm} labelCol={{ flex: '96px' }} wrapperCol={{ flex: 1 }} labelWrap colon={false} requiredMark={false}>
+        <Form form={passwordForm} labelCol={{ flex: '96px' }} labelWrap colon={false} requiredMark={false}>
           <Form.Item name='oldPassword' label='原密码' rules={[{ required: true, message: '请输入原密码' }]}>
             <Input.Password autoComplete='current-password' />
           </Form.Item>

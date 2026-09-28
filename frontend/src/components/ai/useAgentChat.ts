@@ -1,6 +1,6 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { store } from '../../store';
-import type { AgentStreamEvent, ChatHistoryItem } from '../../types/agent';
+import type { AgentArtifact, AgentStreamEvent, ChatHistoryItem } from '../../types/agent';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
@@ -10,9 +10,12 @@ export interface AgentChatHandle {
    * @param message 用户本次输入
    * @param history 历史多轮（不含问候语）
    * @param onDelta 每当收到一段 assistant 文本时回调（用于打字机效果）
+   * @param onArtifact 每当工具产生结构化制品时回调
    * @returns 最终完整回复文本
    */
-  send: (message: string, history: ChatHistoryItem[], onDelta?: (fullText: string) => void) => Promise<string>;
+  send: (message: string, history: ChatHistoryItem[], onDelta?: (fullText: string) => void, onArtifact?: (artifact: AgentArtifact) => void) => Promise<string>;
+  /** 取消当前请求；关闭面板和组件卸载时也会自动调用。 */
+  cancel: () => void;
   loading: boolean;
   /** 当前正在执行的工具名（用于"正在调用 xx…"提示），空闲为 null。 */
   toolStatus: string | null;
@@ -29,11 +32,22 @@ export interface AgentChatHandle {
 export function useAgentChat(): AgentChatHandle {
   const [loading, setLoading] = useState(false);
   const [toolStatus, setToolStatus] = useState<string | null>(null);
+  const controllerRef = useRef<AbortController | null>(null);
+
+  const cancel = useCallback(() => {
+    controllerRef.current?.abort();
+    controllerRef.current = null;
+  }, []);
+
+  useEffect(() => cancel, [cancel]);
 
   const send = useCallback(
-    async (message: string, history: ChatHistoryItem[], onDelta?: (fullText: string) => void): Promise<string> => {
+    async (message: string, history: ChatHistoryItem[], onDelta?: (fullText: string) => void, onArtifact?: (artifact: AgentArtifact) => void): Promise<string> => {
+      cancel();
       setLoading(true);
       setToolStatus(null);
+      const controller = new AbortController();
+      controllerRef.current = controller;
       let text = '';
       try {
         const token = store.getState().auth.accessToken;
@@ -44,6 +58,7 @@ export function useAgentChat(): AgentChatHandle {
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
           credentials: 'include',
+          signal: controller.signal,
           body: JSON.stringify({ message, history }),
         });
 
@@ -78,6 +93,7 @@ export function useAgentChat(): AgentChatHandle {
                 setToolStatus(event.toolName ?? null);
               } else if (event.type === 'tool_result') {
                 setToolStatus(null);
+                if (event.artifact) onArtifact?.(event.artifact);
               } else if (event.type === 'error') {
                 text += `\n\n[处理出错] ${event.text ?? ''}`;
                 onDelta?.(text);
@@ -89,12 +105,13 @@ export function useAgentChat(): AgentChatHandle {
         }
         return text;
       } finally {
+        if (controllerRef.current === controller) controllerRef.current = null;
         setLoading(false);
         setToolStatus(null);
       }
     },
-    [],
+    [cancel],
   );
 
-  return { send, loading, toolStatus };
+  return { send, cancel, loading, toolStatus };
 }

@@ -91,6 +91,7 @@ function SmartTableInner<T extends object, Search extends Record<string, unknown
   const [sorter, setSorter] = useState<TableSorter>();
   const [filters, setFilters] = useState<Record<string, unknown>>({});
   const [reloadToken, setReloadToken] = useState(0);
+  const [tableStateVersion, setTableStateVersion] = useState(0);
   const requestSequence = useRef(0);
 
   const queryParams = useMemo<TableRequestParams<Search>>(() => ({ page, pageSize, sorter, filters, search: submittedSearch }), [filters, page, pageSize, sorter, submittedSearch]);
@@ -143,6 +144,9 @@ function SmartTableInner<T extends object, Search extends Record<string, unknown
     setPage(1);
     setSorter(undefined);
     setFilters({});
+    // Ant Design Table 会在内部保存表头筛选和排序状态。仅清空请求参数会造成
+    // “数据已经重置，但漏斗/排序图标仍处于选中状态”，通过 key 同步复位内部状态。
+    setTableStateVersion((current) => current + 1);
     setReloadToken((current) => current + 1);
   }, []);
 
@@ -211,7 +215,7 @@ function SmartTableInner<T extends object, Search extends Record<string, unknown
           {actionsClassName && toolbarContent ? <div className={actionsClassName}>{toolbarContent}</div> : toolbarContent}
         </div>
       )}
-      <Table<T> {...tableProps} className={tableClassName} dataSource={records} loading={loading} pagination={tablePagination} onChange={handleChange} />
+      <Table<T> key={tableStateVersion} {...tableProps} className={tableClassName} dataSource={records} loading={loading} pagination={tablePagination} onChange={handleChange} />
     </>
   );
 }

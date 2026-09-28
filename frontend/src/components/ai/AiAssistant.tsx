@@ -1,14 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
 import { Avatar, Button, FloatButton, Input, Spin } from 'antd';
 import { CloseOutlined, MessageOutlined, RobotOutlined, SendOutlined, ThunderboltOutlined } from '@ant-design/icons';
-import type { ChatHistoryItem } from '../../types/agent';
+import type { AgentArtifact, ChatHistoryItem } from '../../types/agent';
 import { useAgentChat } from './useAgentChat';
+import { AgentArtifactView } from './artifacts/AgentArtifactView';
 import './AiAssistant.css';
 
 interface Message {
   id: number;
   role: 'assistant' | 'user';
   text: string;
+  artifacts?: AgentArtifact[];
 }
 
 /** 欢迎语消息的固定 id，用于把它从多轮历史里排除（问候语不算对话历史）。 */
@@ -37,7 +39,7 @@ export function AiAssistant() {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState('');
   const [messages, setMessages] = useState<Message[]>([{ id: GREETING_ID, role: 'assistant', text: '你好，我是 LBL 智能助手。有什么可以帮你？' }]);
-  const { send: sendToAgent, loading, toolStatus } = useAgentChat();
+  const { send: sendToAgent, cancel, loading, toolStatus } = useAgentChat();
   const [height, setHeight] = useState<number>(() => clampHeight(DEFAULT_HEIGHT));
   const [resizing, setResizing] = useState(false);
   // pointermove 是高频事件，起始值必须用 ref 而不是闭包里的 state（state 更新是异步的，
@@ -63,9 +65,15 @@ export function AiAssistant() {
     try {
       const reply = await sendToAgent(value, history, (fullText) => {
         setMessages((v) => v.map((m) => (m.id === assistantId ? { ...m, text: fullText } : m)));
+      }, (artifact) => {
+        setMessages((v) => v.map((m) => (m.id === assistantId ? { ...m, artifacts: [...(m.artifacts ?? []), artifact] } : m)));
       });
       setMessages((v) => v.map((m) => (m.id === assistantId ? { ...m, text: reply } : m)));
     } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') {
+        setMessages((v) => v.filter((m) => m.id !== assistantId));
+        return;
+      }
       const err = e instanceof Error ? e.message : '请求失败，请稍后重试';
       setMessages((v) => v.map((m) => (m.id === assistantId ? { ...m, text: m.text || err } : m)));
     }
@@ -109,7 +117,7 @@ export function AiAssistant() {
             <span>
               <MessageOutlined /> 对话助手
             </span>
-            <Button type='text' aria-label='关闭 AI 助手' icon={<CloseOutlined />} onClick={() => setOpen(false)} />
+            <Button type='text' aria-label='关闭 AI 助手' icon={<CloseOutlined />} onClick={() => { cancel(); setOpen(false); }} />
           </div>
           <div className='ai-welcome'>
             <div className='ai-welcome-title'>
@@ -119,7 +127,7 @@ export function AiAssistant() {
             <p>欢迎随时提问，我可以协助处理系统操作与管理任务。</p>
           </div>
           <div className='ai-suggestions'>
-            {['帮我查看当前用户的权限配置', '如何新增一个系统角色？', '帮我整理本周的登录情况'].map((item) => (
+            {['帮我梳理这段需求的实现步骤', '如何设计一个安全的只读工具？', '给我一份问题排查检查清单'].map((item) => (
               <button key={item} onClick={() => send(item)}>
                 <ThunderboltOutlined />
                 {item}
@@ -129,9 +137,12 @@ export function AiAssistant() {
           </div>
           <div className='ai-messages'>
             {messages.slice(1).map((m) =>
-              m.text ? (
+              m.text || m.artifacts?.length ? (
                 <div className={`bubble ${m.role}`} key={m.id}>
                   {m.text}
+                  {m.artifacts?.map((artifact, index) => (
+                    <AgentArtifactView key={`${artifact.type}-${artifact.schemaVersion}-${index}`} artifact={artifact} />
+                  ))}
                 </div>
               ) : null,
             )}

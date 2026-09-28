@@ -56,7 +56,8 @@ VALUES (7, 3, '查询用户', 'BUTTON', 'system:user:list', 1, 1),
        (28, 6, '查询菜单', 'BUTTON', 'system:menu:list', 1, 1),
        (29, 6, '新增菜单', 'BUTTON', 'system:menu:add', 2, 1),
        (30, 6, '更新菜单', 'BUTTON', 'system:menu:update', 3, 1),
-       (31, 6, '删除菜单', 'BUTTON', 'system:menu:delete', 4, 1);
+       (31, 6, '删除菜单', 'BUTTON', 'system:menu:delete', 4, 1),
+       (32, 1, '使用 AI 助手', 'BUTTON', 'agent:chat:use', 1, 1);
 
 -- 超级管理员拥有全部页面和按钮权限。
 INSERT INTO sys_role_menu (role_id, menu_id)

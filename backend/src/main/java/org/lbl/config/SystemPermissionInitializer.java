@@ -55,6 +55,7 @@ public class SystemPermissionInitializer implements ApplicationRunner {
 
     /** 按钮级权限。parentRoute 指向所属页面菜单的 route_path。 */
     private static final List<PermissionSeed> PERMISSIONS = List.of(
+            new PermissionSeed("使用 AI 助手", "agent:chat:use", "/home", 1),
             new PermissionSeed("查询角色", "system:role:list", "/system/role", 1),
             new PermissionSeed("新增角色", "system:role:add", "/system/role", 2),
             new PermissionSeed("更新角色", "system:role:update", "/system/role", 3),

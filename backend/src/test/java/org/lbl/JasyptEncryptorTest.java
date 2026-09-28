@@ -7,6 +7,7 @@ import org.jasypt.salt.RandomSaltGenerator;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -14,6 +15,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class JasyptEncryptorTest {
     @Autowired
     StringEncryptor encryptor;
+    @Autowired
+    PasswordEncoder passwordEncoder;
 
     @Test
     void encryptAndDecrypt() {
@@ -35,5 +38,16 @@ class JasyptEncryptorTest {
         // 5. 验证解密 (确保生成的密文能和 application.yml 配合正确解密)
         assertEquals(plaintext, encryptor.decrypt(encrypted));
         System.out.println("验证通过！解密结果与原文一致。");
+    }
+
+    @Test
+    void passwordGenerator() {
+        // 2. 输入你要设置的超管新密码，例如 "admin123"
+        String rawPassword = "123456";
+        // 3. 生成加密后的字符串
+        String encodedPassword = passwordEncoder.encode(rawPassword);
+        // 4. 打印结果
+        System.out.println("原始密码: " + rawPassword);
+        System.out.println("加密后密码: " + encodedPassword);
     }
 }

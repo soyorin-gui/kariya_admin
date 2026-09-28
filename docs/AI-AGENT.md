@@ -1,312 +1,382 @@
-# AI 助手（Agent）设计与内网接入指南
+# Agent 开发规范与接入指南
 
-> 面向"要把 AI 助手接进公司内网"的开发者。目标：读完能说清楚**架构为什么这么分、代码在哪、
-> 怎么新增一个能力、搬到内网怎么配、怎么验证**。
->
-> 配套事实：
-> - 你的 LLM 是 **OpenAI 兼容协议**（已验证过 base-url / api-key / model 三个参数即可跑通 chat）。
-> - 你的内网 **Nginx 会拦截没有（或不认识）User-Agent 的外呼请求**——这是本骨架不选 Spring AI、
->   改用 Spring 6 自带 `RestClient` 手写客户端的关键原因之一（详见第 2 节）。
+本文描述项目中的通用 Agent 基础设施、每个类的职责，以及新增业务工具的标准流程。
+
+当前代码刻意不包含“报文对比、流水号日志分析、投产材料生成”等业务实现。Agent 包只提供跨业务约束；
+真正的业务能力必须留在所属业务模块中，最后通过一个很薄的 `adapter.agent` 适配器接入。
 
 ---
 
-## 1. 核心设计原则（先读这一句）
+## 1. 核心原则
 
-> **能确定性的，一律不交给 LLM；LLM 只做"理解意图 → 编排工具 → 解释结论"。**
+1. **业务能力先独立成立，最后接入 Agent。** 业务 Service/UseCase 不得依赖 Agent、Prompt 或模型 DTO。
+2. **LLM 只负责理解、选工具和解释。** 查询、校验、计算、权限、写入等确定性行为由 Java 完成。
+3. **不调用工具就不代表真实系统状态。** 模型不能声称“已查询、已生成、已修改”。
+4. **模型输出永远不可信。** 工具参数必须经过类型绑定、Bean Validation、权限和审批检查。
+5. **权限必须完整中介。** 工具是否展示给模型是一层；真正执行前必须再次鉴权。
+6. **写操作默认需要批准。** `EFFECTFUL_WRITE` 工具应设置 `ApprovalPolicy.REQUIRED`；在审批协议落地前会拒绝执行。
+7. **工具结果最小化。** 给模型的是脱敏事实摘要，完整结构通过 Artifact 给 UI，不把原始大报文塞回上下文。
+8. **供应商协议止步于 infrastructure。** application/domain/tool 包不能 import OpenAI、DeepSeek 等线格式 DTO。
+9. **网络 IO 不进入数据库事务。** 模型调用和外部系统查询都必须设置超时。
+10. **先测试工具，再测试编排，最后做模型评测。** Prompt 不能替代单元测试和权限测试。
 
-对照你的需求：
+---
 
-| 需求 | 确定性代码（Java）做什么 | LLM 只做什么 |
+## 2. 当前运行链路
+
+```text
+AiAssistant.tsx
+  └─ useAgentChat.ts：POST /api/agent/chat + fetch 读取 SSE
+       └─ AgentChatController（api）
+            ├─ 校验请求，只接受 user/assistant 历史
+            ├─ 在请求线程生成 AgentActor 权限快照
+            ├─ 创建 deadline + CancellationToken
+            └─ agentExecutor 后台执行
+                 └─ AgentRunner（application）
+                      ├─ ToolRegistry：筛选当前用户可见工具
+                      ├─ ModelGateway：调用模型
+                      ├─ ToolExecutionService：二次鉴权、审批、绑定参数、执行
+                      └─ AgentEvent：message/tool_call/tool_result/error/done
+```
+
+浏览器关闭面板或 SSE 断开后，前端 `AbortController` 与后端 `CancellationToken` 会取消本次运行。
+
+---
+
+## 3. 包结构
+
+```text
+org.lbl.agent
+├── api/                         HTTP/SSE 输入输出适配
+│   ├── AgentChatController
+│   └── model/AgentChatRequest
+├── application/                 用例编排
+│   ├── AgentCommand
+│   ├── AgentRequestMapper
+│   └── AgentRunner
+├── domain/                      与框架、传输、供应商无关的核心模型
+│   ├── AgentActor
+│   ├── AgentArtifact
+│   ├── AgentDefinition
+│   ├── AgentEvent
+│   ├── AgentExecutionContext
+│   ├── AgentMessage
+│   ├── AgentRun
+│   └── CancellationToken
+├── port/                        核心对外依赖的接口
+│   ├── ModelGateway
+│   ├── AgentRunObserver
+│   └── model/Model*
+├── tool/                        业务工具的公共契约和统一执行入口
+│   ├── AgentTool
+│   ├── ToolDescriptor
+│   ├── ToolRisk
+│   ├── ApprovalPolicy
+│   ├── ToolResult
+│   ├── ToolRegistry
+│   ├── ToolArgumentBinder
+│   └── ToolExecutionService
+├── infrastructure/              外部技术实现
+│   └── model/openai/*
+└── config/
+    ├── AgentProperties
+    ├── AgentDefinitionConfig
+    └── AgentAsyncConfig
+```
+
+不要重新创建全局 `capability/compare`、`capability/logdiag` 这类包。业务 Agent 适配器跟随业务模块放置。
+
+---
+
+## 4. 每个类负责什么
+
+### 4.1 api
+
+| 类 | 职责 | 禁止承担 |
 | --- | --- | --- |
-| 双系统对比 | 排序归一化 + 双口径 diff + 差异分类（`Canonicalizer`/`DiffAnalyzer`） | 解释 diff 结论 |
-| 流水号日志排查 | 按流水号查日志，抽出"事实包"（有无/行数/关键错误行/归档状态） | 在事实上给原因，且标注"推测" |
-| Word 投产材料 | POI 模板占位符填充 + 落盘 | 组织文字、填空 |
-| 血缘分析（以后） | 查元数据 + 图遍历 | 解释血缘路径 |
+| `AgentChatController` | HTTP、SSE、权限入口、异步任务生命周期、断开取消 | Prompt、工具路由、业务逻辑 |
+| `AgentChatRequest` | 浏览器输入白名单和基础校验 | 复用模型供应商 DTO、接收 system/tool 角色 |
 
-**为什么**：大模型会幻觉、有上下文长度限制、且逐字节 diff 不可复现。排序归一化、字段 diff 是明确算法，
-代码比模型快、准、便宜。所以四个能力里"最该先写对"的是各自的**确定性层**，而不是 prompt。
+### 4.2 application
 
----
+| 类 | 职责 |
+| --- | --- |
+| `AgentCommand` | 与 HTTP 无关的一次对话命令 |
+| `AgentRequestMapper` | API DTO → 内部命令，并限制历史总长度 |
+| `AgentRunner` | 模型与工具之间的循环、最大步数、事件发布、观察者通知 |
 
-## 2. 为什么不用 Spring AI（你已验证过它）
+`AgentRunner` 不知道某个工具是在查日志、生成文件还是调用业务接口。
 
-你用 Spring AI 只测了 chat 能通，但这里有三个对它不利、对手写有利的事实：
+### 4.3 domain
 
-| 维度 | Spring AI | 本骨架（手写 `RestClient`） |
-| --- | --- | --- |
-| **User-Agent 控制** | 需要覆盖 `OpenAiApi` 内部或改 `RestClient.Builder`，版本相关、脆弱 | `OpenAiCompatibleLlmClient` 里一行 `defaultHeader(USER_AGENT, ...)`，完全可控 |
-| **内网离线 Maven 仓库** | `spring-ai-*` 带一大批传递依赖，版本必须精确匹配（你的 `pom.xml` 已记录过本地仓库版本不全的坑） | **零新增依赖**（`RestClient` 是 Spring 6 自带的） |
-| **可读性 / 学习** | tool-calling 循环被框架藏起来 | 循环就在 `AgentService.java`，~130 行，看得见摸得着 |
+| 类 | 职责 |
+| --- | --- |
+| `AgentActor` | 当前用户身份与权限的不可变快照 |
+| `AgentDefinition` | 助手级、与业务无关的系统约束 |
+| `AgentMessage` | 内部对话消息，隔离 API 和供应商 DTO |
+| `AgentExecutionContext` | runId、用户、总截止时间和取消令牌 |
+| `CancellationToken` | SSE 断开、超时、主动取消时的协作式取消 |
+| `AgentArtifact<T>` | UI 制品信封，通过 type/schemaVersion 选择渲染器 |
+| `AgentEvent` | 传输无关的运行事件 |
+| `AgentRun` | 最终文本与工具结果，供测试、审计和后续持久化 |
 
-结论：**骨架阶段手写，吃透原理；将来编排真的复杂到需要 Spring AI 时再迁**（`Tool`/`Capability` 抽象
-是框架无关的，迁移只需换 `LlmClient` 一个实现 + `AgentService` 的循环）。
+### 4.4 port
 
----
+| 类 | 职责 |
+| --- | --- |
+| `ModelGateway` | 模型供应商端口；更换协议时新增实现，不修改 AgentRunner |
+| `ModelMessage/Request/Response` | 供应商无关的模型交互模型 |
+| `ModelToolDefinition/ModelToolCall` | 供应商无关的工具声明和调用请求 |
+| `AgentRunObserver` | 审计、指标、追踪扩展点；观察者失败不能影响主流程 |
 
-## 3. 架构：框架层与能力层分离
+### 4.5 tool
 
-```
-agent/            ← 框架层（通用、零业务知识，加能力不动它）
-capability/       ← 能力层（一个能力一个包，可插拔）
-```
+| 类 | 职责 |
+| --- | --- |
+| `AgentTool<I,O>` | 业务模块接入 Agent 的唯一接口，输入输出必须类型化 |
+| `ToolDescriptor` | 名称、说明、JSON Schema、风险、审批、权限和工具超时 |
+| `ToolRisk` | `READ_ONLY`、`REVERSIBLE_WRITE`、`EFFECTFUL_WRITE` |
+| `ApprovalPolicy` | 是否需要用户确认；当前 `REQUIRED` 一律安全拒绝 |
+| `ToolResult<O>` | 给模型的脱敏摘要，以及给程序/UI 的类型化结果和 Artifact |
+| `ToolRegistry` | 自动发现工具、校验全局唯一名称、按权限筛选 |
+| `ToolArgumentBinder` | JSON → 输入 record，并执行 Bean Validation |
+| `ToolExecutionService` | 工具执行唯一入口：二次鉴权、审批、绑定和截止时间 |
 
-```
-backend/src/main/java/org/lbl/
-├── agent/
-│   ├── config/AgentProperties.java          # @ConfigurationProperties("lbl.agent")
-│   ├── core/
-│   │   ├── Tool.java                        # 工具抽象：name/description/parameters/execute
-│   │   ├── Capability.java                  # 能力抽象：id/描述/系统提示/tools/权限
-│   │   ├── CapabilityRegistry.java          # 聚合所有能力 → 可见工具清单 + 系统提示
-│   │   ├── AgentService.java                # tool-calling 循环（maxSteps 防死循环）
-│   │   └── model/                           # AgentModels / ContentKind
-│   ├── llm/
-│   │   ├── LlmClient.java                   # 接口
-│   │   ├── LlmException.java
-│   │   ├── OpenAiCompatibleLlmClient.java   # RestClient + 显式 User-Agent
-│   │   └── model/OpenAiModels.java          # OpenAI 协议线格式 DTO
-│   └── controller/AgentChatController.java  # POST /api/agent/chat（SSE）
-│
-└── capability/compare/                      # ① 双系统对比（示范能力）
-    ├── CompareCapability.java
-    ├── tool/CompareSystemsTool.java
-    ├── core/ComparisonService.java          # ★ 当前是演示桩，待接真实接口
-    ├── core/Canonicalizer.java              # 排序归一化（真实现）
-    ├── core/DiffAnalyzer.java               # 差异分类（真实现）
-    └── model/CompareModels.java
-```
+### 4.6 infrastructure/config
 
-前端：
-
-```
-frontend/src/
-├── components/ai/
-│   ├── AiAssistant.tsx          # 已改造：假回复 → 流式调用
-│   ├── AiAssistant.css          # 补 .ai-tool-status
-│   └── useAgentChat.ts          # fetch + ReadableStream 解析 SSE
-└── types/agent.ts               # AgentStreamEvent / DiffReport / …
-```
+| 类 | 职责 |
+| --- | --- |
+| `OpenAiCompatibleModelGateway` | 将通用模型对象转换为 OpenAI Chat Completions 线格式 |
+| `OpenAiWireModels` | 只在 OpenAI 适配器内部使用的 JSON DTO |
+| `ModelGatewayException` | 屏蔽网关底层异常和敏感响应体 |
+| `AgentProperties` | 开关、网关、模型、超时、步数等配置 |
+| `AgentDefinitionConfig` | 集中定义助手级安全规则，不放业务 Prompt |
+| `AgentAsyncConfig` | 有界线程池；满载时拒绝，绝不回退占用 Tomcat 请求线程 |
 
 ---
 
-## 4. 一次对话的完整生命周期（SSE）
+## 5. 工具开发约定
 
-```
-用户点"帮我对比一下这个查询报文"
-  │
-  ├─ 前端 AiAssistant.send() → useAgentChat.send()
-  │      fetch POST /api/agent/chat {message, history}
-  │      带 Authorization: Bearer <accessToken>（EventSource 带不了头，所以用 fetch）
-  │
-  ├─ 后端 AgentChatController.chat()
-  │      1) 检查 lbl.agent.enabled
-  │      2) access.actor()  → AgentContext{userId, username, superAdmin, permissions}
-  │      3) 返回 SseEmitter（text/event-stream）
-  │
-  ├─ AgentService.run()
-  │      messages = [system(能力提示) + history + user(本次消息)]
-  │      tools   = CapabilityRegistry.visibleTools(context)   ← 按权限过滤
-  │      ┌─ 循环（最多 maxSteps 次）：
-  │      │   LLM.complete(model, messages, tools)
-  │      │   ├─ 返回 tool_calls？→ 逐条执行工具 → 结果作为 tool 消息回填 → 继续循环
-  │      │   └─ 返回 content？    → 结束，这就是最终答复
-  │      └─ 每步把事件推给 SseEmitter：tool_call / tool_result / message / error
-  │
-  └─ 前端逐块读流：tool_call → 显示"正在调用 compare_systems…"；message → 打字机追加文本
-```
+### 5.1 命名
 
-**关键点**：LLM 只读工具的 `summary`（结构化、短）；前端读 `payload`（完整 diff 明细）。
-两者分开，绝不让 LLM 啃原始报文。
+- 工具名全局唯一，只允许 `^[a-z][a-z0-9_]{0,63}$`。
+- 使用“动词 + 对象”，例如 `query_trace_facts`，不要用 `handle`、`process`。
+- 一个工具只做一个边界清楚的动作，不要提供“任意 URL”“任意 SQL”“任意命令”工具。
 
----
+### 5.2 输入
 
-## 5. 已落地文件清单（本次骨架）
+- 用 Java `record` 定义输入。
+- 必须加 Jakarta Validation，例如 `@NotBlank`、`@Size`、`@Pattern`。
+- JSON Schema 约束模型；Java 类型与 Validation 约束服务端，二者不能互相替代。
+- 不允许把 `Map<String,Object>` 传入业务 Service。
 
-| 层 | 文件 | 状态 |
-| --- | --- | --- |
-| 配置 | `agent/config/AgentProperties.java` | ✅ 完整 |
-| 配置 | `config/AppConfig.java`（已注册 `AgentProperties.class`） | ✅ 已改 |
-| 配置 | `application.yml`（`lbl.agent` 块） | ✅ 已改 |
-| 框架 | `agent/core/model/ContentKind.java` / `AgentModels.java` | ✅ 完整 |
-| 框架 | `agent/core/Tool.java` / `Capability.java` / `CapabilityRegistry.java` | ✅ 完整 |
-| 框架 | `agent/core/AgentService.java` | ✅ 完整 |
-| 框架 | `agent/llm/LlmClient.java` / `LlmException.java` / `OpenAiCompatibleLlmClient.java` | ✅ 完整 |
-| 框架 | `agent/llm/model/OpenAiModels.java` | ✅ 完整 |
-| 框架 | `agent/controller/AgentChatController.java` | ✅ 完整 |
-| 能力 | `capability/compare/**` | ✅ 完整（`ComparisonService` 是演示桩） |
-| 前端 | `components/ai/useAgentChat.ts` / `types/agent.ts` | ✅ 完整 |
-| 前端 | `components/ai/AiAssistant.tsx` / `.css` | ✅ 已接线 |
+### 5.3 权限与审批
 
-**唯一需要你补的"空实现"**：`capability/compare/core/ComparisonService.java` 里的演示数据，
-替换成对你现有"同报文双发对比"接口的真实 HTTP 调用（见第 8.1 节）。
+- `ToolDescriptor.permissions` 声明工具权限码。
+- `ToolRegistry` 只向模型展示有权工具。
+- `ToolExecutionService` 在执行前再次检查，防止模型伪造工具名。
+- 读取类工具使用最小只读下游凭据。
+- 正式写入、发消息、触发任务、删除等必须是 `EFFECTFUL_WRITE + REQUIRED`。
 
----
-
-## 6. 怎么新增一个能力（以"流水号日志排查"为例）
-
-按 `compare` 能力照抄，四步：
-
-1. 新建包 `capability/logdiag/`，写确定性层：`LogQueryService`（调你"按流水号查日志"接口）
-   + `LogFactAnalyzer`（把结果整理成"事实包"：`{serialValid, serialExists, logsFound, logCount, keyErrorLines[], archiveStatus, queriedSystem}`）。
-2. 写 `tool/QueryLogsBySerialTool`：入参 `serialNo`，返回 `ToolResult.text(事实摘要)`。
-   **注意**：summary 里写清"以下均为事实，无数据时不要臆测原因"，引导 LLM 标注推测。
-3. 写 `LogDiagCapability` 实现 `Capability`：`requiredPermissions()` 先留空，硬化时改 `Set.of("agent:logdiag:use")`。
-4. 什么都不用改——`CapabilityRegistry` 会自动聚合，重启即生效。
-
-> 四个能力里，**日志排查价值最高、也最容易踩坑**："查无数据"有 5 种可能（流水号格式错 / 不存在 /
-> 日志未落 / 已清理 / 查错系统），务必由确定性层尽量枚举成事实包，再让 LLM 下结论。
-
----
-
-## 7. 内网部署与实现指南（★ 你最关心的部分）
-
-### 7.1 需要设置的环境变量
-
-全部通过环境变量注入（与 `JWT_SECRET` 同一纪律，密钥绝不进仓库/明文 yml）：
-
-```bash
-# ── 必填 ────────────────────────────────────────────────
-LLM_BASE_URL=https://你的内网模型网关          # 根地址，不含 /chat/completions
-LLM_API_KEY=网关发给你的密钥
-LLM_MODEL=qwen-max                             # 或 deepseek-chat / 网关定义的别名
-
-# ── 可选（有默认值）─────────────────────────────────────
-AI_ENABLED=true                                # false = 关掉 /api/agent/chat
-LLM_USER_AGENT=KariyaAdmin-Agent/1.0          # ★ 见 7.2，按 nginx 要求改
-LLM_CHAT_PATH=/v1/chat/completions             # 见 7.3
-```
-
-`application.yml` 里已有这些占位（`${LLM_BASE_URL:}` 等），生产环境**不需要改任何 yml**，
-只要在服务器的启动脚本 / systemd `EnvironmentFile` / 容器 env 里设好即可。
-
-### 7.2 ★ User-Agent 与 Nginx 拦截
-
-你遇到的"Spring AI 会被 nginx 拦"正是 UA 问题。本骨架在
-`OpenAiCompatibleLlmClient.java` 里显式设置了 `defaultHeader(USER_AGENT, properties.userAgent())`。
-
-- 默认 UA：`KariyaAdmin-Agent/1.0`（在 `application.yml` 的 `lbl.agent.user-agent`）。
-- **如果 nginx 有 UA 白名单**：把 `LLM_USER_AGENT` 改成 nginx 允许的 UA（例如公司约定的
-  `YourApp/2.0 (+https://...)` 或一个浏览器 UA）。改环境变量即可，**不用改代码**。
-- 若 nginx 是拦"空 UA"，默认值已经足够。
-
-### 7.3 base-url 与 chat-path 怎么填
-
-OpenAI 兼容网关的完整地址有四种常见形态，按你的实际情况填：
-
-| 网关给的完整地址 | base-url | chat-path |
-| --- | --- | --- |
-| `https://gw/v1/chat/completions` | `https://gw/v1` | `/chat/completions` |
-| `https://gw/chat/completions`（无版本号） | `https://gw` | `/chat/completions` |
-| `https://gw/v1`（根就到版本号） | `https://gw/v1` | `/chat/completions` |
-| `https://api.openai.com/v1/chat/completions` | `https://api.openai.com` | `/v1/chat/completions`（默认） |
-
-**验证命令**（curl 先确认网关通，再启动应用）：
-
-```bash
-curl -sS -X POST "${LLM_BASE_URL}${LLM_CHAT_PATH}" \
-  -H "Authorization: Bearer ${LLM_API_KEY}" \
-  -H "User-Agent: KariyaAdmin-Agent/1.0" \
-  -H "Content-Type: application/json" \
-  -d '{"model":"'"${LLM_MODEL}"'","messages":[{"role":"user","content":"你好"}]}'
-```
-
-能返回带 `choices[0].message.content` 的 JSON 就说明网关、密钥、UA、路径全对。
-
-### 7.4 自签名证书（内网常见）
-
-`SimpleClientHttpRequestFactory` 用 JDK 默认信任库，**不信任内网自签名证书**。若网关是
-`https://` + 自签，要么把网关证书导入 JDK 的 cacerts，要么（临时）在
-`OpenAiCompatibleLlmClient` 里换成 `JdkClientHttpRequestFactory` 并配 trust store。
-建议走"导入证书"，别在生产关校验。
-
-### 7.5 鉴权与安全
-
-- `/api/agent/**` 已被 `WebSecurityConfig` 的 `anyRequest().authenticated()` 覆盖，**必须登录**才能用。
-- 骨架阶段未叠加 `@PreAuthorize`（保证开箱即用）；硬化时在 `AgentChatController` 加
-  `@PreAuthorize("hasAuthority('agent:chat')")` + 每个能力的 `requiredPermissions()`。
-- 密钥走环境变量；**内网 ≠ 可信**（你的 `INTRANET-MIGRATION.md` 第 ① 节就是这个纪律）。
-
-### 7.6 部署后验证清单
-
-- [ ] curl 7.3 的命令返回正常 content
-- [ ] 前端 `npm run build` 通过（`tsc --noEmit` 是 build 的一部分）
-- [ ] 后端能启动，日志无异常（未配 LLM 时不会启动失败，但对话会提示"未配置"）
-- [ ] 登录后点右下角 AI 助手，发一句"帮我对比一下这个报文…"，能看到"正在调用 compare_systems…"
-      → 打字机式输出"数据一致、仅排序不一致…"
-- [ ] 故意发一句无关问题（如"你好"），模型能直接闲聊、不硬调工具
-
----
-
-## 8. 硬化清单（上线前逐项做）
-
-| # | 项 | 怎么做 |
-| --- | --- | --- |
-| 1 | 接入真实对比接口 | `ComparisonService.compare()` 替换演示数据（见 8.1） |
-| 2 | 能力级权限 | 每个 `Capability.requiredPermissions()` 从空改 `agent:xxx:use`；并按 `DEVELOPMENT.md` B.3 的"4 处都要改"注册权限码（`init_data.sql` + `SystemPermissionInitializer` + 前端 `<Permission>` + 后端） |
-| 3 | 聊天/对比审计 | 复用 `@OperationLog` 或新增 `sys_agent_usage` 表，记录"谁、何时、问了什么、调了哪个工具、花了多少 token" |
-| 4 | 评测集 | 攒 20~50 条 golden 用例（"这句话 → 应调哪个工具 → 应给什么结论"），改 prompt 后跑回归 |
-| 5 | 结果缓存 | 相同查询的对比结果可缓存（Redis），省钱、降延迟 |
-| 6 | 异步化 | 高并发时把 `AgentService.run` 挪进有界线程池（`AgentContext` 已显式捕获，不依赖线程本地） |
-| 7 | token 级流式 | 见 8.2 |
-| 8 | 文件产出 seam | Word 能力需要"程序生成字节 → 暂存 → 下载"（现有 `StagedFileStorage` 只有上传形，见 8.3） |
-
-### 8.1 接真实对比接口
-
-`ComparisonService.java` 的 `compare()` 现在返回写死的演示数据。真实实现只需：
+### 5.4 输出
 
 ```java
-String solrJson = httpGet(solrHbaseUrl, requestBody);   // 你已有的对比接口
-String esJson   = httpGet(esHbaseUrl,   requestBody);
-List<JsonNode> solr = parseRecords(solrJson);
-List<JsonNode> es   = parseRecords(esJson);
-return DiffAnalyzer.diff(solr, es, "业务主键字段名");
+ToolResult.of("给模型的短事实摘要", typedOutput);
+
+ToolResult.artifact(
+    "给模型的短事实摘要",
+    new AgentArtifact<>("trace-facts", 1, "流水号分析", typedOutput)
+);
 ```
 
-注意：外部 HTTP 调用要设超时、不要包在 `@Transactional` 里（占 Hikari 连接，全站会被拖死）。
+- `modelSummary` 必须短、脱敏、只包含模型作答所需事实。
+- 大列表、原始日志、文件内容不要进入模型上下文。
+- Artifact 类型使用稳定的短横线名称，并从 `schemaVersion=1` 开始。
+- Artifact 结构变化不兼容时提升版本，不偷偷改变旧版本语义。
 
-### 8.2 进阶：token 级流式
+### 5.5 异常
 
-当前 SSE 是"事件级"流式（工具进度即时可见，最终文本一次性送达）。要做打字机式 token 流式：
-在 `LlmClient` 加 `stream()` 方法（请求带 `"stream":true`，读 `data: {...delta...}` 行），
-`AgentService` 在"最终答复"那一支改走流式即可；工具调用阶段仍走非流式。这是增量改造，不影响现有结构。
-
-### 8.3 Word 产出的文件 seam
-
-现有 `LocalStagedFileStorage.stage(MultipartFile, ownerId)` 只支持上传。docgen 需要新增一个
-`stage(byte[] content, String filename, Long ownerId)` 重载 + 一个下载端点，前端用现成的
-`utils/download.ts` 的 `downloadBlob` 拿文件。这是四个能力里**唯一需要动现有 `file/` 包**的地方。
+- 参数不合法抛 `BusinessException`。
+- 权限不足抛 `AccessDeniedException`。
+- 下游错误在业务基础设施层转换成稳定异常，不把 URL、密钥、响应体返回用户。
+- 工具实现必须遵守 `context.deadline()`，调用 HTTP 时把剩余时间转换成客户端超时。
+- 长循环和分批任务中调用 `context.checkpoint()`。
 
 ---
 
-## 9. 与项目现有约定对齐（别踩的坑）
+## 6. 示例：接入“根据流水号分析日志”
 
-1. **鉴权走 `AccessPolicy`**：能力内部如需"按数据范围/越权"判断，注入 `AccessPolicy` 用
-   `actor()`，不要自己写第二套权限逻辑（`DEVELOPMENT.md` 附录 B 第 1 条）。
-2. **网络 IO 不进事务**：LLM 调用、查日志、调对比接口都是外部网络，别放 `@Transactional` 里。
-3. **401/403 语义**：agent 接口 401 = 未登录（前端 fetch 会提示刷新）；不要自造新状态码。
-4. **密钥纪律**：`LLM_API_KEY` 走环境变量，和 `JWT_SECRET` 一样。
+这不是让 Agent 包新增 `LogDiagService`。正确结构是：
+
+```text
+org.lbl.observability.trace
+├── domain/
+│   └── TraceFacts.java
+├── application/
+│   └── TraceQueryUseCase.java
+├── port/
+│   └── TraceLogRepository.java
+├── infrastructure/
+│   └── InternalTraceApiClient.java
+└── adapter/agent/
+    ├── QueryTraceFactsInput.java
+    └── QueryTraceFactsTool.java
+```
+
+### 第一步：先做与 AI 无关的业务能力
+
+```java
+package org.lbl.observability.trace.application;
+
+public interface TraceQueryUseCase {
+    TraceFacts query(String serialNo, Long requesterId);
+}
+```
+
+`TraceFacts` 只保存已经验证的事实，例如是否找到、时间范围、阶段、错误码、脱敏错误摘要。
+不要让 LLM 直接读取几万行原始日志。
+
+### 第二步：定义类型化 Agent 输入
+
+```java
+package org.lbl.observability.trace.adapter.agent;
+
+public record QueryTraceFactsInput(
+        @NotBlank
+        @Size(max = 64)
+        @Pattern(regexp = "^[A-Za-z0-9_-]+$")
+        String serialNo) {
+}
+```
+
+### 第三步：写一个薄适配器
+
+```java
+@Component
+public final class QueryTraceFactsTool
+        implements AgentTool<QueryTraceFactsInput, TraceFacts> {
+
+    private final TraceQueryUseCase useCase;
+
+    @Override
+    public ToolDescriptor descriptor() {
+        return new ToolDescriptor(
+                "query_trace_facts",
+                "按调用方流水号查询已验证的链路事实；仅在用户明确提供流水号并要求排查时调用。",
+                TRACE_INPUT_SCHEMA,
+                ToolRisk.READ_ONLY,
+                ApprovalPolicy.NOT_REQUIRED,
+                Set.of("trace:query"),
+                Duration.ofSeconds(10));
+    }
+
+    @Override
+    public Class<QueryTraceFactsInput> inputType() {
+        return QueryTraceFactsInput.class;
+    }
+
+    @Override
+    public ToolResult<TraceFacts> execute(
+            QueryTraceFactsInput input,
+            AgentExecutionContext context) {
+        context.checkpoint();
+        TraceFacts facts = useCase.query(input.serialNo(), context.actor().userId());
+        return ToolResult.artifact(
+                facts.toModelSummary(),
+                new AgentArtifact<>("trace-facts", 1, "流水号分析", facts));
+    }
+}
+```
+
+Spring 会自动发现该工具，`ToolRegistry` 会注册它；不需要修改 `AgentRunner`、Controller 或模型适配器。
+
+### 第四步：权限和前端渲染
+
+1. 在 `init_data.sql` 与 `SystemPermissionInitializer` 注册 `trace:query`。
+2. 将权限授予需要的角色。
+3. 在前端实现 `trace-facts@1` 渲染器；未实现渲染器时仍可显示 `summary`。
+4. 严禁仅靠前端 `<Permission>`，后端工具权限才是安全边界。
+
+### 第五步：测试
+
+至少包含：
+
+- 流水号格式校验。
+- 查询不到日志。
+- 下游超时。
+- 脱敏是否生效。
+- 无权限用户无法发现和执行工具。
+- 工具摘要不包含原始敏感日志。
+- Mock `ModelGateway` 后，用户表达应选择 `query_trace_facts`。
+- 建立小型评测集：输入、允许工具、期望工具、关键事实，不用全文答案做脆弱比较。
 
 ---
 
-## 附：一页纸速查
+## 7. 前端协议
 
+公共类型位于 `frontend/src/types/agent.ts`：
+
+```ts
+interface AgentArtifact<T = unknown> {
+  type: string;
+  schemaVersion: number;
+  title?: string;
+  data: T;
+}
 ```
-【配置】
- □ LLM_BASE_URL / LLM_API_KEY / LLM_MODEL 三个环境变量
- □ LLM_USER_AGENT（nginx 白名单则改）
- □ LLM_CHAT_PATH（按网关地址形态，见 7.3）
- □ AI_ENABLED=true
 
-【验证】
- □ curl 网关通（7.3）
- □ npm run build 过
- □ 后端启动无异常
- □ AI 助手对话："正在调用 compare_systems…" → 打字机出结论
- □ 无关问题能闲聊不硬调工具
+前端不得在公共 Agent 类型中声明 `DiffReport`、`TraceFacts` 等业务模型。业务类型和渲染组件应放在对应业务模块。
 
-【上线前硬化】
- □ ComparisonService 接真实接口
- □ 能力权限码 agent:xxx:use（4 处注册）
- □ 审计 + 评测集 + 结果缓存
- □ （需要时）异步线程池 / token 流式 / Word 文件 seam
+当前 UI 已支持文本、工具进度和取消请求。后续增加 Artifact 渲染器时，建议使用注册表：
+
+```ts
+registerArtifactRenderer('trace-facts', 1, TraceFactsRenderer);
 ```
+
+不要在 `AiAssistant.tsx` 中写不断增长的 `if (artifact.type === ...)`。
+
+---
+
+## 8. 配置与内网部署
+
+```bash
+AI_ENABLED=true
+LLM_BASE_URL=https://llm-gateway.example.internal
+LLM_API_KEY=通过 Secret 注入
+LLM_MODEL=网关提供的模型名
+LLM_USER_AGENT=KariyaAdmin-Agent/1.0
+LLM_CHAT_PATH=/v1/chat/completions
+LLM_STRICT_TOOL_SCHEMA=false
+```
+
+- AI 默认关闭，配置完整并验证后再打开。
+- 密钥禁止写入 yml、代码、日志或前端。
+- 内网自签名证书应导入 JVM trust store，不得关闭 TLS 校验。
+- `run-timeout-seconds` 必须小于 `sse-timeout-millis / 1000`。
+- 只有网关确认支持 strict tool schema 时才打开 `LLM_STRICT_TOOL_SCHEMA`。
+- Nginx 的 `/api/agent/chat` 必须关闭响应缓冲；Controller 已发送 `X-Accel-Buffering: no`。
+
+---
+
+## 9. 上线检查清单
+
+- [ ] `agent:chat:use` 只授予需要的角色
+- [ ] 每个工具有独立权限码，且下游使用最小权限身份
+- [ ] 所有输入都是 record + Bean Validation
+- [ ] 写操作设置审批策略，没有通用 SQL/URL/命令工具
+- [ ] 工具摘要和日志均完成脱敏
+- [ ] 模型网关、工具、整轮运行三层超时关系正确
+- [ ] SSE 断开后后台任务能取消
+- [ ] 记录 runId、用户、工具名、耗时、token、结果状态，不记录秘密和完整原文
+- [ ] 工具单测、权限测试、编排测试和评测集通过
+- [ ] 前端未知 Artifact 能安全降级，不执行 Artifact 中的 HTML/脚本
+
+---
+
+## 10. 当前仍刻意保留的边界
+
+- 当前对话仍由浏览器回传有限历史；需要跨设备会话时再实现服务端 `ConversationRepository`。
+- 当前是事件级 SSE，不是 token 级模型流式。
+- `ApprovalPolicy.REQUIRED` 当前安全拒绝；实现确认 UI 和一次性批准令牌后才能开放写工具。
+- `AgentRunObserver` 已提供接口，但尚未创建 Agent 专属审计表。
+- 当前没有任何业务工具，这是去业务化后的预期状态，不是缺失功能。

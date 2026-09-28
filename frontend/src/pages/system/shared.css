@@ -111,6 +111,25 @@
   margin-bottom: 4px;
 }
 /*
+ * 横向表单的 Row 默认允许换行。控件列如果被配置成 flex-basis:auto（例如 wrapperCol={{ flex: 1 }}
+ * 会被 antd 转成 1 1 auto），长校验文案就可能把整列推到 label 下一行。
+ * 弹窗内始终保持「固定 label + 可收缩 control」单行骨架；错误文案在 control 内正常换行并撑高
+ * 当前 Form.Item，后续字段整体下移，因此 label 与输入框不会各走一套纵向位置。
+ */
+.system-dialog .ant-form-item-row {
+  flex-wrap: nowrap;
+  align-items: flex-start;
+}
+.system-dialog .ant-form-item-control {
+  min-width: 0;
+}
+.system-dialog .ant-form-item-explain-error {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+/*
  * 表单整体限宽并居中。
  *
  * 横向表单的 label 列默认是 text-align: end（antd 的 .ant-form-item-label 里写死的），
@@ -125,7 +144,7 @@
 }
 /*
  * label 列宽统一由各弹窗 Form 的 labelCol 指定（96px ≈ 4 个汉字 + 冒号）。
- * 注意不要给 wrapperCol 传 { flex: '1 1 auto' }：antd 横向表单给控件列的默认值是
+ * 注意不要给 wrapperCol 传数字 flex: 1 或字符串 '1 1 auto'：antd 横向表单给控件列的默认值是
  * flex: 1 1 0，改成 basis: auto 后控件列会以内容宽度为基准，
  * 而 Form.Item 的行本质是 antd 的 Row（flex-flow: row wrap），
  * 宽内容控件（AutoComplete / 多选 Select）就会被挤到下一行，出现"label 和输入框不在同一行"。
