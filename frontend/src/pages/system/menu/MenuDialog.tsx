@@ -6,6 +6,7 @@ import { MENU_ICON_OPTIONS } from '../../../router/iconRegistry';
 import type { MenuRequest, SystemMenu } from '../../../types/menu';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { FieldLabel } from '../../../components/FieldLabel';
+import { IconPicker } from '../../../components/IconPicker/IconPicker';
 
 interface MenuDialogProps {
   open: boolean;
@@ -154,7 +155,7 @@ export function MenuDialog({ open, menuId, menus, onClose, onSaved }: MenuDialog
           </Form.Item>
         )}
         <Form.Item name='icon' label={<FieldLabel text='图标' hint='只能从已登记的图标中选择（清单见 src/router/iconRegistry.tsx），避免填了名字却渲染不出来。' />}>
-          <Select allowClear showSearch optionFilterProp='value' options={MENU_ICON_OPTIONS} placeholder='请选择图标' />
+          <IconPicker options={MENU_ICON_OPTIONS} placeholder='请选择图标' />
         </Form.Item>
         <Form.Item name='visible' label={<FieldLabel text='菜单可见' hint='隐藏后不出现在侧边栏，但仍可通过地址直接访问，适合详情页这类不需要入口的页面。' />}>
           <Radio.Group>

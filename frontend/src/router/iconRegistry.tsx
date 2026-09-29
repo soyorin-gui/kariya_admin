@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import type { IconPickerOption } from '../components/IconPicker/IconPicker';
 import {
   ApartmentOutlined,
   DashboardOutlined,
@@ -40,16 +41,8 @@ export const MENU_ICONS: Record<string, ReactNode> = {
   ToolOutlined: <ToolOutlined />,
 };
 
-/** 供菜单管理表单的图标下拉使用。 */
-export const MENU_ICON_OPTIONS = Object.entries(MENU_ICONS).map(([name, node]) => ({
-  value: name,
-  label: (
-    <span className='menu-icon-option'>
-      {node}
-      {name}
-    </span>
-  ),
-}));
+/** 供菜单管理表单的图标选择器使用。 */
+export const MENU_ICON_OPTIONS: IconPickerOption[] = Object.entries(MENU_ICONS).map(([value, icon]) => ({ value, icon }));
 
 /** 图标名 → 图标节点；未登记的名字回退成默认图标，不会渲染成空白。 */
 export function resolveMenuIcon(name?: string | null): ReactNode {
