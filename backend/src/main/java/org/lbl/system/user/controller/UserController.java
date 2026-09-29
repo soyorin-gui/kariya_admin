@@ -134,7 +134,7 @@ public class UserController {
      * 不属于任何成员，却同样满足 {@code isAuthenticated()}（见 JwtAuthenticationFilter 里为它构造的
      * 认证对象），所以 {@code anyRequest().authenticated()} 拦不住它。全项目其余成员接口都是这个口径
      * （AccountProfileController / AccountSessionController / AccountIdentityController /
-     * NotificationController / DepartmentChangeController / RealtimeController），只有这里漏了。
+     * NotificationController / DepartmentTransferController / RealtimeController），只有这里漏了。
      * <p>
      * 漏掉的代价不是越权（{@code AccessPolicy.actor()} 按用户名查不到开户态用户，写操作不会执行），
      * 而是<b>错误的状态码与错误的提示</b>：它返回 401，而前端把 401 一律当作"会话过期"去静默续期

@@ -105,7 +105,7 @@ export function AppLayout() {
   useEffect(() => {
     void dispatch(loadNotifications());
     const realtime = new RealtimeClient((event) => {
-      if (event.type === 'notification.created' || event.type === 'department.request.updated') void dispatch(loadNotifications());
+      if (event.type === 'notification.created' || event.type === 'approval.request.updated') void dispatch(loadNotifications());
     });
     realtime.start();
     const onVisible = () => {

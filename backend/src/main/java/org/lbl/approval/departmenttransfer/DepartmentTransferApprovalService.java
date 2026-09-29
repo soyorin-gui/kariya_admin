@@ -1,8 +1,8 @@
-package org.lbl.departmentchange;
+package org.lbl.approval.departmenttransfer;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import org.lbl.common.exception.BusinessException;
-import org.lbl.departmentchange.DepartmentChangeModels.*;
+import org.lbl.approval.departmenttransfer.DepartmentTransferModels.*;
 import org.lbl.notification.NotificationService;
 import org.lbl.security.context.AccessPolicy;
 import org.lbl.system.dept.entity.DeptEntity;
@@ -16,15 +16,15 @@ import java.time.LocalDateTime;
 import java.util.*;
 
 @Service
-public class DepartmentChangeService {
-    private final DepartmentChangeRequestMapper requests;
-    private final DepartmentChangeStepMapper steps;
+public class DepartmentTransferApprovalService {
+    private final DepartmentTransferRequestMapper requests;
+    private final DepartmentTransferStepMapper steps;
     private final UserMapper users;
     private final DeptMapper depts;
     private final AccessPolicy access;
     private final NotificationService notifications;
 
-    public DepartmentChangeService(DepartmentChangeRequestMapper requests, DepartmentChangeStepMapper steps,
+    public DepartmentTransferApprovalService(DepartmentTransferRequestMapper requests, DepartmentTransferStepMapper steps,
                                    UserMapper users, DeptMapper depts, AccessPolicy access,
                                    NotificationService notifications) {
         this.requests = requests; this.steps = steps; this.users = users; this.depts = depts;
@@ -40,7 +40,7 @@ public class DepartmentChangeService {
     public Profile profile() {
         UserEntity user = access.actor().user();
         DeptEntity dept = user.getDeptId() == null ? null : depts.selectById(user.getDeptId());
-        DepartmentChangeRequestEntity active = requests.activeByRequester(user.getId());
+        DepartmentTransferRequestEntity active = requests.activeByRequester(user.getId());
         return new Profile(user.getDeptId(), dept == null ? null : dept.getDeptName(), active == null ? null : detail(active, access.actor()));
     }
 
@@ -55,21 +55,21 @@ public class DepartmentChangeService {
         if (Objects.equals(requester.getDeptId(), target.getId())) throw new BusinessException("你已经属于该部门");
 
         boolean needsSource = requester.getDeptId() != null;
-        DepartmentChangeRequestEntity request = new DepartmentChangeRequestEntity();
+        DepartmentTransferRequestEntity request = new DepartmentTransferRequestEntity();
         request.setRequesterId(requester.getId()); request.setFromDeptId(requester.getDeptId());
         request.setTargetDeptId(target.getId()); request.setReason(form.reason().trim());
         request.setStatus(needsSource ? "PENDING_SOURCE" : "PENDING_TARGET");
         request.setCurrentStep(needsSource ? 1 : 2); request.setVersion(1L);
         requests.insert(request);
 
-        DepartmentChangeStepEntity source = step(request.getId(), 1, "SOURCE", requester.getDeptId(),
+        DepartmentTransferStepEntity source = step(request.getId(), 1, "SOURCE", requester.getDeptId(),
                 needsSource ? reviewer(requester.getDeptId(), requester.getId()) : null,
                 needsSource ? "PENDING" : "SKIPPED");
-        DepartmentChangeStepEntity targetStep = step(request.getId(), 2, "TARGET", target.getId(),
+        DepartmentTransferStepEntity targetStep = step(request.getId(), 2, "TARGET", target.getId(),
                 needsSource ? null : reviewer(target.getId(), requester.getId()), needsSource ? "WAITING" : "PENDING");
         steps.insert(source); steps.insert(targetStep);
 
-        DepartmentChangeStepEntity currentStep = needsSource ? source : targetStep;
+        DepartmentTransferStepEntity currentStep = needsSource ? source : targetStep;
         String currentDeptLabel = needsSource ? "原部门" : "目标部门";
         notifications.create(requester.getId(), "DEPARTMENT_REQUEST_SUBMITTED", "部门变更申请已提交",
                 "申请已提交，" + reviewerPhrase(currentStep, currentDeptLabel),
@@ -83,7 +83,7 @@ public class DepartmentChangeService {
 
     public Detail get(Long id) {
         AccessPolicy.Actor actor = access.actor();
-        DepartmentChangeRequestEntity request = require(id);
+        DepartmentTransferRequestEntity request = require(id);
         requireVisible(request, actor);
         return detail(request, actor);
     }
@@ -100,7 +100,7 @@ public class DepartmentChangeService {
     @Transactional
     public Detail cancel(Long id) {
         AccessPolicy.Actor actor = access.actor();
-        DepartmentChangeRequestEntity request = requests.lockById(id);
+        DepartmentTransferRequestEntity request = requests.lockById(id);
         if (request == null || !request.getRequesterId().equals(actor.user().getId())) throw new BusinessException("申请不存在");
         requirePending(request);
         request.setStatus("CANCELLED"); request.setFinishedTime(LocalDateTime.now()); request.setVersion(request.getVersion() + 1);
@@ -111,10 +111,10 @@ public class DepartmentChangeService {
 
     private Detail decide(Long id, boolean approved, String reason) {
         AccessPolicy.Actor actor = access.actor();
-        DepartmentChangeRequestEntity request = requests.lockById(id);
+        DepartmentTransferRequestEntity request = requests.lockById(id);
         if (request == null) throw new BusinessException("申请不存在");
         requirePending(request);
-        DepartmentChangeStepEntity current = steps.one(id, request.getCurrentStep());
+        DepartmentTransferStepEntity current = steps.one(id, request.getCurrentStep());
         if (current == null || !"PENDING".equals(current.getStatus())) throw new BusinessException("当前审批步骤状态异常");
         if (!actor.superAdmin() && !actor.user().getId().equals(current.getAssignedUserId())) throw new BusinessException("当前步骤不属于你审批");
         if (request.getRequesterId().equals(actor.user().getId())) throw new BusinessException("不能审批自己的部门变更申请");
@@ -139,7 +139,7 @@ public class DepartmentChangeService {
         }
 
         if (request.getCurrentStep() == 1) {
-            DepartmentChangeStepEntity targetStep = steps.one(id, 2);
+            DepartmentTransferStepEntity targetStep = steps.one(id, 2);
             targetStep.setAssignedUserId(reviewer(request.getTargetDeptId(), request.getRequesterId()));
             targetStep.setStatus("PENDING"); steps.updateById(targetStep);
             request.setCurrentStep(2); request.setStatus("PENDING_TARGET"); request.setVersion(request.getVersion() + 1);
@@ -148,7 +148,7 @@ public class DepartmentChangeService {
                     "申请已进入目标部门审批阶段，" + reviewerPhrase(targetStep, "目标部门"),
                     "DEPARTMENT_CHANGE", request.getId());
             notifyCurrentReviewer(request, targetStep, requester);
-            notifications.workflowUpdated(participants(request), request.getId());
+            notifications.approvalUpdated(participants(request), request.getId());
             return detail(request, actor);
         }
 
@@ -159,8 +159,8 @@ public class DepartmentChangeService {
         return detail(request, actor);
     }
 
-    private DepartmentChangeStepEntity step(Long requestId, int order, String type, Long deptId, Long assigned, String status) {
-        DepartmentChangeStepEntity value = new DepartmentChangeStepEntity();
+    private DepartmentTransferStepEntity step(Long requestId, int order, String type, Long deptId, Long assigned, String status) {
+        DepartmentTransferStepEntity value = new DepartmentTransferStepEntity();
         value.setRequestId(requestId); value.setStepOrder(order); value.setStepType(type); value.setDeptId(deptId);
         value.setAssignedUserId(assigned); value.setStatus(status); return value;
     }
@@ -181,51 +181,51 @@ public class DepartmentChangeService {
      * 所以文案必须跟着这个事实走。写死"部门负责人"会让申请人一直等一个永远不会发生的结果，
      * 而且界面上看不出任何异常 —— 这是排查成本最高的一类问题。
      */
-    private String reviewerPhrase(DepartmentChangeStepEntity step, String deptLabel) {
+    private String reviewerPhrase(DepartmentTransferStepEntity step, String deptLabel) {
         return step.getAssignedUserId() == null
                 ? deptLabel + "尚未配置负责人，等待超级管理员审批"
                 : "等待" + deptLabel + "负责人审批";
     }
 
-    private void notifyCurrentReviewer(DepartmentChangeRequestEntity request, DepartmentChangeStepEntity step, UserEntity requester) {
+    private void notifyCurrentReviewer(DepartmentTransferRequestEntity request, DepartmentTransferStepEntity step, UserEntity requester) {
         if (step.getAssignedUserId() != null) notifications.create(step.getAssignedUserId(), "DEPARTMENT_APPROVAL_REQUIRED",
                 "待审批的部门变更申请", requester.getRealName() + "提交了部门变更申请，请处理当前步骤",
                 "DEPARTMENT_CHANGE", request.getId());
     }
 
-    private void notifySuperAdmins(DepartmentChangeRequestEntity request, String title, String content) {
+    private void notifySuperAdmins(DepartmentTransferRequestEntity request, String title, String content) {
         for (Long id : users.selectActiveSuperAdminIds()) if (!id.equals(request.getRequesterId()))
             notifications.create(id, "DEPARTMENT_APPROVAL_WATCH", title, content, "DEPARTMENT_CHANGE", request.getId());
     }
 
-    private void notifyParticipants(DepartmentChangeRequestEntity request, String title, String content) {
+    private void notifyParticipants(DepartmentTransferRequestEntity request, String title, String content) {
         for (Long id : participants(request)) notifications.create(id, "DEPARTMENT_REQUEST_RESULT", title, content,
                 "DEPARTMENT_CHANGE", request.getId());
-        notifications.workflowUpdated(participants(request), request.getId());
+        notifications.approvalUpdated(participants(request), request.getId());
     }
 
-    private Set<Long> participants(DepartmentChangeRequestEntity request) {
+    private Set<Long> participants(DepartmentTransferRequestEntity request) {
         Set<Long> ids = new LinkedHashSet<>(); ids.add(request.getRequesterId()); ids.addAll(users.selectActiveSuperAdminIds());
-        for (DepartmentChangeStepEntity step : steps.byRequest(request.getId())) {
+        for (DepartmentTransferStepEntity step : steps.byRequest(request.getId())) {
             if (step.getAssignedUserId() != null) ids.add(step.getAssignedUserId());
             if (step.getDecidedBy() != null) ids.add(step.getDecidedBy());
         }
         return ids;
     }
 
-    private void requireVisible(DepartmentChangeRequestEntity request, AccessPolicy.Actor actor) {
+    private void requireVisible(DepartmentTransferRequestEntity request, AccessPolicy.Actor actor) {
         if (actor.superAdmin() || participants(request).contains(actor.user().getId())) return;
         throw new BusinessException("无权查看该申请");
     }
-    private void requirePending(DepartmentChangeRequestEntity request) {
+    private void requirePending(DepartmentTransferRequestEntity request) {
         if (!Set.of("PENDING_SOURCE", "PENDING_TARGET").contains(request.getStatus())) throw new BusinessException("该申请已经处理完成");
     }
-    private DepartmentChangeRequestEntity require(Long id) {
-        DepartmentChangeRequestEntity value = requests.selectById(id);
+    private DepartmentTransferRequestEntity require(Long id) {
+        DepartmentTransferRequestEntity value = requests.selectById(id);
         if (value == null) throw new BusinessException("申请不存在"); return value;
     }
 
-    private Detail detail(DepartmentChangeRequestEntity request, AccessPolicy.Actor actor) {
+    private Detail detail(DepartmentTransferRequestEntity request, AccessPolicy.Actor actor) {
         UserEntity requester = users.selectById(request.getRequesterId());
         DeptEntity from = request.getFromDeptId() == null ? null : depts.selectById(request.getFromDeptId());
         DeptEntity target = depts.selectById(request.getTargetDeptId());
@@ -238,7 +238,7 @@ public class DepartmentChangeService {
                     value.getStatus(), value.getDecidedBy(), decided == null ? null : decided.getRealName(),
                     value.getDecisionReason(), value.getDecidedTime());
         }).toList();
-        DepartmentChangeStepEntity current = Set.of("PENDING_SOURCE", "PENDING_TARGET").contains(request.getStatus())
+        DepartmentTransferStepEntity current = Set.of("PENDING_SOURCE", "PENDING_TARGET").contains(request.getStatus())
                 ? steps.one(request.getId(), request.getCurrentStep()) : null;
         boolean canApprove = current != null && !request.getRequesterId().equals(actor.user().getId())
                 && (actor.superAdmin() || actor.user().getId().equals(current.getAssignedUserId()));

@@ -1,4 +1,4 @@
-package org.lbl.departmentchange;
+package org.lbl.approval.departmenttransfer;
 
 import com.baomidou.mybatisplus.annotation.*;
 import lombok.Data;
@@ -6,7 +6,7 @@ import java.time.LocalDateTime;
 
 @Data
 @TableName("sys_department_change_request")
-public class DepartmentChangeRequestEntity {
+public class DepartmentTransferRequestEntity {
     @TableId(type = IdType.AUTO) private Long id;
     private Long requesterId;
     private Long fromDeptId;

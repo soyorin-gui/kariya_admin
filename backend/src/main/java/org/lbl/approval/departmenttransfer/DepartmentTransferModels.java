@@ -1,11 +1,11 @@
-package org.lbl.departmentchange;
+package org.lbl.approval.departmenttransfer;
 
 import jakarta.validation.constraints.*;
 import java.time.LocalDateTime;
 import java.util.List;
 
-public final class DepartmentChangeModels {
-    private DepartmentChangeModels() {}
+public final class DepartmentTransferModels {
+    private DepartmentTransferModels() {}
     public record Submit(@NotNull @Positive Long targetDeptId,
                          @NotBlank @Size(max = 500, message = "申请说明最长 500 个字符") String reason) {}
     public record Reject(@NotBlank(message = "请填写拒绝原因")

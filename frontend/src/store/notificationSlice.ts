@@ -14,7 +14,7 @@ import { clearSession } from './authSlice';
  * 为什么必须共用一个 state
  *   之前两个组件各自持有一份 useState：铃铛拉 getNotifications(6) + 未读数，
  *   消息中心拉 getNotifications(100)。于是两边永远对不上 —— 在消息中心点"全部标为已读"，
- *   顶栏红点不会消失，要等下一次实时事件（notification.created / department.request.updated，
+ *   顶栏红点不会消失，要等下一次实时事件（notification.created / approval.request.updated，
  *   见 AppLayout）或浏览器标签页切回来才刷新。用户看到的是"我明明都读过了，红点还在"。
  *   状态上移之后，"读一条/读全部"只发生一次、两个组件同时生效，不需要任何跨组件事件。
  *

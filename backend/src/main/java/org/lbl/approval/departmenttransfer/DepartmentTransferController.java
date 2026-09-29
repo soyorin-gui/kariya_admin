@@ -1,8 +1,8 @@
-package org.lbl.departmentchange;
+package org.lbl.approval.departmenttransfer;
 
 import jakarta.validation.Valid;
 import org.lbl.common.result.Result;
-import org.lbl.departmentchange.DepartmentChangeModels.*;
+import org.lbl.approval.departmenttransfer.DepartmentTransferModels.*;
 import org.lbl.system.log.aspect.OperationLog;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -11,9 +11,9 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/account/department-change")
 @PreAuthorize("isAuthenticated() and !hasAuthority('onboarding:access')")
-public class DepartmentChangeController {
-    private final DepartmentChangeService service;
-    public DepartmentChangeController(DepartmentChangeService service) { this.service = service; }
+public class DepartmentTransferController {
+    private final DepartmentTransferApprovalService service;
+    public DepartmentTransferController(DepartmentTransferApprovalService service) { this.service = service; }
 
     @GetMapping("/options") public Result<List<DeptOption>> options() { return Result.ok(service.options()); }
     @GetMapping("/profile") public Result<Profile> profile() { return Result.ok(service.profile()); }

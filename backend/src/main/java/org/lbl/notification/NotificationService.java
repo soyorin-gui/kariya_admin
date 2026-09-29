@@ -33,8 +33,9 @@ public class NotificationService {
     }
     public void readAll(Long userId) { mapper.markAllRead(userId); }
 
-    public void workflowUpdated(Iterable<Long> users, Long requestId) {
-        afterCommit(() -> users.forEach(userId -> realtime.send(userId, "department.request.updated", Map.of("requestId", requestId))));
+    /** 通知审批参与者刷新申请状态；事件不绑定某一种审批类型。 */
+    public void approvalUpdated(Iterable<Long> users, Long requestId) {
+        afterCommit(() -> users.forEach(userId -> realtime.send(userId, "approval.request.updated", Map.of("requestId", requestId))));
     }
 
     private void afterCommit(Runnable action) {
