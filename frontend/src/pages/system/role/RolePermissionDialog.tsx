@@ -44,7 +44,7 @@ export function RolePermissionDialog({ open, role, onClose, onSaved }: RolePermi
   }, [message, open, role]);
 
   const save = async () => {
-    if (!role) return;
+    if (!role || role.scopeEditable === false) return;
     try {
       setSaving(true);
       await grantRoleMenus(role.id, checkedKeys.map(Number));
@@ -58,10 +58,11 @@ export function RolePermissionDialog({ open, role, onClose, onSaved }: RolePermi
     }
   };
 
-  return <Modal className='system-dialog role-grant-dialog' open={open} width={720} title={role ? `菜单权限授权 · ${role.roleName}` : '菜单权限授权'} okText='保存授权' cancelText='取消' onCancel={onClose} onOk={() => void save()} okButtonProps={{ disabled: loading }} cancelButtonProps={{ disabled: loading || saving }} closable={!loading && !saving} maskClosable={!loading && !saving} keyboard={!loading && !saving} confirmLoading={saving} destroyOnHidden>
+  return <Modal className='system-dialog role-grant-dialog' open={open} width={720} title={role ? `菜单权限授权 · ${role.roleName}` : '菜单权限授权'} okText='保存授权' cancelText='取消' onCancel={onClose} onOk={() => void save()} okButtonProps={{ disabled: loading || role?.scopeEditable === false }} cancelButtonProps={{ disabled: loading || saving }} closable={!loading && !saving} maskClosable={!loading && !saving} keyboard={!loading && !saving} confirmLoading={saving} destroyOnHidden>
     <p className='dialog-description'>勾选该角色可以访问的目录、菜单和操作按钮；取消勾选后权限会立即收回。</p>
+    {role?.scopeEditable === false && <p className='dialog-description'>已分配角色的菜单授权仅超级管理员可修改。</p>}
     <div className='permission-tree'>
-      {loading ? <Spin /> : <Tree checkable defaultExpandAll checkedKeys={checkedKeys} onCheck={(keys) => setCheckedKeys(Array.isArray(keys) ? keys : keys.checked)} treeData={treeData} />}
+      {loading ? <Spin /> : <Tree checkable disabled={role?.scopeEditable === false} defaultExpandAll checkedKeys={checkedKeys} onCheck={(keys) => setCheckedKeys(Array.isArray(keys) ? keys : keys.checked)} treeData={treeData} />}
     </div>
   </Modal>;
 }

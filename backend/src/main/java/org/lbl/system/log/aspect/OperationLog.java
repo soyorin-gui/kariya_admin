@@ -18,4 +18,13 @@ public @interface OperationLog {
 
     /** 具体动作，例如"新增用户"。 */
     String action();
+
+    /** 被操作的业务对象类型，例如 USER、ROLE、DEPARTMENT_CHANGE。 */
+    String targetType() default "";
+
+    /** 对象标识的 SpEL，例如 {@code #id}；不配置时留空。 */
+    String targetId() default "";
+
+    /** 可读对象名的 SpEL，例如 {@code #request.roleName}；不得填写密码等敏感字段。 */
+    String targetName() default "";
 }

@@ -83,12 +83,24 @@
   gap: 8px;
   align-items: center;
 }
-.ai-workbench-head button {
+.ai-workbench-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.ai-workbench-head .ant-btn {
   color: var(--muted);
 }
 
+.ai-empty-state {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+}
 .ai-welcome {
-  padding: 19px 0 14px;
+  padding: 16px 0 14px;
 }
 .ai-welcome-title {
   display: flex;
@@ -153,12 +165,14 @@
   display: flex;
   flex-direction: column;
   gap: 13px;
+  padding-top: 14px;
 }
 .bubble {
   max-width: 85%;
   padding: 10px 13px;
   border-radius: 10px;
   line-height: 1.6;
+  white-space: pre-wrap;
   word-break: break-word;
 }
 .bubble.assistant {
@@ -191,20 +205,34 @@
 }
 
 .ai-input {
-  margin-top: auto;
+  margin-top: 12px;
   display: flex;
   gap: 8px;
   align-items: flex-end;
-  padding: 7px;
+  padding: 5px 6px 5px 9px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: 12px;
+  background: var(--surface);
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.ai-input:focus-within {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand) 12%, transparent);
 }
 .ai-input .ant-input {
   font-size: var(--fs-sm);
+  line-height: 24px;
+  padding: 5px 2px;
+  resize: none;
 }
-.ai-input .ant-btn {
+.ai-input .ai-composer-action {
   align-self: flex-end;
   flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  margin-bottom: 0;
 }
 
 @keyframes ai-enter {

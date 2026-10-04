@@ -28,6 +28,10 @@ public class OperationLogService {
     private static final int MAX_DELETE_BATCH = 1000;
     private static final int MODULE_MAX_LENGTH = 80;
     private static final int ACTION_MAX_LENGTH = 80;
+    private static final int TARGET_TYPE_MAX_LENGTH = 64;
+    private static final int TARGET_ID_MAX_LENGTH = 128;
+    private static final int TARGET_NAME_MAX_LENGTH = 255;
+    private static final int ERROR_MAX_LENGTH = 1000;
 
     private final OperationLogMapper mapper;
 
@@ -43,14 +47,23 @@ public class OperationLogService {
      * 方法内部吞掉所有异常——审计失败不能让用户的操作跟着失败。
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void record(String module, String action, String result, long durationMs) {
+    public void record(String module, String action, String targetType, String targetId, String targetName,
+                       String result, String errorMessage, long durationMs) {
         try {
             OperationLogEntity entry = new OperationLogEntity();
             fillOperator(entry);
             entry.setModule(truncate(module, MODULE_MAX_LENGTH));
             entry.setAction(truncate(action, ACTION_MAX_LENGTH));
+            entry.setTargetType(truncate(targetType, TARGET_TYPE_MAX_LENGTH));
+            entry.setTargetId(truncate(targetId, TARGET_ID_MAX_LENGTH));
+            entry.setTargetName(truncate(targetName, TARGET_NAME_MAX_LENGTH));
             entry.setRequestIp(RequestInfo.clientIp());
+            entry.setRequestMethod(RequestInfo.method());
+            entry.setRequestUri(RequestInfo.uri());
+            entry.setUserAgent(RequestInfo.userAgent());
+            entry.setRequestId(RequestInfo.requestId());
             entry.setResult(result);
+            entry.setErrorMessage(truncate(errorMessage, ERROR_MAX_LENGTH));
             entry.setDurationMs(durationMs);
             entry.setCreatedTime(LocalDateTime.now());
             mapper.insert(entry);
@@ -65,7 +78,10 @@ public class OperationLogService {
         LambdaQueryWrapper<OperationLogEntity> query = new LambdaQueryWrapper<OperationLogEntity>()
                 .and(StringUtils.hasText(keyword), condition -> condition
                         .like(OperationLogEntity::getUsername, keyword)
-                        .or().like(OperationLogEntity::getAction, keyword))
+                        .or().like(OperationLogEntity::getAction, keyword)
+                        .or().like(OperationLogEntity::getTargetName, keyword)
+                        .or().like(OperationLogEntity::getTargetId, keyword)
+                        .or().like(OperationLogEntity::getRequestId, keyword))
                 .eq(StringUtils.hasText(module), OperationLogEntity::getModule, module)
                 .eq(StringUtils.hasText(result), OperationLogEntity::getResult, result)
                 .ge(beginTime != null, OperationLogEntity::getCreatedTime, beginTime)

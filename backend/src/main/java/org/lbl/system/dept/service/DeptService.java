@@ -5,6 +5,7 @@ import org.lbl.common.exception.BusinessException;
 import org.lbl.security.context.AccessPolicy;
 import org.lbl.system.dept.vo.DeptFormOptions;
 import org.lbl.system.dept.mapper.DeptMapper;
+import org.lbl.system.role.mapper.RoleDeptMapper;
 import org.lbl.system.dept.vo.DeptVO;
 import org.lbl.system.dept.entity.DeptEntity;
 import org.lbl.system.dept.request.DeptRequest;
@@ -27,15 +28,17 @@ public class DeptService {
     private final DeptMapper depts;
     private final UserMapper users;
     private final AccessPolicy access;
+    private final RoleDeptMapper roleDepts;
 
-    public DeptService(DeptMapper depts, UserMapper users, AccessPolicy access) {
+    public DeptService(DeptMapper depts, UserMapper users, AccessPolicy access, RoleDeptMapper roleDepts) {
         this.depts = depts;
         this.users = users;
         this.access = access;
+        this.roleDepts = roleDepts;
     }
 
     public List<DeptVO> list() {
-        AccessPolicy.Actor actor = access.actor();
+        AccessPolicy.Actor actor = access.actor("system:dept:list");
         List<DeptEntity> all = depts.selectList(new LambdaQueryWrapper<DeptEntity>().orderByAsc(DeptEntity::getSortOrder).orderByAsc(DeptEntity::getId));
         List<DeptEntity> visible = actor.all() ? all : withAncestorsForContext(all, actor);
         // 负责人姓名一次性批量取回：以前是每条部门各查一次用户表（N+1），部门上百时
@@ -45,7 +48,7 @@ public class DeptService {
     }
 
     public DeptVO detail(Long id) {
-        AccessPolicy.Actor actor = access.actor();
+        AccessPolicy.Actor actor = access.actor("system:dept:update");
         DeptEntity dept = require(id);
         access.requireManageDept(actor, dept);
         return toView(dept, actor);
@@ -94,18 +97,22 @@ public class DeptService {
      *       这两项都是 true，但后端会一律拒绝 parentId≤0，表现为一个与表单无关的 403。</li>
      * </ul>
      */
-    public DeptFormOptions formOptions() {
-        AccessPolicy.Actor actor = access.actor();
+    public DeptFormOptions formOptions(String operation) {
+        if (!Set.of("add", "update").contains(operation)) throw new BusinessException("表单操作无效");
+        AccessPolicy.Actor actor = access.actor("system:dept:" + operation);
         LambdaQueryWrapper<UserEntity> usersQuery = new LambdaQueryWrapper<UserEntity>().eq(UserEntity::getStatus, 1).orderByAsc(UserEntity::getUsername);
         access.applyUserScope(usersQuery, actor);
         List<DeptFormOptions.Option> leaderOptions = users.selectList(usersQuery)
                 .stream().map(value -> new DeptFormOptions.Option(value.getId(), value.getRealName() + "（" + value.getUsername() + "）")).toList();
-        return new DeptFormOptions(leaderOptions, access.canCreateRootDept(actor));
+        List<Long> parentDeptIds = actor.context().departments().values().stream()
+                .filter(dept -> dept.getStatus() == 1 && access.canCreateChildDept(actor, dept))
+                .map(DeptEntity::getId).sorted().toList();
+        return new DeptFormOptions(leaderOptions, access.canCreateRootDept(actor), parentDeptIds);
     }
 
     @Transactional
     public DeptVO create(DeptRequest request) {
-        AccessPolicy.Actor actor = access.actor();
+        AccessPolicy.Actor actor = access.actor("system:dept:add");
         String code = request.deptCode().trim();
         // 口径与 sys_dept.dept_code 的唯一索引一致（含已逻辑删除的记录）：
         // 删除只置 deleted=1，编码不会被释放，所以"删掉再建同编码"必须在这里就被挡住，
@@ -122,7 +129,7 @@ public class DeptService {
 
     @Transactional
     public DeptVO update(Long id, DeptRequest request) {
-        AccessPolicy.Actor actor = access.actor();
+        AccessPolicy.Actor actor = access.actor("system:dept:update");
         DeptEntity dept = require(id);
         access.requireManageDept(actor, dept);
         String code = request.deptCode().trim();
@@ -134,6 +141,11 @@ public class DeptService {
         Long oldParentId = dept.getParentId();
         apply(dept, request, id);
         access.requireMoveDept(actor, oldParentId, dept.getParentId());
+        if (!oldParentId.equals(dept.getParentId()) && !actor.all()) {
+            boolean outside = depts.selectList(DeptPaths.subtreeQuery(oldPath)).stream()
+                    .anyMatch(child -> !actor.departments().contains(child.getId()));
+            if (outside) throw new BusinessException("不能移动包含数据范围之外部门的子树");
+        }
         requireLeaderInScope(actor, dept.getLeaderUserId());
         depts.updateById(dept);
         String newPath = DeptPaths.selfPath(dept);
@@ -152,12 +164,13 @@ public class DeptService {
 
     @Transactional
     public void remove(Long id) {
-        AccessPolicy.Actor actor = access.actor();
+        AccessPolicy.Actor actor = access.actor("system:dept:delete");
         DeptEntity dept = require(id);
         access.requireManageDept(actor, dept);
         if (dept.getBuiltin() == 1) throw new BusinessException("根部门不能删除");
         if (depts.selectCount(new LambdaQueryWrapper<DeptEntity>().eq(DeptEntity::getParentId, id)) > 0) throw new BusinessException("请先删除该部门下的子部门");
         if (users.selectCount(new LambdaQueryWrapper<UserEntity>().eq(UserEntity::getDeptId, id)) > 0) throw new BusinessException("该部门下仍有用户，不能删除");
+        if (roleDepts.countByDeptId(id) > 0) throw new BusinessException("该部门已被角色指定为数据范围，请先调整角色配置");
         dept.setDeletedTime(LocalDateTime.now());
         depts.updateById(dept);
         depts.deleteById(id);
@@ -212,8 +225,9 @@ public class DeptService {
 
     private DeptVO toView(DeptEntity dept, AccessPolicy.Actor actor, Map<Long, String> leaderNames) {
         String leaderName = dept.getLeaderUserId() == null ? null : leaderNames.get(dept.getLeaderUserId());
-        boolean manageable = access.canManageDept(actor, dept);
-        boolean canCreateChildren = dept.getStatus() == 1 && access.canCreateChildDept(actor, dept);
-        return new DeptVO(dept.getId(), dept.getParentId(), dept.getAncestors(), dept.getDeptName(), dept.getDeptCode(), dept.getLeaderUserId(), leaderName == null ? "-" : leaderName, dept.getSortOrder(), dept.getStatus(), dept.getBuiltin(), dept.getCreatedTime(), manageable, canCreateChildren);
+        boolean manageable = access.canManageDept(access.forPermissions(actor, "system:dept:update"), dept);
+        boolean deletable = access.canManageDept(access.forPermissions(actor, "system:dept:delete"), dept);
+        boolean canCreateChildren = dept.getStatus() == 1 && access.canCreateChildDept(access.forPermissions(actor, "system:dept:add"), dept);
+        return new DeptVO(dept.getId(), dept.getParentId(), dept.getAncestors(), dept.getDeptName(), dept.getDeptCode(), dept.getLeaderUserId(), leaderName == null ? "-" : leaderName, dept.getSortOrder(), dept.getStatus(), dept.getBuiltin(), dept.getCreatedTime(), manageable, canCreateChildren, deletable);
     }
 }

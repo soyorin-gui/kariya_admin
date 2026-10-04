@@ -1,6 +1,7 @@
 package org.lbl.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.DispatcherType;
 import jakarta.servlet.http.HttpServletResponse;
 import org.lbl.security.filter.JwtAuthenticationFilter;
 import org.lbl.security.handler.SecurityResponseWriter;
@@ -38,6 +39,14 @@ public class WebSecurityConfig {
                 })
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(a -> a
+                        // SSE 等异步请求在完成或发生异常时，会由 Servlet 容器以内部分派再次经过安全链。
+                        // 此时响应通常已经提交，并且这次分派不应被当成一条新的外部请求重新鉴权；
+                        // 否则 AuthorizationFilter 的拒绝结果无法再写入响应，最终产生
+                        // "response is already committed"。这里只放行容器控制的分派类型，客户端直接
+                        // 请求同一路径时仍是 REQUEST 类型，仍会执行下面的 JWT 与权限校验。
+                        .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.ERROR).permitAll()
+                        // 供容器编排与负载均衡器探测。详情已在 management 配置中关闭，避免泄露依赖信息。
+                        .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
                         .requestMatchers("/ws/**").permitAll()
                         // 开户确认接口必须排在下面的认证入口通配规则之前：它需要临时认证态。
                         // 而这里的"认证"就是刷新 Cookie 换来的那个访问令牌。

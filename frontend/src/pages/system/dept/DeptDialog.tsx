@@ -13,13 +13,13 @@ interface DeptDialogProps {
   onSaved: () => void;
 }
 interface DeptTreeNode { value: number; title: string; disabled?: boolean; children?: DeptTreeNode[] }
-function toTree(depts: Dept[], parentId = 0, blocked: Set<number>): DeptTreeNode[] {
+function toTree(depts: Dept[], parentId = 0, blocked: Set<number>, selectable: Set<number>): DeptTreeNode[] {
   return depts.filter((dept) => dept.parentId === parentId).map((dept) => ({
     value: dept.id,
     title: dept.deptName,
     // 只读祖先部门保留显示以维持上下文，但不能被选为新的上级部门。
-    disabled: blocked.has(dept.id) || !dept.canCreateChildren,
-    children: toTree(depts, dept.id, blocked),
+    disabled: blocked.has(dept.id) || !selectable.has(dept.id),
+    children: toTree(depts, dept.id, blocked, selectable),
   }));
 }
 function blockedIds(depts: Dept[], id?: number) {
@@ -39,7 +39,7 @@ export function DeptDialog({ open, deptId, allDepts, onClose, onSaved }: DeptDia
   const [submitting, setSubmitting] = useState(false);
   const submittingRef = useRef(false);
   const editing = deptId !== null;
-  const parentTree = useMemo(() => toTree(allDepts, 0, blockedIds(allDepts, dept?.id)), [allDepts, dept?.id]);
+  const parentTree = useMemo(() => toTree(allDepts, 0, blockedIds(allDepts, dept?.id), new Set(options?.parentDeptIds ?? [])), [allDepts, dept?.id, options]);
   /**
    * 「上级部门」能不能清空（清空 = 建顶级部门）由后端决定，不能在这里推：
    * 一个数据范围是"本部门及下级"、本人又恰好在根部门的账号，"能管这个部门"和
@@ -55,7 +55,7 @@ export function DeptDialog({ open, deptId, allDepts, onClose, onSaved }: DeptDia
     if (!open) return;
     let active = true;
     form.resetFields(); setDept(undefined); setOptions(undefined); setLoading(true);
-    void Promise.all([deptId === null ? Promise.resolve(undefined) : getDept(deptId), getDeptFormOptions()])
+    void Promise.all([deptId === null ? Promise.resolve(undefined) : getDept(deptId), getDeptFormOptions(deptId === null ? 'add' : 'update')])
       .then(([detail, loadedOptions]) => {
         if (!active) return;
         setDept(detail); setOptions(loadedOptions);

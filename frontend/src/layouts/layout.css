@@ -125,8 +125,21 @@
 }
 .quick-search {
   width: 315px;
+}
+.quick-search .ant-select-selector,
+.quick-search .ant-input-affix-wrapper {
   border-radius: 8px;
   background: var(--surface-soft);
+}
+.global-search-option {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-block: 3px;
+}
+.global-search-option small {
+  color: var(--muted);
+  font-size: var(--fs-sm);
 }
 .user-menu {
   cursor: pointer;

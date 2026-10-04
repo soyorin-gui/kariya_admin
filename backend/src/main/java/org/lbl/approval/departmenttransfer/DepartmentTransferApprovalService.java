@@ -66,7 +66,7 @@ public class DepartmentTransferApprovalService {
                 needsSource ? reviewer(requester.getDeptId(), requester.getId()) : null,
                 needsSource ? "PENDING" : "SKIPPED");
         DepartmentTransferStepEntity targetStep = step(request.getId(), 2, "TARGET", target.getId(),
-                needsSource ? null : reviewer(target.getId(), requester.getId()), needsSource ? "WAITING" : "PENDING");
+                needsSource ? null : targetReviewer(actor, requester, target.getId()), needsSource ? "WAITING" : "PENDING");
         steps.insert(source); steps.insert(targetStep);
 
         DepartmentTransferStepEntity currentStep = needsSource ? source : targetStep;
@@ -77,7 +77,7 @@ public class DepartmentTransferApprovalService {
         notifyCurrentReviewer(request, currentStep, requester);
         notifySuperAdmins(request, "新的部门变更申请", requester.getRealName() + "提交了部门变更申请"
                 + (currentStep.getAssignedUserId() == null
-                        ? "（" + currentDeptLabel + "尚未配置负责人，需由超级管理员处理）" : ""));
+                        ? "（" + currentDeptLabel + "步骤需由超级管理员处理）" : ""));
         return detail(request, actor);
     }
 
@@ -140,7 +140,7 @@ public class DepartmentTransferApprovalService {
 
         if (request.getCurrentStep() == 1) {
             DepartmentTransferStepEntity targetStep = steps.one(id, 2);
-            targetStep.setAssignedUserId(reviewer(request.getTargetDeptId(), request.getRequesterId()));
+            targetStep.setAssignedUserId(targetReviewer(actor, requester, request.getTargetDeptId()));
             targetStep.setStatus("PENDING"); steps.updateById(targetStep);
             request.setCurrentStep(2); request.setStatus("PENDING_TARGET"); request.setVersion(request.getVersion() + 1);
             requests.updateById(request);
@@ -152,6 +152,8 @@ public class DepartmentTransferApprovalService {
             return detail(request, actor);
         }
 
+        if (!actor.superAdmin() && access.requiresPlatformTransferReview(actor, requester))
+            throw new BusinessException("该用户的部门角色范围会随调动改变，请由超级管理员审批");
         requester.setDeptId(request.getTargetDeptId()); users.updateById(requester);
         request.setStatus("APPROVED"); request.setFinishedTime(LocalDateTime.now()); request.setVersion(request.getVersion() + 1);
         requests.updateById(request);
@@ -163,6 +165,10 @@ public class DepartmentTransferApprovalService {
         DepartmentTransferStepEntity value = new DepartmentTransferStepEntity();
         value.setRequestId(requestId); value.setStepOrder(order); value.setStepType(type); value.setDeptId(deptId);
         value.setAssignedUserId(assigned); value.setStatus(status); return value;
+    }
+
+    private Long targetReviewer(AccessPolicy.Actor actor, UserEntity requester, Long deptId) {
+        return access.requiresPlatformTransferReview(actor, requester) ? null : reviewer(deptId, requester.getId());
     }
 
     private Long reviewer(Long deptId, Long requesterId) {
@@ -183,7 +189,7 @@ public class DepartmentTransferApprovalService {
      */
     private String reviewerPhrase(DepartmentTransferStepEntity step, String deptLabel) {
         return step.getAssignedUserId() == null
-                ? deptLabel + "尚未配置负责人，等待超级管理员审批"
+                ? deptLabel + "步骤需由超级管理员审批（无有效负责人或调动涉及角色数据范围变更）"
                 : "等待" + deptLabel + "负责人审批";
     }
 
@@ -240,8 +246,10 @@ public class DepartmentTransferApprovalService {
         }).toList();
         DepartmentTransferStepEntity current = Set.of("PENDING_SOURCE", "PENDING_TARGET").contains(request.getStatus())
                 ? steps.one(request.getId(), request.getCurrentStep()) : null;
+        boolean requiresPlatform = current != null && current.getStepOrder() == 2 && requester != null
+                && access.requiresPlatformTransferReview(actor, requester);
         boolean canApprove = current != null && !request.getRequesterId().equals(actor.user().getId())
-                && (actor.superAdmin() || actor.user().getId().equals(current.getAssignedUserId()));
+                && (actor.superAdmin() || !requiresPlatform && actor.user().getId().equals(current.getAssignedUserId()));
         return new Detail(request.getId(), request.getRequesterId(), requester == null ? "未知用户" : requester.getRealName(),
                 request.getFromDeptId(), from == null ? "未分配部门" : from.getDeptName(), request.getTargetDeptId(),
                 target == null ? "已删除部门" : target.getDeptName(), request.getReason(), request.getStatus(),

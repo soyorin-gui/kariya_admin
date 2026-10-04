@@ -8,11 +8,15 @@ import org.lbl.system.user.request.PasswordChangeRequest;
 import org.lbl.system.user.request.UserRequest;
 import org.lbl.system.user.request.UserCreateRequest;
 import org.lbl.system.user.service.UserService;
+import org.lbl.system.user.service.UserExportService;
+import org.lbl.system.user.service.UserPasswordService;
+import org.lbl.system.user.service.UserSessionAdministrationService;
 import org.lbl.system.user.vo.UserFormOptions;
 import org.lbl.system.user.vo.UserVO;
 import org.lbl.system.user.vo.UserListVO;
 import org.lbl.system.user.vo.UsernameAvailability;
 import org.lbl.auth.session.SessionView;
+import org.lbl.auth.session.RefreshCookieFactory;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
@@ -30,9 +34,16 @@ public class UserController {
      * 本类不再 import 任何 Mapper，分层边界得以守住。
      */
     private final UserService service;
+    private final UserExportService exports;
+    private final UserPasswordService passwordService;
+    private final UserSessionAdministrationService sessionAdministration;
 
-    public UserController(UserService service) {
+    public UserController(UserService service, UserExportService exports, UserPasswordService passwordService,
+                          UserSessionAdministrationService sessionAdministration) {
         this.service = service;
+        this.exports = exports;
+        this.passwordService = passwordService;
+        this.sessionAdministration = sessionAdministration;
     }
 
     @GetMapping
@@ -49,8 +60,8 @@ public class UserController {
 
     @GetMapping("/form-options")
     @PreAuthorize("hasAnyAuthority('system:user:add', 'system:user:update')")
-    Result<UserFormOptions> formOptions() {
-        return Result.ok(service.formOptions());
+    Result<UserFormOptions> formOptions(@RequestParam(defaultValue = "add") String operation) {
+        return Result.ok(service.formOptions(operation));
     }
 
     /**
@@ -67,7 +78,7 @@ public class UserController {
     @PreAuthorize("hasAuthority('system:user:export')")
     @OperationLog(module = "用户管理", action = "导出用户")
     void export(@RequestParam(required = false) String keyword, HttpServletResponse response) throws java.io.IOException {
-        service.export(keyword, response);
+        exports.export(keyword, response);
     }
 
     @PostMapping
@@ -79,14 +90,14 @@ public class UserController {
 
     @PutMapping("/{id}")
     @PreAuthorize("hasAuthority('system:user:update')")
-    @OperationLog(module = "用户管理", action = "修改用户")
+    @OperationLog(module = "用户管理", action = "修改用户", targetType = "USER", targetId = "#id")
     Result<UserVO> update(@PathVariable Long id, @Valid @RequestBody UserRequest r) {
         return Result.ok(service.update(id, r), "修改用户成功");
     }
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('system:user:delete')")
-    @OperationLog(module = "用户管理", action = "删除用户")
+    @OperationLog(module = "用户管理", action = "删除用户", targetType = "USER", targetId = "#id")
     Result<Void> delete(@PathVariable Long id) {
         service.remove(id);
         return Result.ok(null, "删除用户成功");
@@ -94,31 +105,31 @@ public class UserController {
 
     @PostMapping("/{id}/reset-password")
     @PreAuthorize("hasAuthority('system:user:reset-password')")
-    @OperationLog(module = "用户管理", action = "重置密码")
+    @OperationLog(module = "用户管理", action = "重置密码", targetType = "USER", targetId = "#id")
     Result<Map<String, String>> reset(@PathVariable Long id) {
-        return Result.ok(Map.of("temporaryPassword", service.resetPassword(id)), "密码重置成功");
+        return Result.ok(Map.of("temporaryPassword", passwordService.reset(id)), "密码重置成功");
     }
 
     @GetMapping("/{id}/sessions")
     @PreAuthorize("hasAuthority('system:user:update')")
     Result<List<SessionView>> sessions(@PathVariable Long id,
-                                      @CookieValue(value = "lbl_refresh", required = false) String currentSid) {
-        return Result.ok(service.managedSessions(id, currentSid));
+                                      @CookieValue(value = RefreshCookieFactory.NAME, required = false) String currentSid) {
+        return Result.ok(sessionAdministration.list(id, currentSid));
     }
 
     @DeleteMapping("/{id}/sessions/{reference}")
     @PreAuthorize("hasAuthority('system:user:update')")
-    @OperationLog(module = "用户管理", action = "踢出用户会话")
+    @OperationLog(module = "用户管理", action = "踢出用户会话", targetType = "USER_SESSION", targetId = "#id + ':' + #reference")
     Result<Void> removeSession(@PathVariable Long id, @PathVariable String reference) {
-        service.removeManagedSession(id, reference);
+        sessionAdministration.remove(id, reference);
         return Result.ok(null, "该会话已退出登录");
     }
 
     @DeleteMapping("/{id}/sessions")
     @PreAuthorize("hasAuthority('system:user:update')")
-    @OperationLog(module = "用户管理", action = "踢出用户全部会话")
+    @OperationLog(module = "用户管理", action = "踢出用户全部会话", targetType = "USER", targetId = "#id")
     Result<Void> removeSessions(@PathVariable Long id) {
-        service.removeAllManagedSessions(id);
+        sessionAdministration.removeAll(id);
         return Result.ok(null, "该用户的全部会话已退出登录");
     }
 
@@ -146,7 +157,7 @@ public class UserController {
     @PreAuthorize("isAuthenticated() and !hasAuthority('onboarding:access')")
     @OperationLog(module = "个人中心", action = "修改密码")
     Result<Void> changeOwnPassword(@Valid @RequestBody PasswordChangeRequest request) {
-        service.changeOwnPassword(request);
+        passwordService.changeOwn(request);
         return Result.ok(null, "密码修改成功，请重新登录");
     }
 }

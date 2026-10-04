@@ -73,7 +73,7 @@ export function UserDialog({ open, userId, onClose, onSaved }: UserDialogProps) 
       try {
         const [detail, value] = await Promise.all([
           userId === null ? Promise.resolve(undefined) : getUser(userId),
-          getUserFormOptions(),
+          getUserFormOptions(userId === null ? 'add' : 'update'),
         ]);
         if (!active) return;
         setUser(detail);

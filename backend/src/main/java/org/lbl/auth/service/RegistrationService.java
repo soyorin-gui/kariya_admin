@@ -1,5 +1,7 @@
 package org.lbl.auth.service;
 
+import static org.lbl.common.util.TextValues.trimToNull;
+
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import org.lbl.auth.identity.*;
 import org.lbl.auth.model.*;
@@ -62,8 +64,8 @@ public class RegistrationService {
         // 放在后面，"刷接口"的成本就已经付掉了，验证码只剩下挡垃圾账号的作用。
         captcha.verify(request.captchaId(), request.captchaCode());
         PasswordRules.requireConfirmed(request.password(), request.confirmPassword());
-        UserEntity user = createUser(request.username(), request.realName(), blankToNull(request.phone()),
-                blankToNull(request.email()), "LOCAL", null, false, "basic_role");
+        UserEntity user = createUser(request.username(), request.realName(), trimToNull(request.phone()),
+                trimToNull(request.email()), "LOCAL", null, false, "basic_role");
         savePassword(user.getId(), request.password(), 0);
         return issue(user, request.rememberMe(), "PASSWORD", "local");
     }
@@ -73,8 +75,8 @@ public class RegistrationService {
         requireOnboarding(onboarding);
         PasswordRules.requireConfirmed(request.password(), request.confirmPassword());
         boolean internal = "uias".equalsIgnoreCase(onboarding.providerKey());
-        UserEntity user = createUser(request.username(), request.realName(), blankToNull(request.phone()),
-                blankToNull(request.email()), onboarding.providerKey().toUpperCase(),
+        UserEntity user = createUser(request.username(), request.realName(), trimToNull(request.phone()),
+                trimToNull(request.email()), onboarding.providerKey().toUpperCase(),
                 internal ? onboarding.employeeNo() : null, internal, "basic_role");
         savePassword(user.getId(), request.password(), 0);
         bind(user.getId(), onboarding);
@@ -205,6 +207,5 @@ public class RegistrationService {
         if (session == null || !session.onboarding()) throw new BusinessException("开户确认状态已失效，请重新完成外部认证");
     }
 
-    private String blankToNull(String value) { return value == null || value.isBlank() ? null : value.trim(); }
     private String normalizeIssuer(String value) { return value == null ? "" : value; }
 }

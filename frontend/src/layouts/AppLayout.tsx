@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ItemType } from 'antd/es/menu/interface';
 import { App, Avatar, Badge, Breadcrumb, Button, Dropdown, Form, Input, Layout, List, Menu, Modal, Popover, Space, Tooltip } from 'antd';
-import { BellOutlined, LockOutlined, LogoutOutlined, MenuFoldOutlined, MenuUnfoldOutlined, SearchOutlined, SettingOutlined, UserOutlined } from '@ant-design/icons';
+import { AuditOutlined, BellOutlined, LockOutlined, LogoutOutlined, MenuFoldOutlined, MenuUnfoldOutlined, SettingOutlined, UserOutlined } from '@ant-design/icons';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { SiderBrand } from './SiderBrand';
 import { AiAssistant } from '../components/ai/AiAssistant';
@@ -20,6 +20,8 @@ import { RealtimeClient } from '../services/RealtimeClient';
 import type { SystemNotification } from '../api/notifications';
 import { loadNotifications, readAllNotifications, readNotification } from '../store/notificationSlice';
 import { SystemSettings } from '../components/SystemSettings';
+import { GlobalSearch } from '../components/common/GlobalSearch';
+import { getPendingApprovalCount } from '../api/approvals';
 import '../pages/system/shared.css';
 
 const { Sider, Header, Content } = Layout;
@@ -61,6 +63,7 @@ export function AppLayout() {
   const [passwordOpen, setPasswordOpen] = useState(false);
   const [notificationOpen, setNotificationOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [pendingApprovalCount, setPendingApprovalCount] = useState(0);
   const [siderCollapsed, setSiderCollapsed] = useState(() => {
     try {
       return localStorage.getItem('lbl-sider-collapsed') === 'true';
@@ -104,8 +107,12 @@ export function AppLayout() {
   }, []);
   useEffect(() => {
     void dispatch(loadNotifications());
+    void getPendingApprovalCount().then(setPendingApprovalCount).catch(() => undefined);
     const realtime = new RealtimeClient((event) => {
-      if (event.type === 'notification.created' || event.type === 'approval.request.updated') void dispatch(loadNotifications());
+      if (event.type === 'notification.created' || event.type === 'approval.request.updated') {
+        void dispatch(loadNotifications());
+        void getPendingApprovalCount().then(setPendingApprovalCount).catch(() => undefined);
+      }
     });
     realtime.start();
     const onVisible = () => {
@@ -265,7 +272,12 @@ export function AppLayout() {
             {crumb.length > 0 && <Breadcrumb items={crumb} />}
           </div>
           <Space size={20}>
-            <Input className='quick-search' prefix={<SearchOutlined />} placeholder='搜索功能、文档或快捷操作...' />
+            <GlobalSearch />
+            <Tooltip title='审批中心'>
+              <Badge count={pendingApprovalCount} size='small' overflowCount={99}>
+                <Button type='text' shape='circle' aria-label='审批中心' icon={<AuditOutlined />} onClick={() => navigate('/account/approvals')} />
+              </Badge>
+            </Tooltip>
             <Popover trigger='click' placement='bottomRight' open={notificationOpen} onOpenChange={setNotificationOpen} content={notificationPanel}>
               <Badge count={unreadCount} size='small' overflowCount={99}>
                 <Button type='text' shape='circle' aria-label='消息通知' icon={<BellOutlined />} />

@@ -11,7 +11,7 @@ import { RolePermissionDialog } from './RolePermissionDialog';
 import { SmartTable, type SmartTableRef } from '../../../components/SmartTable';
 import './index.css';
 
-const scopeLabel: Record<Role['dataScope'], string> = { ALL: '全部数据', DEPT_AND_CHILDREN: '本部门及下级', DEPT: '本部门', SELF: '仅本人' };
+const scopeLabel: Record<Role['dataScope'], string> = { ALL: '全部数据', DEPT_AND_CHILDREN: '本部门及下级', DEPT: '本部门', SELF: '仅本人', CUSTOM: '指定部门' };
 type RoleSearch = { keyword: string };
 
 export default function RolePage() {

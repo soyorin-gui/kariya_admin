@@ -10,7 +10,7 @@ import java.util.List;
  *                      必须由后端给出：这条规则的唯一依据是 {@code AccessPolicy.canCreateRootDept}，
  *                      前端无法从其它字段推导（见 {@code DeptService.formOptions} 的说明）。
  */
-public record DeptFormOptions(List<Option> leaders, boolean canCreateRoot) {
+public record DeptFormOptions(List<Option> leaders, boolean canCreateRoot, List<Long> parentDeptIds) {
     public record Option(Long value, String label) {
     }
 }

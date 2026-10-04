@@ -1,6 +1,6 @@
 import request from '../utils/request';
 import type { Result } from '../types/common';
-import type { Role, RoleRequest } from '../types/role';
+import type { Role, RoleRequest, RoleDeptOption } from '../types/role';
 import type { SystemMenu } from '../types/menu';
 
 export const getRoles = (keyword?: string) => request.get<Result<Role[]>>('/system/roles', { params: { keyword } }).then((response) => response.data.data);
@@ -11,3 +11,5 @@ export const deleteRole = (id: number) => request.delete(`/system/roles/${id}`);
 export const getRoleMenuIds = (id: number) => request.get<Result<number[]>>(`/system/roles/${id}/menu-ids`).then((response) => response.data.data);
 export const getGrantableMenus = () => request.get<Result<SystemMenu[]>>('/system/roles/grantable-menus').then((response) => response.data.data);
 export const grantRoleMenus = (id: number, menuIds: number[]) => request.put<Result<void>>(`/system/roles/${id}/menu-ids`, menuIds).then((response) => response.data);
+
+export const getGrantableDepartments = () => request.get<Result<RoleDeptOption[]>>('/system/roles/grantable-departments').then((response) => response.data.data);

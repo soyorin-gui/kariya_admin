@@ -12,6 +12,7 @@ export interface Dept {
   createdTime?: string;
   /** 返回只读祖先记录是为了保持部门树结构完整。 */
   manageable: boolean;
+  deletable: boolean;
   canCreateChildren: boolean;
 }
 
@@ -32,4 +33,5 @@ export interface DeptRequest {
 export interface DeptFormOptions {
   leaders: { value: number; label: string }[];
   canCreateRoot: boolean;
+  parentDeptIds: number[];
 }

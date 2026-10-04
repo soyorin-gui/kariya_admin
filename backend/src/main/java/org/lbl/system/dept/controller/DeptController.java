@@ -35,8 +35,8 @@ public class DeptController {
 
     @GetMapping("/form-options")
     @PreAuthorize("hasAnyAuthority('system:dept:add', 'system:dept:update')")
-    Result<DeptFormOptions> formOptions() {
-        return Result.ok(service.formOptions());
+    Result<DeptFormOptions> formOptions(@RequestParam(defaultValue = "add") String operation) {
+        return Result.ok(service.formOptions(operation));
     }
 
     @PostMapping
@@ -48,14 +48,14 @@ public class DeptController {
 
     @PutMapping("/{id}")
     @PreAuthorize("hasAuthority('system:dept:update')")
-    @OperationLog(module = "部门管理", action = "修改部门")
+    @OperationLog(module = "部门管理", action = "修改部门", targetType = "DEPARTMENT", targetId = "#id")
     Result<DeptVO> update(@PathVariable Long id, @Valid @RequestBody DeptRequest request) {
         return Result.ok(service.update(id, request), "修改部门成功");
     }
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('system:dept:delete')")
-    @OperationLog(module = "部门管理", action = "删除部门")
+    @OperationLog(module = "部门管理", action = "删除部门", targetType = "DEPARTMENT", targetId = "#id")
     Result<Void> delete(@PathVariable Long id) {
         service.remove(id);
         return Result.ok(null, "删除部门成功");

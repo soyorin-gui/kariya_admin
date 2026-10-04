@@ -10,6 +10,7 @@ import org.lbl.system.menu.entity.MenuEntity;
 import org.lbl.system.menu.mapper.MenuMapper;
 import org.lbl.system.role.entity.RoleEntity;
 import org.lbl.system.role.mapper.RoleMapper;
+import org.lbl.system.role.mapper.RoleDeptMapper;
 import org.lbl.system.role.mapper.RoleMenuMapper;
 import org.lbl.system.user.entity.UserEntity;
 import org.lbl.system.user.mapper.UserMapper;
@@ -33,15 +34,19 @@ public class AccessPolicy {
     private final RoleMenuMapper roleMenus;
     private final MenuMapper menus;
     private final DeptMapper depts;
+    private final RoleDeptMapper roleDepts;
 
-    public AccessPolicy(UserMapper users, RoleMapper roles, RoleMenuMapper roleMenus, MenuMapper menus, DeptMapper depts) {
+    public AccessPolicy(UserMapper users, RoleMapper roles, RoleMenuMapper roleMenus, MenuMapper menus,
+                        DeptMapper depts, RoleDeptMapper roleDepts) {
         this.users = users;
         this.roles = roles;
         this.roleMenus = roleMenus;
         this.menus = menus;
         this.depts = depts;
+        this.roleDepts = roleDepts;
     }
 
+    /** 身份和完整授权上下文；业务读写应使用 actor(permission) 选择对应操作的范围。 */
     public Actor actor() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !authentication.isAuthenticated()) throw new UnauthorizedException("登录状态已失效");
@@ -49,76 +54,116 @@ public class AccessPolicy {
         if (user == null || user.getStatus() != 1) throw new UnauthorizedException("登录状态已失效");
         List<RoleEntity> assigned = roles.selectAssignedByUserId(user.getId());
         boolean superAdmin = containsSuperAdmin(assigned);
-        Set<String> permissions = permissions(user.getId());
-        Set<Long> visibleDepartments = new HashSet<>();
-        boolean all = superAdmin;
-        boolean self = false;
-        // 注意：这里刻意<b>不看部门的 status</b>。
-        // 「停用部门」的语义是产品决定的一句话：停用只表示"不能再往这个部门里放人"
-        // （DeptService.formOptions 不再返回它、UserService.validateAssignment 拒绝分配到它），
-        // <b>已经在里面的人不受任何影响</b> —— 他们照常登录，数据范围照常以这个部门为根展开。
-        // 把停用做成"整条分支下线"（例如在这里过滤掉停用部门、或停用时级联处理子树）
-        // 不是 bug 修复，而是另一套业务规则，改之前先确认需求。
-        // 代码里唯一的解释入口在 DeptDialog 的"状态"字段说明，两边必须一致。
+        // 停用部门不影响已有人员与数据范围，仅已删除部门不参与计算。
+        Map<Long, DeptEntity> departments = depts.selectList(new LambdaQueryWrapper<DeptEntity>()).stream()
+                .collect(Collectors.toMap(DeptEntity::getId, value -> value));
+        ScopeContext context = new ScopeContext(departments, new HashMap<>(), new HashMap<>());
+        Actor initial = new Actor(user, superAdmin, permissions(user.getId()), Scope.empty(), Map.of(), context);
+        prepareRoles(initial, assigned);
+        Map<String, Scope> operationScopes = new HashMap<>();
+        Scope combined = Scope.empty();
         for (RoleEntity role : assigned) {
             if (role.getStatus() != 1) continue;
-            switch (role.getDataScope()) {
-                case "ALL" -> all = true;
-                case "DEPT_AND_CHILDREN" -> {
-                    if (user.getDeptId() != null) visibleDepartments.add(user.getDeptId());
-                    DeptEntity ownDept = user.getDeptId() == null ? null : depts.selectById(user.getDeptId());
-                    if (ownDept != null) {
-                        // 子树范围与 DeptService 移动部门时重写路径用的是同一口径（含逗号边界），
-                        // 见 DeptPaths：两边若不一致，就会出现"范围算到的部门"和"路径被改写的部门"
-                        // 不是同一批，且不会有任何报错。
-                        depts.selectList(DeptPaths.subtreeQuery(DeptPaths.selfPath(ownDept)))
-                                .stream().map(DeptEntity::getId).forEach(visibleDepartments::add);
-                    }
-                }
-                case "DEPT" -> { if (user.getDeptId() != null) visibleDepartments.add(user.getDeptId()); }
-                case "SELF" -> self = true;
-                default -> throw new BusinessException("角色的数据范围配置无效");
+            Scope scope = roleScope(initial, role, user);
+            combined = combined.union(scope);
+            for (String permission : context.rolePermissions().getOrDefault(role.getId(), Set.of())) {
+                operationScopes.merge(permission, scope, Scope::union);
             }
         }
-        return new Actor(user, superAdmin, permissions, all, self, visibleDepartments,
-                assigned.stream().filter(role -> role.getStatus() == 1).mapToInt(role -> scopeRank(role.getDataScope())).max().orElse(0));
+        return new Actor(user, superAdmin, initial.permissions(), superAdmin ? Scope.unrestricted() : combined,
+                Map.copyOf(operationScopes), context);
+    }
+
+    public Actor actor(String... permissions) {
+        return forPermissions(actor(), permissions);
+    }
+
+    /** 在同一个请求的授权快照中选择操作范围，避免列表按钮逐行回查当前用户。 */
+    public Actor forPermissions(Actor actor, String... permissions) {
+        Scope scope = Scope.empty();
+        for (String permission : permissions) scope = scope.union(operationScope(actor, permission));
+        return new Actor(actor.user(), actor.superAdmin(), actor.permissions(), scope, actor.operationScopes(), actor.context());
+    }
+
+    private Scope operationScope(Actor actor, String permission) {
+        return actor.superAdmin() ? Scope.unrestricted() : actor.operationScopes().getOrDefault(permission, Scope.empty());
+    }
+
+    /** 批量预取角色信息；列表和授权检查共享请求内缓存，不逐用户查询自定义部门。 */
+    public void prepareRoles(Actor actor, List<RoleEntity> values) {
+        List<Long> missing = values.stream().map(RoleEntity::getId).distinct()
+                .filter(id -> !actor.context().rolePermissions().containsKey(id)).toList();
+        if (!missing.isEmpty()) {
+            missing.forEach(id -> actor.context().rolePermissions().put(id, new HashSet<>()));
+            roleMenus.selectPermissionCodesByRoleIds(missing).forEach(value ->
+                    actor.context().rolePermissions().get(value.getRoleId()).add(value.getPermissionCode()));
+        }
+        List<Long> custom = values.stream().filter(role -> "CUSTOM".equals(role.getDataScope()))
+                .map(RoleEntity::getId).distinct().filter(id -> !actor.context().customDepartments().containsKey(id)).toList();
+        if (!custom.isEmpty()) {
+            custom.forEach(id -> actor.context().customDepartments().put(id, new HashSet<>()));
+            roleDepts.selectByRoleIds(custom).forEach(value ->
+                    actor.context().customDepartments().get(value.getRoleId()).add(value.getDeptId()));
+        }
+    }
+
+    private Scope roleScope(Actor actor, RoleEntity role, UserEntity holder) {
+        Map<Long, DeptEntity> available = actor.context().departments();
+        Set<Long> ids = new HashSet<>();
+        Set<Long> branches = new HashSet<>();
+        switch (role.getDataScope()) {
+            case "ALL" -> { return Scope.unrestricted(); }
+            case "SELF" -> { return new Scope(false, true, Set.of(), Set.of()); }
+            case "CUSTOM" -> ids.addAll(actor.context().customDepartments().getOrDefault(role.getId(), Set.of()));
+            case "DEPT", "DEPT_AND_CHILDREN" -> {
+                DeptEntity own = available.get(holder.getDeptId());
+                if (own != null) {
+                    ids.add(own.getId());
+                    if ("DEPT_AND_CHILDREN".equals(role.getDataScope())) {
+                        String path = DeptPaths.selfPath(own);
+                        available.values().stream().filter(dept -> DeptPaths.isInsideSubtree(dept.getAncestors(), path))
+                                .map(DeptEntity::getId).forEach(ids::add);
+                        branches.addAll(ids);
+                    }
+                }
+            }
+            default -> throw new BusinessException("角色的数据范围配置无效");
+        }
+        ids.retainAll(available.keySet());
+        return new Scope(false, false, Set.copyOf(ids), Set.copyOf(branches));
     }
 
     public void applyUserScope(LambdaQueryWrapper<UserEntity> query, Actor actor) {
         if (actor.all()) return;
         query.and(condition -> {
-            if (!actor.departments().isEmpty()) condition.in(UserEntity::getDeptId, actor.departments());
-            else condition.eq(UserEntity::getId, actor.user().getId());
-            if (actor.self() && !actor.departments().isEmpty()) condition.or().eq(UserEntity::getId, actor.user().getId());
+            if (!actor.departments().isEmpty()) {
+                condition.in(UserEntity::getDeptId, actor.departments());
+                if (actor.self()) condition.or().eq(UserEntity::getId, actor.user().getId());
+            } else if (actor.self()) condition.eq(UserEntity::getId, actor.user().getId());
+            else condition.apply("1 = 0");
         });
     }
 
     public boolean canManageUser(Actor actor, UserEntity target) {
-        if (actor.superAdmin()) return true;
-        if (target.getId().equals(actor.user().getId()) || target.getBuiltin() == 1 || !canSeeUser(actor, target)) return false;
         List<RoleEntity> targetRoles = roles.selectAssignedByUserId(target.getId());
-        return canManageUser(actor, target, containsSuperAdmin(targetRoles), permissions(target.getId()),
-                targetRoles.stream().filter(role -> role.getStatus() == 1).map(RoleEntity::getDataScope).toList());
+        prepareRoles(actor, targetRoles);
+        return canManageUser(actor, target, containsSuperAdmin(targetRoles), permissions(target.getId()), targetRoles);
     }
 
-    /** 使用列表批量预取的数据执行同一套授权判断，不再在每一行内部访问数据库。 */
     public boolean canManageUser(Actor actor, UserEntity target, boolean targetSuperAdmin,
-                                 Set<String> targetPermissions, List<String> targetScopes) {
+                                 Set<String> targetPermissions, List<RoleEntity> targetRoles) {
         if (actor.superAdmin()) return true;
-        if (target.getId().equals(actor.user().getId()) || target.getBuiltin() == 1 || !canSeeUser(actor, target)) return false;
-        if (targetSuperAdmin) return false;
-        return actor.permissions().containsAll(targetPermissions) && !actor.permissions().equals(targetPermissions)
-                && targetScopes.stream().allMatch(scope -> scopeRank(scope) <= actor.maxScopeRank());
+        if (target.getId().equals(actor.user().getId()) || target.getBuiltin() == 1 || !canSeeUser(actor, target) || targetSuperAdmin) return false;
+        if (!actor.permissions().containsAll(targetPermissions) || actor.permissions().equals(targetPermissions)) return false;
+        return targetRoles.stream().filter(role -> role.getStatus() == 1)
+                .allMatch(role -> grantFits(actor, role, target, actor.context().rolePermissions().getOrDefault(role.getId(), Set.of())));
     }
 
     public void requireManageUser(Actor actor, UserEntity target) {
-        if (!canManageUser(actor, target)) throw new BusinessException("不能管理同级或更高权限的用户");
+        if (!canManageUser(actor, target)) throw new BusinessException("不能管理范围之外、同级或更高权限的用户");
     }
 
     public boolean canAssignRole(Actor actor, RoleEntity role) {
-        if (role.getStatus() != 1) return false;
-        if (actor.superAdmin()) return true;
-        if (role.getBuiltin() == 1 || "super_admin".equals(role.getRoleCode())) return false;
         return canAssignRole(actor, role, rolePermissions(role.getId()));
     }
 
@@ -126,16 +171,42 @@ public class AccessPolicy {
         if (role.getStatus() != 1) return false;
         if (actor.superAdmin()) return true;
         if (role.getBuiltin() == 1 || "super_admin".equals(role.getRoleCode())) return false;
+        prepareRoles(actor, List.of(role));
         return actor.permissions().containsAll(granted) && !actor.permissions().equals(granted)
-                && scopeRank(role.getDataScope()) <= actor.maxScopeRank();
+                && (!Set.of("CUSTOM", "ALL").contains(role.getDataScope()) || grantFits(actor, role, actor.user(), granted));
     }
 
-    public void requireAssignableRoles(Actor actor, List<RoleEntity> assigned) {
+    /** 根据实际接收人的目标部门计算，避免 DEPT 角色跨部门授予导致提权。 */
+    public void requireAssignableRoles(Actor actor, List<RoleEntity> assigned, UserEntity target) {
         if (actor.superAdmin()) return;
-        List<Long> roleIds = assigned.stream().map(RoleEntity::getId).toList();
-        Set<String> combined = roleIds.isEmpty() ? Set.of() : roleMenus.selectPermissionCodesByRoleIds(roleIds).stream()
-                .map(org.lbl.system.role.vo.RolePermissionAssignment::getPermissionCode).collect(Collectors.toSet());
+        prepareRoles(actor, assigned);
+        Set<String> combined = assigned.stream().flatMap(role -> actor.context().rolePermissions()
+                .getOrDefault(role.getId(), Set.of()).stream()).collect(Collectors.toSet());
         if (combined.equals(actor.permissions())) throw new BusinessException("不能分配与自身同级的权限组合");
+        if (assigned.stream().anyMatch(role -> !grantFits(actor, role, target,
+                actor.context().rolePermissions().getOrDefault(role.getId(), Set.of())))) {
+            throw new BusinessException("分配后的角色数据范围超出自身可授权范围");
+        }
+    }
+
+    private boolean grantFits(Actor actor, RoleEntity role, UserEntity target, Set<String> granted) {
+        Scope scope = roleScope(actor, role, target);
+        return granted.stream().allMatch(permission -> operationScope(actor, permission).contains(scope, actor.user(), target));
+    }
+
+    /** 调部门会改变动态角色范围；这类迁移交由平台管理员审批。 */
+    public boolean requiresPlatformTransferReview(Actor actor, UserEntity target) {
+        List<RoleEntity> dynamic = roles.selectAssignedByUserId(target.getId()).stream()
+                .filter(role -> role.getStatus() == 1)
+                .filter(role -> Set.of("DEPT", "DEPT_AND_CHILDREN").contains(role.getDataScope())).toList();
+        prepareRoles(actor, dynamic);
+        return dynamic.stream().anyMatch(role -> !actor.context().rolePermissions().getOrDefault(role.getId(), Set.of()).isEmpty());
+    }
+
+    public void requireRoleGrantScope(Actor actor, RoleEntity role, Set<String> granted) {
+        prepareRoles(actor, List.of(role));
+        if (!actor.superAdmin() && !grantFits(actor, role, actor.user(), granted))
+            throw new BusinessException("角色操作对应的数据范围超出自身授权范围");
     }
 
     public void requireManageRole(Actor actor, RoleEntity role) {
@@ -147,19 +218,22 @@ public class AccessPolicy {
     }
 
     public boolean canManageRole(Actor actor, RoleEntity role) {
-        if (actor.superAdmin()) return true;
         return canManageRole(actor, role, rolePermissions(role.getId()));
     }
 
     public boolean canManageRole(Actor actor, RoleEntity role, Set<String> granted) {
         if (actor.superAdmin()) return true;
-        return role.getBuiltin() != 1 && actor.permissions().containsAll(granted)
-                && !actor.permissions().equals(granted) && scopeRank(role.getDataScope()) <= actor.maxScopeRank();
+        prepareRoles(actor, List.of(role));
+        // 已分配角色的定义由平台管理员维护，避免修改共享角色间接扩大其他持有人的权限。
+        return role.getBuiltin() != 1 && actor.permissions().containsAll(granted) && !actor.permissions().equals(granted)
+                && grantFits(actor, role, actor.user(), granted);
     }
 
     public void requireScope(Actor actor, String dataScope) {
-        int rank = scopeRank(dataScope);
-        if (!actor.superAdmin() && rank > actor.maxScopeRank()) throw new BusinessException("不能设置超过自身的数据范围");
+        if (!Set.of("ALL", "DEPT_AND_CHILDREN", "DEPT", "SELF", "CUSTOM").contains(dataScope))
+            throw new BusinessException("数据范围配置无效");
+        if (!actor.superAdmin() && "ALL".equals(dataScope) && !actor.all())
+            throw new BusinessException("不能设置超过自身的数据范围");
     }
 
     public void requireGrantableMenus(Actor actor, List<Long> menuIds) {
@@ -299,7 +373,7 @@ public class AccessPolicy {
     }
 
     public boolean canCreateChildDept(Actor actor, DeptEntity parent) {
-        return actor.all() || actor.maxScopeRank() >= 3 && actor.departments().contains(parent.getId());
+        return actor.all() || actor.scope().branches().contains(parent.getId());
     }
 
     /**
@@ -320,7 +394,7 @@ public class AccessPolicy {
             return;
         }
         if (actor.all()) return;
-        if (actor.maxScopeRank() < 3 || !actor.departments().contains(parentId)) {
+        if (!actor.scope().branches().contains(parentId)) {
             throw new AccessDeniedException("只能在本部门及下级部门范围内新增子部门");
         }
     }
@@ -331,13 +405,13 @@ public class AccessPolicy {
 
     public void requireMoveDept(Actor actor, Long originalParentId, Long newParentId) {
         if (actor.all() || originalParentId.equals(newParentId)) return;
-        if (newParentId == null || newParentId <= 0 || actor.maxScopeRank() < 3 || !actor.departments().contains(newParentId)) {
+        if (newParentId == null || newParentId <= 0 || !actor.scope().branches().contains(newParentId)) {
             throw new AccessDeniedException("不能将部门移动到数据范围之外");
         }
     }
 
     private boolean canSeeUser(Actor actor, UserEntity target) {
-        return actor.all() || actor.departments().contains(target.getDeptId())
+        return actor.all() || target.getDeptId() != null && actor.departments().contains(target.getDeptId())
                 || actor.self() && target.getId().equals(actor.user().getId());
     }
 
@@ -371,17 +445,31 @@ public class AccessPolicy {
         return new HashSet<>(roleMenus.selectPermissionCodes(roleId));
     }
 
-    private int scopeRank(String scope) {
-        return switch (scope) {
-            case "SELF" -> 1;
-            case "DEPT" -> 2;
-            case "DEPT_AND_CHILDREN" -> 3;
-            case "ALL" -> 4;
-            default -> throw new BusinessException("数据范围必须是 ALL、DEPT_AND_CHILDREN、DEPT 或 SELF");
-        };
+    /** branches 仅来源于动态子树授权，CUSTOM 精确集合不会获得组织结构扩展能力。 */
+    public record Scope(boolean all, boolean self, Set<Long> departments, Set<Long> branches) {
+        public static Scope empty() { return new Scope(false, false, Set.of(), Set.of()); }
+        public static Scope unrestricted() { return new Scope(true, false, Set.of(), Set.of()); }
+        public Scope union(Scope other) {
+            if (all || other.all) return unrestricted();
+            Set<Long> ids = new HashSet<>(departments); ids.addAll(other.departments);
+            Set<Long> roots = new HashSet<>(branches); roots.addAll(other.branches);
+            return new Scope(false, self || other.self, Set.copyOf(ids), Set.copyOf(roots));
+        }
+        public boolean contains(Scope other, UserEntity actor, UserEntity target) {
+            if (all) return true;
+            if (other.all || !departments.containsAll(other.departments)) return false;
+            return !other.self || target.getDeptId() != null && departments.contains(target.getDeptId())
+                    || self && java.util.Objects.equals(actor.getId(), target.getId());
+        }
     }
 
-    public record Actor(UserEntity user, boolean superAdmin, Set<String> permissions, boolean all, boolean self,
-                        Set<Long> departments, int maxScopeRank) {
+    public record ScopeContext(Map<Long, DeptEntity> departments, Map<Long, Set<Long>> customDepartments,
+                               Map<Long, Set<String>> rolePermissions) { }
+
+    public record Actor(UserEntity user, boolean superAdmin, Set<String> permissions, Scope scope,
+                        Map<String, Scope> operationScopes, ScopeContext context) {
+        public boolean all() { return scope.all(); }
+        public boolean self() { return scope.self(); }
+        public Set<Long> departments() { return scope.departments(); }
     }
 }

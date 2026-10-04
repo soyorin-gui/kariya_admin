@@ -10,32 +10,28 @@ import org.lbl.auth.session.SessionService;
 import org.lbl.common.exception.BusinessException;
 import org.lbl.common.exception.TooManyRequestsException;
 import org.lbl.common.result.Result;
-import org.lbl.config.SecurityProperties;
+import org.lbl.auth.session.RefreshCookieFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.ResponseCookie;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
-import java.time.Duration;
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/auth/external")
 public class ExternalAuthController {
     private static final Logger log = LoggerFactory.getLogger(ExternalAuthController.class);
-    /** 与 AuthController / OnboardingAccountController 签发的是同一个 Cookie，拼错一个字就会变成另一个 Cookie。 */
-    private static final String REFRESH_COOKIE = "lbl_refresh";
     private final ExternalLoginService service;
     private final UiasLoginService uias;
-    private final boolean secureCookie;
+    private final RefreshCookieFactory refreshCookies;
     private final SessionService sessions;
 
     public ExternalAuthController(ExternalLoginService service, UiasLoginService uias,
-                                  SecurityProperties security, SessionService sessions) {
+                                  RefreshCookieFactory refreshCookies, SessionService sessions) {
         this.service = service;
         this.uias = uias;
-        this.secureCookie = security.secureCookie();
+        this.refreshCookies = refreshCookies;
         this.sessions = sessions;
     }
 
@@ -72,7 +68,7 @@ public class ExternalAuthController {
                          @RequestParam(required = false) String state,
                          @RequestParam(required = false) String error,
                          @RequestParam(name = "error_description", required = false) String errorDescription,
-                         @CookieValue(value = REFRESH_COOKIE, required = false) String currentSid,
+                         @CookieValue(value = RefreshCookieFactory.NAME, required = false) String currentSid,
                          jakarta.servlet.http.HttpServletRequest request,
                          HttpServletResponse response) throws IOException {
         if ("uias".equalsIgnoreCase(provider)) {
@@ -88,12 +84,9 @@ public class ExternalAuthController {
         try {
             ExternalLoginService.Completion completion = service.complete(provider, code, state, currentSid);
             SessionGrant grant = completion.grant();
-            LoginSession session = sessions.find(grant.sid());
-            Duration age = grant.onboarding() ? Duration.ofHours(2)
-                    : session != null && session.rememberMe() ? Duration.ofDays(14) : Duration.ofSeconds(-1);
             // 绑定流程复用原会话时，这里的 sid 与浏览器手里那个相同：
             // 重新下发同一个 Cookie 是幂等的，且 age 由原会话的 rememberMe 推出，"记住我"不会再被降级。
-            response.addHeader("Set-Cookie", cookie(grant.sid(), age).toString());
+            response.addHeader("Set-Cookie", refreshCookies.createFor(grant.sid(), sessions.find(grant.sid())).toString());
             response.sendRedirect(service.frontendCallback(completion.returnTo(), null));
         } catch (ExternalLoginCallbackException ex) {
             response.sendRedirect(service.frontendCallback(ex.getReturnTo(), ex.getMessage()));
@@ -126,15 +119,8 @@ public class ExternalAuthController {
 
     private void writeCompletion(ExternalLoginService.Completion completion, HttpServletResponse response) throws IOException {
         SessionGrant grant = completion.grant();
-        LoginSession session = sessions.find(grant.sid());
-        Duration age = grant.onboarding() ? Duration.ofHours(2)
-                : session != null && session.rememberMe() ? Duration.ofDays(14) : Duration.ofSeconds(-1);
-        response.addHeader("Set-Cookie", cookie(grant.sid(), age).toString());
+        response.addHeader("Set-Cookie", refreshCookies.createFor(grant.sid(), sessions.find(grant.sid())).toString());
         response.sendRedirect(service.frontendCallback(completion.returnTo(), null));
     }
 
-    private ResponseCookie cookie(String sid, Duration maxAge) {
-        return ResponseCookie.from(REFRESH_COOKIE, sid).httpOnly(true).secure(secureCookie).sameSite("Lax")
-                .path("/api/auth").maxAge(maxAge).build();
-    }
 }

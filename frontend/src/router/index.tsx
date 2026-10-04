@@ -10,6 +10,7 @@ import CallbackPage from '../pages/auth/CallbackPage';
 import AccountSetupPage from '../pages/account/setup';
 import AccountSecurityPage from '../pages/account/security';
 import NotificationsPage from '../pages/account/notifications';
+import ApprovalCenterPage from '../pages/account/approvals';
 
 /**
  * 静态骨架 + 一个动态出口。
@@ -64,6 +65,7 @@ export const router = createBrowserRouter([
       { path: '403', element: <Forbidden /> },
       { path: 'account/security', element: <AccountSecurityPage /> },
       { path: 'account/notifications', element: <NotificationsPage /> },
+      { path: 'account/approvals', element: <ApprovalCenterPage /> },
       { path: '*', element: <DynamicPage /> },
     ],
   },

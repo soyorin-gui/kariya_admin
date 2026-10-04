@@ -33,10 +33,15 @@ export function MenuDialog({ open, menuId, menus, onClose, onSaved }: MenuDialog
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(false);
   const [menu, setMenu] = useState<SystemMenu>();
+  const [expandedParentKeys, setExpandedParentKeys] = useState<(string | number)[]>();
   const submittingRef = useRef(false);
   const editing = menuId !== null;
   const menuType = Form.useWatch('menuType', form);
   const parents = useMemo(() => treeData(menus, 0, blockedIds(menus, menu?.id)), [menu?.id, menus]);
+  // 展开到可选的目录/菜单层；仅包含按钮的分支保持收起。
+  const defaultParentKeys = useMemo(() => menus
+    .filter((parent) => menus.some((child) => child.parentId === parent.id && child.menuType !== 'BUTTON'))
+    .map((parent) => parent.id), [menus]);
 
   /**
    * 组件候选来自「当前前端产物里真实存在的页面文件」（构建期扫描 src/pages）。
@@ -50,6 +55,7 @@ export function MenuDialog({ open, menuId, menus, onClose, onSaved }: MenuDialog
     if (!open) return;
     let active = true;
     form.resetFields(); setMenu(undefined); setLoading(false);
+    setExpandedParentKeys(undefined);
     if (menuId === null) {
       form.setFieldsValue({ parentId: undefined, menuName: '', menuType: 'MENU', routeName: '', routePath: '', component: '', permissionCode: '', icon: '', sortOrder: 0, visible: 1, status: 1, keepAlive: 0 });
       return;
@@ -115,7 +121,7 @@ export function MenuDialog({ open, menuId, menus, onClose, onSaved }: MenuDialog
           <Select options={typeOptions} disabled={menu?.builtin === 1} />
         </Form.Item>
         <Form.Item name='parentId' label='上级菜单'>
-          <TreeSelect showSearch treeNodeFilterProp='title' allowClear treeDefaultExpandAll treeData={parents} placeholder='请选择或搜索上级菜单' />
+          <TreeSelect showSearch treeNodeFilterProp='title' allowClear treeExpandedKeys={expandedParentKeys ?? defaultParentKeys} onTreeExpand={setExpandedParentKeys} treeData={parents} placeholder='请选择或搜索上级菜单' />
         </Form.Item>
         <Form.Item name='sortOrder' label={<FieldLabel text='显示排序' hint='数字越小越靠前。只能填 0 及以上的整数。' />} rules={[{ required: true, message: '请输入排序值' }]}>
           <InputNumber min={0} step={1} precision={0} style={{ width: '100%' }} placeholder='例如：10' />

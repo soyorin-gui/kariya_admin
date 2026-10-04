@@ -63,11 +63,6 @@ public class AgentChatController {
 
         String runId = UUID.randomUUID().toString();
         SseEmitter emitter = new SseEmitter(properties.sseTimeoutMillis());
-        if (!properties.enabled()) {
-            emit(emitter, AgentEvent.error(runId, "AI 助手功能尚未开启"));
-            completeQuietly(emitter);
-            return emitter;
-        }
 
         AccessPolicy.Actor current = access.actor();
         AgentActor actor = new AgentActor(current.user().getId(), current.user().getUsername(),

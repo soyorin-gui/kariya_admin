@@ -17,6 +17,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
+import static org.springframework.util.StringUtils.hasText;
+
 import java.net.InetSocketAddress;
 import java.net.ProxySelector;
 import java.net.URI;
@@ -467,7 +469,6 @@ public class ExternalLoginService {
     private String normalizeIssuer(String value) { return value == null ? "" : value; }
     private String stringValue(Object value) { return value == null ? null : String.valueOf(value); }
     private void requireText(String value, String message) { if (value == null || value.isBlank()) throw new BusinessException(message); }
-    private boolean hasText(String value) { return value != null && !value.isBlank(); }
     private String token(int bytes) { byte[] value = new byte[bytes]; random.nextBytes(value); return base64Url(value); }
     private byte[] sha256(String value) { try { return MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.US_ASCII)); } catch (Exception ex) { throw new IllegalStateException(ex); } }
     private String base64Url(byte[] value) { return Base64.getUrlEncoder().withoutPadding().encodeToString(value); }

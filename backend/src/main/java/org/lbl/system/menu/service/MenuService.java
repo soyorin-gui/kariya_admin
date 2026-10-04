@@ -1,5 +1,7 @@
 package org.lbl.system.menu.service;
 
+import static org.lbl.common.util.TextValues.trimToNull;
+
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import org.lbl.common.exception.BusinessException;
 import org.lbl.security.context.AccessPolicy;
@@ -105,9 +107,9 @@ public class MenuService {
             if ("BUTTON".equals(parent.getMenuType())) throw new BusinessException("按钮不能作为上级菜单");
             if (currentId != null && isDescendantOf(parent, currentId)) throw new BusinessException("不能将菜单移动到自身的子菜单下");
         }
-        String routePath = trim(request.routePath());
-        String component = trim(request.component());
-        String permission = trim(request.permissionCode());
+        String routePath = trimToNull(request.routePath());
+        String component = trimToNull(request.component());
+        String permission = trimToNull(request.permissionCode());
         if ("MENU".equals(type) && routePath == null) throw new BusinessException("菜单类型必须填写路由地址");
         // 页面菜单没有组件就无法渲染。前端对这种情况会显示"组件不存在"诊断页，
         // 但更应该在配置阶段就拦住，避免库里存下一条永远打不开的菜单。
@@ -127,11 +129,11 @@ public class MenuService {
         menu.setParentId(parentId);
         menu.setMenuName(request.menuName().trim());
         menu.setMenuType(type);
-        menu.setRouteName(trim(request.routeName()));
+        menu.setRouteName(trimToNull(request.routeName()));
         menu.setRoutePath(routePath);
         menu.setComponent(component);
         menu.setPermissionCode(permission);
-        menu.setIcon(trim(request.icon()));
+        menu.setIcon(trimToNull(request.icon()));
         menu.setSortOrder(request.sortOrder());
         menu.setVisible(request.visible());
         menu.setStatus(request.status());
@@ -155,7 +157,4 @@ public class MenuService {
         return false;
     }
 
-    private String trim(String value) {
-        return value == null || value.isBlank() ? null : value.trim();
-    }
 }

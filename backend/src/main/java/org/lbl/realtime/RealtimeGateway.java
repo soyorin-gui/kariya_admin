@@ -16,9 +16,13 @@ import java.util.concurrent.ConcurrentHashMap;
 @Component
 public class RealtimeGateway extends TextWebSocketHandler {
     private final ObjectMapper json;
+    private final RealtimeEventPublisher publisher;
     private final Map<Long, Map<String, WebSocketSession>> connections = new ConcurrentHashMap<>();
 
-    public RealtimeGateway(ObjectMapper json) { this.json = json; }
+    public RealtimeGateway(ObjectMapper json, RealtimeEventPublisher publisher) {
+        this.json = json;
+        this.publisher = publisher;
+    }
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) throws Exception {
@@ -41,6 +45,11 @@ public class RealtimeGateway extends TextWebSocketHandler {
     }
 
     public void send(Long userId, String type, Object data) {
+        // 所有实例（包括本实例）统一从 Redis 订阅后落到本地连接，避免发送两次。
+        if (!publisher.userEvent(userId, type, data)) sendLocal(userId, type, data);
+    }
+
+    void sendLocal(Long userId, String type, Object data) {
         Map<String, WebSocketSession> sessions = connections.get(userId);
         if (sessions == null || sessions.isEmpty()) return;
         try {
@@ -56,6 +65,10 @@ public class RealtimeGateway extends TextWebSocketHandler {
     }
 
     public void closeSession(String sid) {
+        if (!publisher.closeSession(sid)) closeSessionLocal(sid);
+    }
+
+    void closeSessionLocal(String sid) {
         if (sid == null) return;
         for (Map<String, WebSocketSession> sessions : connections.values()) {
             for (Map.Entry<String, WebSocketSession> entry : Map.copyOf(sessions).entrySet()) {
@@ -69,6 +82,7 @@ public class RealtimeGateway extends TextWebSocketHandler {
     /** 防止反向代理把长期空闲的实时连接回收。 */
     @Scheduled(fixedDelay = 25_000)
     public void heartbeat() {
-        for (Long userId : Set.copyOf(connections.keySet())) send(userId, "connection.ping", Map.of());
+        // 心跳只针对本节点持有的连接，不应通过 Redis 广播，否则实例数越多心跳越密。
+        for (Long userId : Set.copyOf(connections.keySet())) sendLocal(userId, "connection.ping", Map.of());
     }
 }

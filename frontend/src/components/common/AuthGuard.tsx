@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { fetchMe, refresh } from '../../api/auth';
+import { fetchMe } from '../../api/auth';
+import { refreshAccessTokenOnce } from '../../services/authSession';
 import { clearSession, setProfile, setSession } from '../../store/authSlice';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import { LoadingScreen } from './LoadingScreen';
@@ -9,16 +10,20 @@ export function AuthGuard({ children }: { children: ReactNode }) {
   const [checking, setChecking] = useState(true);
   const token = useAppSelector((state) => state.auth.accessToken);
   const principalType = useAppSelector((state) => state.auth.principalType);
+  const profileReady = useAppSelector((state) => state.auth.profileReady);
   const dispatch = useAppDispatch();
   const location = useLocation();
   const navigate = useNavigate();
 
   useEffect(() => {
+    if (token && profileReady) {
+      setChecking(false);
+      return;
+    }
     let active = true;
     const restore = async () => {
       try {
-        const refreshed = token ? null : await refresh();
-        const accessToken = token ?? refreshed!.accessToken;
+        const accessToken = token ?? (await refreshAccessTokenOnce());
         const profile = await fetchMe();
         if (!active) return;
         dispatch(setSession({ accessToken, principalType: profile.principalType, user: profile.user, onboarding: profile.onboarding }));
@@ -37,7 +42,7 @@ export function AuthGuard({ children }: { children: ReactNode }) {
     return () => {
       active = false;
     };
-  }, [dispatch, location.pathname, navigate, token]);
+  }, [dispatch, navigate, profileReady, token]);
 
   /**
    * 开户确认态（ONBOARDING）只允许停在 /account/setup 一个落点上。

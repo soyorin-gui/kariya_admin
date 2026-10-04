@@ -22,3 +22,18 @@ jasypt:
 mybatis-plus:
   global-config:
     banner: false
+
+# 只暴露部署系统真正需要的端点；健康详情不对匿名访问者泄露数据库、Redis 等内部信息。
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,db,redis

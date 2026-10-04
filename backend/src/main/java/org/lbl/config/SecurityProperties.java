@@ -21,15 +21,13 @@ import java.util.List;
  * @param trustedProxies        可信反向代理的地址，逗号分隔，支持 CIDR（如 10.0.0.0/8）。
  *                              只有来自这些地址的请求，其 X-Forwarded-For 才会被采信；
  *                              留空则完全不看转发头，直接用 TCP 源地址。见 {@code TrustedProxyResolver}。
- * @param captchaEnabled        注册接口是否要求图形验证码。默认 true。
- *                              关闭它只应出于本地开发便利，且启动时会打印告警 —— 关掉之后
  *                              {@code /api/auth/register} 对匿名请求将没有任何门槛。
  * @param passwordMaxAgeDays    密码最大使用天数；0 表示关闭定期改密。
  */
 @ConfigurationProperties(prefix = "lbl.security")
 public record SecurityProperties(String jwtSecret, long accessTokenMinutes, long idleHours, long rememberedIdleDays,
                                  long rememberedAbsoluteDays, boolean secureCookie, String corsAllowedOrigins,
-                                 String trustedProxies, boolean captchaEnabled, long passwordMaxAgeDays) {
+                                 String trustedProxies, long passwordMaxAgeDays) {
 
     /** 解析成列表；配置缺失或为空时返回空列表，调用方需自行决定"空"的含义。 */
     public List<String> corsAllowedOriginsList() {

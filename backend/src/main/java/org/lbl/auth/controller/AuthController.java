@@ -11,7 +11,6 @@ import org.lbl.auth.identity.LocalCredentialEntity;
 import org.lbl.auth.identity.LocalCredentialMapper;
 import org.lbl.common.exception.UnauthorizedException;
 import org.lbl.common.result.Result;
-import org.lbl.config.SecurityProperties;
 import org.lbl.security.context.AccessPolicy;
 import org.lbl.security.jwt.JwtService;
 import org.lbl.system.menu.entity.MenuEntity;
@@ -20,36 +19,25 @@ import org.lbl.system.role.entity.RoleEntity;
 import org.lbl.system.role.mapper.RoleMapper;
 import org.lbl.system.user.entity.UserEntity;
 import org.lbl.system.user.mapper.UserMapper;
-import org.springframework.http.ResponseCookie;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.Duration;
 import java.util.*;
 
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
-    private static final String REFRESH_COOKIE = "lbl_refresh";
-    /** Cookie 的 Path 限定在认证接口下：业务请求不会携带它，缩小暴露面。 */
-    private static final String REFRESH_COOKIE_PATH = "/api/auth";
-    /**
-     * SameSite 用 Lax 而不是 None：refresh/touch/logout 都是 POST，跨站请求不会带上这个 Cookie，
-     * 相当于免费拿到一层 CSRF 防护。代价是本地开发用 127.0.0.1 访问、API 却指向 localhost 时
-     * 会被判定为跨站而丢 Cookie —— 统一用 localhost 访问即可（或给 vite 配 proxy）。
-     */
-    private static final String REFRESH_COOKIE_SAME_SITE = "Lax";
     private final AuthService auth;
     private final SessionService sessions;
     private final RoleMapper roles;
     private final MenuMapper menus;
     private final UserMapper users;
     private final JwtService jwt;
-    private final boolean secureCookie;
+    private final RefreshCookieFactory refreshCookies;
     private final LocalCredentialMapper credentials;
     private final RegistrationService registrations;
 
     public AuthController(AuthService auth, SessionService sessions, RoleMapper roles, MenuMapper menus, UserMapper users,
-                          JwtService jwt, SecurityProperties security, LocalCredentialMapper credentials,
+                          JwtService jwt, RefreshCookieFactory refreshCookies, LocalCredentialMapper credentials,
                           RegistrationService registrations) {
         this.auth = auth;
         this.sessions = sessions;
@@ -57,34 +45,33 @@ public class AuthController {
         this.menus = menus;
         this.users = users;
         this.jwt = jwt;
-        this.secureCookie = security.secureCookie();
+        this.refreshCookies = refreshCookies;
         this.credentials = credentials;
         this.registrations = registrations;
     }
 
     @PostMapping("/login")
     public Result<LoginResult> login(@Valid @RequestBody LoginRequest request,
-                                     @CookieValue(value = REFRESH_COOKIE, required = false) String previousSid,
+                                     @CookieValue(value = RefreshCookieFactory.NAME, required = false) String previousSid,
                                      HttpServletResponse response) {
         LoginResult result = auth.login(request);
         String sid = extractSid(result.accessToken());
         // 同一浏览器再次显式登录应替换旧会话，而不是在 Redis 中累加一台“新设备”。
         // 这也能回收“登录已成功，但紧接着 /auth/me 因网络失败”后用户重试留下的旧会话。
         if (previousSid != null && !previousSid.isBlank() && !previousSid.equals(sid)) sessions.remove(previousSid);
-        ResponseCookie cookie = refreshCookie(sid, request.rememberMe() ? Duration.ofDays(14) : Duration.ofSeconds(-1));
-        response.addHeader("Set-Cookie", cookie.toString());
+        response.addHeader("Set-Cookie", refreshCookies.createFor(sid, sessions.find(sid)).toString());
         return Result.ok(result, "登录成功");
     }
 
     @PostMapping("/register")
     public Result<LoginResult> register(@Valid @RequestBody RegistrationRequest request, HttpServletResponse response) {
         SessionGrant grant = registrations.register(request);
-        response.addHeader("Set-Cookie", refreshCookie(grant.sid(), request.rememberMe() ? Duration.ofDays(14) : Duration.ofSeconds(-1)).toString());
+        response.addHeader("Set-Cookie", refreshCookies.createFor(grant.sid(), sessions.find(grant.sid())).toString());
         return Result.ok(new LoginResult(grant.accessToken(), grant.user()), "注册成功");
     }
 
     @PostMapping("/refresh")
-    public Result<Map<String, Object>> refresh(@CookieValue(value = REFRESH_COOKIE, required = false) String sid) {
+    public Result<Map<String, Object>> refresh(@CookieValue(value = RefreshCookieFactory.NAME, required = false) String sid) {
         if (sid == null) throw new UnauthorizedException("登录状态已失效");
         AuthService.RefreshGrant grant = auth.refresh(sid);
         return Result.ok(Map.of("accessToken", grant.accessToken(),
@@ -92,23 +79,23 @@ public class AuthController {
     }
 
     @PostMapping("/touch")
-    public Result<Void> touch(@CookieValue(value = REFRESH_COOKIE, required = false) String sid) {
+    public Result<Void> touch(@CookieValue(value = RefreshCookieFactory.NAME, required = false) String sid) {
         if (sid == null) throw new UnauthorizedException("登录状态已失效");
         auth.touch(sid);
         return Result.ok(null);
     }
 
     @PostMapping("/logout")
-    public Result<Void> logout(@CookieValue(value = REFRESH_COOKIE, required = false) String sid, HttpServletResponse response) {
+    public Result<Void> logout(@CookieValue(value = RefreshCookieFactory.NAME, required = false) String sid, HttpServletResponse response) {
         auth.logout(sid);
         // 清除时属性必须与签发时一致（path / secure / sameSite），否则浏览器会当成另一个 Cookie，
         // 结果是"点了退出但凭据还留着"。
-        response.addHeader("Set-Cookie", refreshCookie("", Duration.ofSeconds(0)).toString());
+        response.addHeader("Set-Cookie", refreshCookies.clear().toString());
         return Result.ok(null);
     }
 
     @GetMapping("/me")
-    public Result<Map<String, Object>> me(@CookieValue(value = REFRESH_COOKIE, required = false) String sid) {
+    public Result<Map<String, Object>> me(@CookieValue(value = RefreshCookieFactory.NAME, required = false) String sid) {
         if (sid == null) throw new UnauthorizedException("登录状态已失效");
         LoginSession s = sessions.find(sid);
         if (s == null) throw new UnauthorizedException("登录状态已失效");
@@ -167,23 +154,4 @@ public class AuthController {
         return jwt.parse(token).get("sid", String.class);
     }
 
-    /**
-     * 签发/清除刷新 Cookie 的唯一出口。
-     * <p>
-     * 抽成一个方法的原因：登录与退出必须产生属性完全一致的 Cookie。此前退出路径少写了
-     * sameSite，HttpOnly + Path 虽然对得上、浏览器大多也能删掉，但属性不一致属于随时会
-     * 变成"退不掉"的隐患，靠两处手写同步迟早会漏。
-     * <p>
-     * Secure 由 {@code lbl.security.secure-cookie} 决定：本地 http 开发必须为 false，
-     * 否则浏览器直接丢弃 Cookie；生产 https 必须为 true，避免凭据明文上网。
-     */
-    private ResponseCookie refreshCookie(String value, Duration maxAge) {
-        return ResponseCookie.from(REFRESH_COOKIE, value)
-                .httpOnly(true)
-                .secure(secureCookie)
-                .sameSite(REFRESH_COOKIE_SAME_SITE)
-                .path(REFRESH_COOKIE_PATH)
-                .maxAge(maxAge)
-                .build();
-    }
 }

@@ -1,20 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
-import { Avatar, Button, FloatButton, Input, Spin } from 'antd';
-import { CloseOutlined, MessageOutlined, RobotOutlined, SendOutlined, ThunderboltOutlined } from '@ant-design/icons';
-import type { AgentArtifact, ChatHistoryItem } from '../../types/agent';
+import { Button, FloatButton, Tooltip } from 'antd';
+import { CloseOutlined, MessageOutlined, PlusOutlined, RobotOutlined } from '@ant-design/icons';
+import type { AgentConversationMessage, ChatHistoryItem } from '../../types/agent';
 import { useAgentChat } from './useAgentChat';
-import { AgentArtifactView } from './artifacts/AgentArtifactView';
+import { useAgentPageContext } from './useAgentPageContext';
+import { AiEmptyState } from './AiEmptyState';
+import { AiMessageList } from './AiMessageList';
+import { AiComposer } from './AiComposer';
 import './AiAssistant.css';
-
-interface Message {
-  id: number;
-  role: 'assistant' | 'user';
-  text: string;
-  artifacts?: AgentArtifact[];
-}
-
-/** 欢迎语消息的固定 id，用于把它从多轮历史里排除（问候语不算对话历史）。 */
-const GREETING_ID = 1;
 
 /**
  * 面板垂直尺寸约束（单位 px）。
@@ -38,10 +31,14 @@ function clampHeight(value: number): number {
 export function AiAssistant() {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState('');
-  const [messages, setMessages] = useState<Message[]>([{ id: GREETING_ID, role: 'assistant', text: '你好，我是 LBL 智能助手。有什么可以帮你？' }]);
+  const [messages, setMessages] = useState<AgentConversationMessage[]>([]);
   const { send: sendToAgent, cancel, loading, toolStatus } = useAgentChat();
+  const pageContext = useAgentPageContext();
   const [height, setHeight] = useState<number>(() => clampHeight(DEFAULT_HEIGHT));
   const [resizing, setResizing] = useState(false);
+  const nextMessageId = useRef(Date.now());
+  // loading 是异步 state；用同步锁挡住极短时间内的双击，避免第二次请求取消第一次请求。
+  const sendingRef = useRef(false);
   // pointermove 是高频事件，起始值必须用 ref 而不是闭包里的 state（state 更新是异步的，
   // 连续 move 之间闭包里的 height 是旧的，高度会"抖动"）。
   const dragState = useRef<{ startY: number; startHeight: number } | null>(null);
@@ -55,28 +52,45 @@ export function AiAssistant() {
 
   const send = async (suggestion?: string) => {
     const value = (suggestion ?? text).trim();
-    if (!value || loading) return;
-    // 多轮历史：排除欢迎语，把现有消息转成后端要的 {role, content}。
-    const history: ChatHistoryItem[] = messages.filter((m) => m.id !== GREETING_ID).map((m) => ({ role: m.role, content: m.text }));
-    setMessages((v) => [...v, { id: Date.now(), role: 'user', text: value }]);
+    if (!value || loading || sendingRef.current) return;
+    sendingRef.current = true;
+    const history: ChatHistoryItem[] = messages.map((message) => ({ role: message.role, content: message.text }));
+    const userId = ++nextMessageId.current;
+    const assistantId = ++nextMessageId.current;
+    setMessages((current) => [...current, { id: userId, role: 'user', text: value }, { id: assistantId, role: 'assistant', text: '' }]);
     setText('');
-    const assistantId = Date.now() + 1;
-    setMessages((v) => [...v, { id: assistantId, role: 'assistant', text: '' }]);
     try {
-      const reply = await sendToAgent(value, history, (fullText) => {
-        setMessages((v) => v.map((m) => (m.id === assistantId ? { ...m, text: fullText } : m)));
-      }, (artifact) => {
-        setMessages((v) => v.map((m) => (m.id === assistantId ? { ...m, artifacts: [...(m.artifacts ?? []), artifact] } : m)));
+      const reply = await sendToAgent({
+        message: value,
+        history,
+        pageContext,
+        onDelta: (fullText) => {
+          setMessages((current) => current.map((message) => (message.id === assistantId ? { ...message, text: fullText } : message)));
+        },
+        onArtifact: (artifact) => {
+          setMessages((current) =>
+            current.map((message) => (message.id === assistantId ? { ...message, artifacts: [...(message.artifacts ?? []), artifact] } : message)),
+          );
+        },
       });
-      setMessages((v) => v.map((m) => (m.id === assistantId ? { ...m, text: reply } : m)));
+      setMessages((current) => current.map((message) => (message.id === assistantId ? { ...message, text: reply } : message)));
     } catch (e) {
       if (e instanceof DOMException && e.name === 'AbortError') {
-        setMessages((v) => v.filter((m) => m.id !== assistantId));
+        // 停止生成时保留已经收到的部分内容；若还没有任何输出，则移除空的助手气泡。
+        setMessages((current) => current.filter((message) => message.id !== assistantId || message.text || message.artifacts?.length));
         return;
       }
       const err = e instanceof Error ? e.message : '请求失败，请稍后重试';
-      setMessages((v) => v.map((m) => (m.id === assistantId ? { ...m, text: m.text || err } : m)));
+      setMessages((current) => current.map((message) => (message.id === assistantId ? { ...message, text: message.text || err } : message)));
+    } finally {
+      sendingRef.current = false;
     }
+  };
+
+  const newConversation = () => {
+    cancel();
+    setMessages([]);
+    setText('');
   };
 
   const startResize = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -117,52 +131,29 @@ export function AiAssistant() {
             <span>
               <MessageOutlined /> 对话助手
             </span>
-            <Button type='text' aria-label='关闭 AI 助手' icon={<CloseOutlined />} onClick={() => { cancel(); setOpen(false); }} />
-          </div>
-          <div className='ai-welcome'>
-            <div className='ai-welcome-title'>
-              <Avatar size={36} icon={<RobotOutlined />} className='ai-avatar' />
-              <h2>你好，我是 LBL 智能助手</h2>
+            <div className='ai-workbench-actions'>
+              <Tooltip title='新建对话'>
+                <Button type='text' aria-label='新建对话' icon={<PlusOutlined />} disabled={!messages.length && !text} onClick={newConversation} />
+              </Tooltip>
+              <Tooltip title='关闭'>
+                <Button
+                  type='text'
+                  aria-label='关闭 AI 助手'
+                  icon={<CloseOutlined />}
+                  onClick={() => {
+                    cancel();
+                    setOpen(false);
+                  }}
+                />
+              </Tooltip>
             </div>
-            <p>欢迎随时提问，我可以协助处理系统操作与管理任务。</p>
           </div>
-          <div className='ai-suggestions'>
-            {['帮我梳理这段需求的实现步骤', '如何设计一个安全的只读工具？', '给我一份问题排查检查清单'].map((item) => (
-              <button key={item} onClick={() => send(item)}>
-                <ThunderboltOutlined />
-                {item}
-                <span>→</span>
-              </button>
-            ))}
-          </div>
-          <div className='ai-messages'>
-            {messages.slice(1).map((m) =>
-              m.text || m.artifacts?.length ? (
-                <div className={`bubble ${m.role}`} key={m.id}>
-                  {m.text}
-                  {m.artifacts?.map((artifact, index) => (
-                    <AgentArtifactView key={`${artifact.type}-${artifact.schemaVersion}-${index}`} artifact={artifact} />
-                  ))}
-                </div>
-              ) : null,
-            )}
-            {loading && (toolStatus ? <div className='ai-tool-status'>正在调用 {toolStatus} …</div> : <Spin size='small' />)}
-          </div>
-          <div className='ai-input'>
-            <Input.TextArea
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              onPressEnter={(e) => {
-                if (!e.shiftKey) {
-                  e.preventDefault();
-                  send();
-                }
-              }}
-              placeholder='输入你想了解的问题…'
-              autoSize={{ minRows: 2, maxRows: 4 }}
-            />
-            <Button type='primary' aria-label='发送' icon={<SendOutlined />} onClick={() => send()} />
-          </div>
+          {messages.length === 0 ? (
+            <AiEmptyState pageContext={pageContext} onSelectSuggestion={(suggestion) => void send(suggestion)} />
+          ) : (
+            <AiMessageList messages={messages} loading={loading} toolStatus={toolStatus} />
+          )}
+          <AiComposer value={text} loading={loading} pageTitle={pageContext.pageTitle} onChange={setText} onSend={() => void send()} onStop={cancel} />
         </aside>
       )}
     </>

@@ -1,6 +1,7 @@
 package org.lbl.system.role.request;
 
 import jakarta.validation.constraints.*;
+import java.util.List;
 
 /**
  * 新增/修改角色。
@@ -19,11 +20,13 @@ public record RoleRequest(
         @Pattern(regexp = "^[a-z][a-z0-9_:.-]*$", message = "角色标识需以小写字母开头，只能包含小写字母、数字、冒号、下划线、点和短横线")
         String roleCode,
         @NotBlank(message = "请选择数据范围")
-        @Pattern(regexp = "^(ALL|DEPT_AND_CHILDREN|DEPT|SELF)$", message = "数据范围必须是 ALL、DEPT_AND_CHILDREN、DEPT 或 SELF")
+        @Pattern(regexp = "^(ALL|DEPT_AND_CHILDREN|DEPT|SELF|CUSTOM)$", message = "数据范围必须是 ALL、DEPT_AND_CHILDREN、DEPT、SELF 或 CUSTOM")
         String dataScope,
         @NotNull(message = "请选择状态")
         @Min(value = 0, message = "状态无效")
         @Max(value = 1, message = "状态无效")
-        Integer status
+        Integer status,
+        @Size(max = 1000, message = "单个角色最多指定 1000 个部门")
+        List<@NotNull @Positive Long> customDeptIds
 ) {
 }

@@ -5,6 +5,7 @@ import org.lbl.security.proxy.TrustedProxyResolver;
 import org.springframework.web.context.request.RequestAttributes;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
+import org.slf4j.MDC;
 
 /**
  * 从当前请求上下文提取审计字段，供登录日志与操作日志共用。
@@ -72,6 +73,20 @@ public final class RequestInfo {
     public static String userAgent() {
         HttpServletRequest request = currentRequest();
         return request == null ? null : truncate(request.getHeader("User-Agent"), USER_AGENT_MAX_LENGTH);
+    }
+
+    public static String method() {
+        HttpServletRequest request = currentRequest();
+        return request == null ? null : truncate(request.getMethod(), 16);
+    }
+
+    public static String uri() {
+        HttpServletRequest request = currentRequest();
+        return request == null ? null : truncate(request.getRequestURI(), 500);
+    }
+
+    public static String requestId() {
+        return truncate(MDC.get("requestId"), 64);
     }
 
     private static HttpServletRequest currentRequest() {

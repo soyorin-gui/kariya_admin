@@ -20,8 +20,16 @@ export interface OperationLog {
   username: string | null;
   module: string;
   action: string;
+  targetType: string | null;
+  targetId: string | null;
+  targetName: string | null;
   requestIp: string | null;
+  requestMethod: string | null;
+  requestUri: string | null;
+  userAgent: string | null;
+  requestId: string | null;
   result: Exclude<LogResult, 'LOCKED'>;
+  errorMessage: string | null;
   durationMs: number | null;
   createdTime: string;
 }

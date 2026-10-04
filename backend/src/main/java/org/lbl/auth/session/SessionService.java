@@ -2,7 +2,6 @@ package org.lbl.auth.session;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.lbl.config.SecurityProperties;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.lbl.realtime.RealtimeGateway;
@@ -18,17 +17,15 @@ import java.util.Set;
 
 @Service
 public class SessionService {
-    private static final Duration ONBOARDING_IDLE_TTL = Duration.ofMinutes(30);
-    private static final Duration ONBOARDING_ABSOLUTE_TTL = Duration.ofHours(2);
     private final StringRedisTemplate redis;
-    private final SecurityProperties security;
+    private final SessionLifetimePolicy lifetimes;
     private final ObjectMapper json;
     private final SecureRandom random = new SecureRandom();
     private final RealtimeGateway realtime;
 
-    public SessionService(StringRedisTemplate redis, SecurityProperties security, ObjectMapper json, RealtimeGateway realtime) {
+    public SessionService(StringRedisTemplate redis, SessionLifetimePolicy lifetimes, ObjectMapper json, RealtimeGateway realtime) {
         this.redis = redis;
-        this.security = security;
+        this.lifetimes = lifetimes;
         this.json = json;
         this.realtime = realtime;
     }
@@ -47,13 +44,13 @@ public class SessionService {
     public String createMember(Long userId, String username, long authVersion, boolean rememberMe,
                                String authMethod, String providerKey, boolean passwordChangeRequired) {
         String sid = token();
-        Duration ttl = ttl(rememberMe);
+        Duration ttl = lifetimes.idle(rememberMe);
         LoginSession session = LoginSession.member(userId, username, authVersion, rememberMe, authMethod, providerKey,
                 passwordChangeRequired);
         redis.opsForValue().set(sessionKey(sid), serialize(session), ttl);
-        if (rememberMe) redis.opsForValue().set(absoluteKey(sid), "1", absoluteTtl());
+        if (rememberMe) redis.opsForValue().set(absoluteKey(sid), "1", lifetimes.absolute(session));
         redis.opsForSet().add(userKey(userId), sid);
-        extendUserIndex(userId, rememberMe ? absoluteTtl() : ttl);
+        extendUserIndex(userId, rememberMe ? lifetimes.absolute(session) : ttl);
         return sid;
     }
 
@@ -70,8 +67,8 @@ public class SessionService {
         String sid = token();
         LoginSession session = LoginSession.onboarding(token(), providerKey, issuer, subject, displayName, email,
                 employeeNo, rememberMe);
-        redis.opsForValue().set(sessionKey(sid), serialize(session), ONBOARDING_IDLE_TTL);
-        redis.opsForValue().set(absoluteKey(sid), "1", ONBOARDING_ABSOLUTE_TTL);
+        redis.opsForValue().set(sessionKey(sid), serialize(session), lifetimes.idle(session));
+        redis.opsForValue().set(absoluteKey(sid), "1", lifetimes.absolute(session));
         return sid;
     }
 
@@ -95,7 +92,7 @@ public class SessionService {
     public boolean touch(String sid) {
         LoginSession session = find(sid);
         if (session == null) return false;
-        Duration ttl = session.onboarding() ? ONBOARDING_IDLE_TTL : ttl(session.rememberMe());
+        Duration ttl = lifetimes.idle(session);
         if (session.rememberMe() || session.onboarding()) {
             Long seconds = redis.getExpire(absoluteKey(sid));
             if (seconds == null || seconds <= 0) {
@@ -200,12 +197,6 @@ public class SessionService {
             return null;
         }
     }
-
-    private Duration ttl(boolean remember) {
-        return Duration.ofHours(remember ? security.rememberedIdleDays() * 24 : security.idleHours());
-    }
-
-    private Duration absoluteTtl() { return Duration.ofDays(security.rememberedAbsoluteDays()); }
 
     private void extendUserIndex(Long userId, Duration desired) {
         Long remaining = redis.getExpire(userKey(userId));

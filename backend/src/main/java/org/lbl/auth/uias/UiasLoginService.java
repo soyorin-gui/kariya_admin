@@ -22,6 +22,8 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
+import static org.springframework.util.StringUtils.hasText;
+
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
@@ -170,7 +172,6 @@ public class UiasLoginService {
     private String safeReturnTo(String value) { return value != null && value.startsWith("/") && !value.startsWith("//") ? value : "/"; }
     private String transactionKey(String state) { return "auth:uias:transaction:" + state; }
     private String token() { byte[] bytes = new byte[32]; random.nextBytes(bytes); return java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(bytes); }
-    private boolean hasText(String value) { return value != null && !value.isBlank(); }
     private String appendQuery(String url, Map<String, String> values) {
         String query = values.entrySet().stream().map(entry -> encode(entry.getKey()) + "=" + encode(entry.getValue()))
                 .reduce((left, right) -> left + "&" + right).orElse("");

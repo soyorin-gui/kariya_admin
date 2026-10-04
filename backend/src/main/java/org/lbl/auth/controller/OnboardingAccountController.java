@@ -10,37 +10,29 @@ import org.lbl.auth.session.LoginSession;
 import org.lbl.auth.session.SessionService;
 import org.lbl.common.exception.UnauthorizedException;
 import org.lbl.common.result.Result;
-import org.lbl.config.SecurityProperties;
-import org.springframework.http.ResponseCookie;
+import org.lbl.auth.session.RefreshCookieFactory;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.Duration;
 import java.util.Map;
 
 @RestController
 @RequestMapping("/api/auth/onboarding/account")
 public class OnboardingAccountController {
-    /**
-     * 记住我会话的刷新 Cookie 有效期。必须与 {@code AuthController#login/register} 和
-     * {@code ExternalAuthController#callback} 里的 {@code Duration.ofDays(14)} 一致 ——
-     * 三处表达的是同一件事："记住我 = 14 天"。
-     */
-    private static final Duration REMEMBERED_COOKIE_AGE = Duration.ofDays(14);
     private final RegistrationService registrations;
     private final SessionService sessions;
-    private final boolean secureCookie;
+    private final RefreshCookieFactory refreshCookies;
 
     public OnboardingAccountController(RegistrationService registrations, SessionService sessions,
-                                       SecurityProperties security) {
+                                       RefreshCookieFactory refreshCookies) {
         this.registrations = registrations;
         this.sessions = sessions;
-        this.secureCookie = security.secureCookie();
+        this.refreshCookies = refreshCookies;
     }
 
     @PostMapping("/create")
     @PreAuthorize("hasAuthority('onboarding:account:create')")
-    public Result<Map<String, String>> create(@CookieValue(value = "lbl_refresh", required = false) String sid,
+    public Result<Map<String, String>> create(@CookieValue(value = RefreshCookieFactory.NAME, required = false) String sid,
                                               @Valid @RequestBody OnboardingAccountRequest request,
                                               HttpServletResponse response) {
         SessionGrant grant = registrations.createFromOnboarding(requireOnboarding(sid), request);
@@ -51,7 +43,7 @@ public class OnboardingAccountController {
 
     @PostMapping("/bind")
     @PreAuthorize("hasAuthority('onboarding:account:bind')")
-    public Result<Map<String, String>> bind(@CookieValue(value = "lbl_refresh", required = false) String sid,
+    public Result<Map<String, String>> bind(@CookieValue(value = RefreshCookieFactory.NAME, required = false) String sid,
                                             @Valid @RequestBody OnboardingBindRequest request,
                                             HttpServletResponse response) {
         SessionGrant grant = registrations.bindFromOnboarding(requireOnboarding(sid), request);
@@ -76,13 +68,10 @@ public class OnboardingAccountController {
      * 浏览器手里的凭据也是会话级的 —— 关掉浏览器就再也换不出令牌。
      * <p>
      * 其余属性（name / HttpOnly / Secure / SameSite / Path）必须与
-     * {@code AuthController#refreshCookie} 完全一致，否则浏览器会当成两个不同的 Cookie，
-     * 出现"登录成功但凭据没更新"这类问题；14 天也与之对齐（记住我 = 7 天空闲、14 天绝对有效）。
+     * {@code RefreshCookieFactory#createFor} 完全一致，否则浏览器会当成两个不同的 Cookie。
+     * Cookie 生命周期统一从安全配置读取，不再在各认证入口分别硬编码。
      */
     private void setCookie(HttpServletResponse response, String sid) {
-        LoginSession session = sessions.find(sid);
-        Duration maxAge = session != null && session.rememberMe() ? REMEMBERED_COOKIE_AGE : Duration.ofSeconds(-1);
-        response.addHeader("Set-Cookie", ResponseCookie.from("lbl_refresh", sid).httpOnly(true).secure(secureCookie)
-                .sameSite("Lax").path("/api/auth").maxAge(maxAge).build().toString());
+        response.addHeader("Set-Cookie", refreshCookies.createFor(sid, sessions.find(sid)).toString());
     }
 }

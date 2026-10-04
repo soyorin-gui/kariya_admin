@@ -8,6 +8,7 @@ import org.lbl.system.menu.entity.MenuEntity;
 import org.lbl.system.role.request.RoleRequest;
 import org.lbl.system.role.service.RoleService;
 import org.lbl.system.role.vo.RoleVO;
+import org.lbl.system.role.vo.RoleDeptOption;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
@@ -28,6 +29,12 @@ public class RoleController {
         return Result.ok(service.list(keyword));
     }
 
+    @GetMapping("/grantable-departments")
+    @PreAuthorize("hasAnyAuthority('system:role:add', 'system:role:update')")
+    Result<List<RoleDeptOption>> grantableDepartments() {
+        return Result.ok(service.grantableDepartments());
+    }
+
     @GetMapping("/{id}")
     @PreAuthorize("hasAuthority('system:role:update')")
     Result<RoleVO> detail(@PathVariable Long id) {
@@ -43,14 +50,14 @@ public class RoleController {
 
     @PutMapping("/{id}")
     @PreAuthorize("hasAuthority('system:role:update')")
-    @OperationLog(module = "角色管理", action = "修改角色")
+    @OperationLog(module = "角色管理", action = "修改角色", targetType = "ROLE", targetId = "#id")
     Result<RoleVO> update(@PathVariable Long id, @Valid @RequestBody RoleRequest request) {
         return Result.ok(service.update(id, request), "修改角色成功");
     }
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('system:role:delete')")
-    @OperationLog(module = "角色管理", action = "删除角色")
+    @OperationLog(module = "角色管理", action = "删除角色", targetType = "ROLE", targetId = "#id")
     Result<Void> delete(@PathVariable Long id) {
         service.remove(id);
         return Result.ok(null, "删除角色成功");
@@ -70,7 +77,7 @@ public class RoleController {
 
     @PutMapping("/{id}/menu-ids")
     @PreAuthorize("hasAuthority('system:role:grant')")
-    @OperationLog(module = "角色管理", action = "角色授权")
+    @OperationLog(module = "角色管理", action = "角色授权", targetType = "ROLE", targetId = "#id")
     Result<Void> grant(@PathVariable Long id, @RequestBody List<@NotNull Long> menuIds) {
         service.grantMenus(id, menuIds);
         return Result.ok(null, "菜单权限保存成功");

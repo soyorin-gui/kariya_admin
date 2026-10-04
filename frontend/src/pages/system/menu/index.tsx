@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import type { Key } from 'react';
 import { App, Button, Input, Popconfirm, Space, Table, Tag } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { DeleteOutlined, EditOutlined, MenuOutlined, PlusOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
@@ -33,6 +34,7 @@ export default function MenuPage() {
   const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState<SystemMenu | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [expandedRowKeys, setExpandedRowKeys] = useState<readonly Key[]>();
   const load = async () => {
     try {
       setLoading(true);
@@ -142,7 +144,8 @@ export default function MenuPage() {
           pagination={false}
           scroll={{ x: 1150 }}
           expandable={{
-            defaultExpandAllRows: true,
+            expandedRowKeys: expandedRowKeys ?? rows.filter((row) => row.children?.length).map((row) => row.id),
+            onExpandedRowsChange: setExpandedRowKeys,
             indentSize: 18,
             expandIcon: ({ expanded, onExpand, record }) =>
               record.children?.length ? (

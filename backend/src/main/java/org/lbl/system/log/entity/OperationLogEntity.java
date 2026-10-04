@@ -21,9 +21,17 @@ public class OperationLogEntity {
     private String module;
     /** 具体动作，取自 {@link OperationLog#action()}。 */
     private String action;
+    private String targetType;
+    private String targetId;
+    private String targetName;
     private String requestIp;
+    private String requestMethod;
+    private String requestUri;
+    private String userAgent;
+    private String requestId;
     /** SUCCESS / FAILURE，取值见 {@link LogResult}。 */
     private String result;
+    private String errorMessage;
     /** 方法执行耗时（毫秒），用于发现慢操作。 */
     private Long durationMs;
     private LocalDateTime createdTime;

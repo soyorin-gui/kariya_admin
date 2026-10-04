@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import type { Key } from 'react';
 import { App, Button, Input, Popconfirm, Space, Tag } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { ApartmentOutlined, DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
@@ -38,6 +39,7 @@ export default function DeptPage() {
   const [depts, setDepts] = useState<Dept[]>([]);
   const [editing, setEditing] = useState<Dept | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [expandedRowKeys, setExpandedRowKeys] = useState<readonly Key[]>();
   const openDialog = (dept: Dept | null = null) => {
     setEditing(dept);
     setDialogOpen(true);
@@ -72,7 +74,7 @@ export default function DeptPage() {
               <EditOutlined /> 编辑
             </a>
           </Permission>}
-          {row.manageable && <Permission code='system:dept:delete'>
+          {row.deletable && <Permission code='system:dept:delete'>
             <Popconfirm
               title='确定删除此部门？'
               description='存在子部门或部门用户时无法删除。'
@@ -126,7 +128,8 @@ export default function DeptPage() {
           pagination={false}
           scroll={{ x: 980 }}
           expandable={{
-            defaultExpandAllRows: true,
+            expandedRowKeys: expandedRowKeys ?? depts.filter((dept) => dept.parentId === 0).map((dept) => dept.id),
+            onExpandedRowsChange: setExpandedRowKeys,
             indentSize: 18,
             expandIcon: ({ expanded, onExpand, record }) =>
               record.children?.length ? (

@@ -3,9 +3,14 @@ package org.lbl.system.log.aspect;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
+import org.aspectj.lang.reflect.MethodSignature;
 import org.lbl.system.log.support.LogResult;
 import org.lbl.system.log.service.OperationLogService;
+import org.springframework.context.expression.MethodBasedEvaluationContext;
 import org.springframework.core.annotation.Order;
+import org.springframework.core.DefaultParameterNameDiscoverer;
+import org.springframework.expression.ExpressionParser;
+import org.springframework.expression.spel.standard.SpelExpressionParser;
 import org.springframework.stereotype.Component;
 
 /**
@@ -23,6 +28,8 @@ import org.springframework.stereotype.Component;
 @Component
 @Order(0)
 public class OperationLogAspect {
+    private static final ExpressionParser EXPRESSIONS = new SpelExpressionParser();
+    private static final DefaultParameterNameDiscoverer PARAMETER_NAMES = new DefaultParameterNameDiscoverer();
     private final OperationLogService service;
 
     public OperationLogAspect(OperationLogService service) {
@@ -33,13 +40,33 @@ public class OperationLogAspect {
     public Object around(ProceedingJoinPoint joinPoint, OperationLog operationLog) throws Throwable {
         long startedAt = System.nanoTime();
         String result = LogResult.SUCCESS;
+        String failureReason = null;
         try {
             return joinPoint.proceed();
         } catch (Throwable ex) {
             result = LogResult.FAILURE;
+            failureReason = ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage();
             throw ex;
         } finally {
-            service.record(operationLog.module(), operationLog.action(), result, (System.nanoTime() - startedAt) / 1_000_000);
+            service.record(operationLog.module(), operationLog.action(),
+                    evaluate(joinPoint, operationLog.targetType()), evaluate(joinPoint, operationLog.targetId()),
+                    evaluate(joinPoint, operationLog.targetName()), result, failureReason,
+                    (System.nanoTime() - startedAt) / 1_000_000);
+        }
+    }
+
+    private String evaluate(ProceedingJoinPoint joinPoint, String value) {
+        if (value == null || value.isBlank()) return null;
+        if (!value.startsWith("#")) return value;
+        try {
+            MethodSignature signature = (MethodSignature) joinPoint.getSignature();
+            MethodBasedEvaluationContext context = new MethodBasedEvaluationContext(null, signature.getMethod(),
+                    joinPoint.getArgs(), PARAMETER_NAMES);
+            Object evaluated = EXPRESSIONS.parseExpression(value).getValue(context);
+            return evaluated == null ? null : String.valueOf(evaluated);
+        } catch (RuntimeException ignored) {
+            // 审计表达式配置错误不能影响真实业务；空值会在日志里明显暴露配置遗漏。
+            return null;
         }
     }
 }

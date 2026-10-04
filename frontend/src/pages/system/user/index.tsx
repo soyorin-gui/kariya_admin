@@ -30,10 +30,15 @@ export default function UserPage() {
     setDialogOpen(true);
   };
   const openSessions = async (user: UserListItem) => {
-    setSessionUser(user); setSessionsLoading(true);
-    try { setSessions(await getUserSessions(user.id)); }
-    catch (error) { message.error(getApiErrorMessage(error, '无法加载登录会话')); }
-    finally { setSessionsLoading(false); }
+    setSessionUser(user);
+    setSessionsLoading(true);
+    try {
+      setSessions(await getUserSessions(user.id));
+    } catch (error) {
+      message.error(getApiErrorMessage(error, '无法加载登录会话'));
+    } finally {
+      setSessionsLoading(false);
+    }
   };
   const handleExport = async (keyword: string) => {
     let hide: (() => void) | undefined;
@@ -69,9 +74,13 @@ export default function UserPage() {
               </a>
             </Permission>
           )}
-          {user.manageable && <Permission code='system:user:update'>
-            <a onClick={() => void openSessions(user)}><LaptopOutlined /> 会话</a>
-          </Permission>}
+          {user.manageable && (
+            <Permission code='system:user:update'>
+              <a onClick={() => void openSessions(user)}>
+                <LaptopOutlined /> 会话
+              </a>
+            </Permission>
+          )}
           {user.resettable && (
             <Permission code='system:user:reset-password'>
               <Popconfirm
@@ -174,13 +183,72 @@ export default function UserPage() {
         />
       </div>
       <UserDialog open={dialogOpen} userId={editing?.id ?? null} onClose={() => setDialogOpen(false)} onSaved={() => tableRef.current?.reload()} />
-      <Modal className='system-dialog' width={760} title={sessionUser ? `登录会话 · ${sessionUser.username}` : '登录会话'} open={sessionUser !== null} footer={null} onCancel={() => setSessionUser(null)} destroyOnHidden>
-        <Space style={{ width: '100%', justifyContent: 'flex-end', marginBottom: 12 }}>
-          <Popconfirm title='踢出该用户的全部登录会话？' onConfirm={() => sessionUser && void removeAllUserSessions(sessionUser.id).then(() => { message.success('全部会话已退出'); setSessions([]); }).catch((error) => message.error(getApiErrorMessage(error)))}><Button danger>全部退出</Button></Popconfirm>
-        </Space>
-        <List loading={sessionsLoading} dataSource={sessions} locale={{ emptyText: '暂无登录会话' }} renderItem={(session) => <List.Item actions={[<Popconfirm key='remove' title='踢出该登录会话？' onConfirm={() => sessionUser && void removeUserSession(sessionUser.id, session.id).then(() => { message.success('会话已退出'); setSessions((value) => value.filter((item) => item.id !== session.id)); }).catch((error) => message.error(getApiErrorMessage(error)))}><Button danger type='link'>踢出</Button></Popconfirm>]}>
-          <List.Item.Meta title={<Space>{session.authMethod === 'PASSWORD' ? '账号密码' : session.providerKey || '第三方登录'}{session.current && <Tag color='blue'>当前浏览器</Tag>}{session.rememberMe && <Tag>记住我</Tag>}</Space>} description={[session.loginIp || '未知地址', session.lastActiveTime?.replace('T', ' ') || '未知时间', session.userAgent || '未知设备'].join(' · ')} />
-        </List.Item>} />
+      <Modal
+        className='system-dialog'
+        width={760}
+        title={sessionUser ? `登录会话 · ${sessionUser.username}` : '登录会话'}
+        open={sessionUser !== null}
+        footer={null}
+        onCancel={() => setSessionUser(null)}
+        destroyOnHidden
+      >
+        <div className='session-dialog-toolbar'>
+          <Popconfirm
+            title='踢出该用户的全部登录会话？'
+            onConfirm={() =>
+              sessionUser &&
+              void removeAllUserSessions(sessionUser.id)
+                .then(() => {
+                  message.success('全部会话已退出');
+                  setSessions([]);
+                })
+                .catch((error) => message.error(getApiErrorMessage(error)))
+            }
+          >
+            <Button danger type='link' size='small'>
+              全部退出
+            </Button>
+          </Popconfirm>
+        </div>
+        <List
+          loading={sessionsLoading}
+          dataSource={sessions}
+          locale={{ emptyText: '暂无登录会话' }}
+          renderItem={(session) => (
+            <List.Item
+              actions={[
+                <Popconfirm
+                  key='remove'
+                  title='踢出该登录会话？'
+                  onConfirm={() =>
+                    sessionUser &&
+                    void removeUserSession(sessionUser.id, session.id)
+                      .then(() => {
+                        message.success('会话已退出');
+                        setSessions((value) => value.filter((item) => item.id !== session.id));
+                      })
+                      .catch((error) => message.error(getApiErrorMessage(error)))
+                  }
+                >
+                  <Button danger type='link'>
+                    踢出
+                  </Button>
+                </Popconfirm>,
+              ]}
+            >
+              <List.Item.Meta
+                title={
+                  <Space>
+                    {session.authMethod === 'PASSWORD' ? '账号密码' : session.providerKey || '第三方登录'}
+                    {session.current && <Tag color='blue'>当前浏览器</Tag>}
+                    {session.rememberMe && <Tag>记住我</Tag>}
+                  </Space>
+                }
+                description={[session.loginIp || '未知地址', session.lastActiveTime?.replace('T', ' ') || '未知时间', session.userAgent || '未知设备'].join(' · ')}
+              />
+            </List.Item>
+          )}
+        />
       </Modal>
     </div>
   );

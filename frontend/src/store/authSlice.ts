@@ -8,8 +8,9 @@ interface AuthState {
   permissions: string[];
   menus: MenuRoute[];
   routes: MenuRouteSummary[];
+  profileReady: boolean;
 }
-const initialState: AuthState = { accessToken: null, principalType: null, user: null, onboarding: null, permissions: [], menus: [], routes: [] };
+const initialState: AuthState = { accessToken: null, principalType: null, user: null, onboarding: null, permissions: [], menus: [], routes: [], profileReady: false };
 const slice = createSlice({
   name: 'auth',
   initialState,
@@ -20,10 +21,14 @@ const slice = createSlice({
       s.user = a.payload.user ?? null;
       s.onboarding = a.payload.onboarding ?? null;
     },
+    setAccessToken: (s, a: PayloadAction<string>) => {
+      s.accessToken = a.payload;
+    },
     setProfile: (s, a: PayloadAction<{ permissions: string[]; menus: MenuRoute[]; routes: MenuRouteSummary[] }>) => {
       s.permissions = a.payload.permissions;
       s.menus = a.payload.menus;
       s.routes = a.payload.routes ?? [];
+      s.profileReady = true;
     },
     setPasswordChangeRequired: (s, a: PayloadAction<boolean>) => {
       if (s.user) s.user.passwordChangeRequired = a.payload;
@@ -31,5 +36,5 @@ const slice = createSlice({
     clearSession: () => initialState,
   },
 });
-export const { setSession, setProfile, setPasswordChangeRequired, clearSession } = slice.actions;
+export const { setSession, setAccessToken, setProfile, setPasswordChangeRequired, clearSession } = slice.actions;
 export default slice.reducer;

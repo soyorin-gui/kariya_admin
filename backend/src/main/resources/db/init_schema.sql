@@ -128,6 +128,16 @@ CREATE TABLE sys_role_menu
     PRIMARY KEY (role_id, menu_id)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
 
+-- 现有库升级：手动执行；不修改任何已有角色的数据范围。
+-- CUSTOM 仅包含明确指定的部门，不自动包含下级。
+CREATE TABLE sys_role_dept
+(
+    role_id BIGINT NOT NULL,
+    dept_id BIGINT NOT NULL,
+    PRIMARY KEY (role_id, dept_id),
+    INDEX idx_role_dept_dept (dept_id)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
+
 -- 部门变更审批主单：保存申请人、原/目标部门、当前阶段与最终状态。
 CREATE TABLE sys_department_change_request
 (
@@ -200,10 +210,19 @@ CREATE TABLE sys_operation_log
     username     VARCHAR(64) NULL,
     module       VARCHAR(80) NOT NULL,
     action       VARCHAR(80) NOT NULL,
+    target_type  VARCHAR(64) NULL,
+    target_id    VARCHAR(128) NULL,
+    target_name  VARCHAR(255) NULL,
     request_ip   VARCHAR(64) NULL,
+    request_method VARCHAR(16) NULL,
+    request_uri  VARCHAR(500) NULL,
+    user_agent   VARCHAR(500) NULL,
+    request_id   VARCHAR(64) NULL,
     result       VARCHAR(16) NOT NULL,
+    error_message VARCHAR(1000) NULL,
     duration_ms  BIGINT NULL,
     created_time DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_operation_log_time (created_time),
     INDEX idx_operation_log_module (module, created_time)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
+

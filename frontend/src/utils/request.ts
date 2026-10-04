@@ -1,9 +1,7 @@
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
 import { store } from '../store';
-import { clearSession, setPasswordChangeRequired, setSession } from '../store/authSlice';
+import { refreshAccessTokenOnce, expireSession } from '../services/authSession';
 import { doneProgress, resetProgress, startProgress } from '../services/progress';
-let refreshPromise: Promise<string> | null = null;
-let authExpiredHandling = false;
 const request = axios.create({ baseURL: import.meta.env.VITE_API_BASE_URL, withCredentials: true, timeout: 12_000 });
 
 /**
@@ -53,34 +51,12 @@ request.interceptors.response.use(
       // 也刻意不套 trackProgress：它属于"静默续期"，本来就不该被用户察觉；
       // 真正需要等待的是被重放的那个业务请求，它会自己重新 start/done。
       // 并发请求共享同一个 refreshPromise，保证同一时刻只发一次续期请求。
-      refreshPromise ??= axios
-        .post<{ data: { accessToken: string; passwordChangeRequired: boolean } }>(`${import.meta.env.VITE_API_BASE_URL}/auth/refresh`, {}, { withCredentials: true })
-        .then((r) => {
-          store.dispatch(setPasswordChangeRequired(r.data.data.passwordChangeRequired));
-          return r.data.data.accessToken;
-        })
-        .finally(() => {
-          refreshPromise = null;
-        });
-      const token = await refreshPromise;
-      const user = store.getState().auth.user;
-      const principalType = store.getState().auth.principalType;
-      const onboarding = store.getState().auth.onboarding;
-      if (principalType) store.dispatch(setSession({ accessToken: token, principalType, user: user ?? undefined, onboarding: onboarding ?? undefined }));
+      const token = await refreshAccessTokenOnce();
       original.headers.Authorization = `Bearer ${token}`;
       return request(original);
     } catch {
-      if (!authExpiredHandling) {
-        authExpiredHandling = true;
-        // 会话彻底失效、马上整页跳转：把进度条强制收干净。
-        // 不清的话，其他在飞请求的计数会残留，下一次进入应用时进度条可能卡在半路。
-        resetProgress();
-        store.dispatch(clearSession());
-        window.location.assign(`/login?redirect=${encodeURIComponent(location.pathname)}`);
-        setTimeout(() => {
-          authExpiredHandling = false;
-        }, 500);
-      }
+      resetProgress();
+      expireSession();
       return Promise.reject(error);
     }
   },

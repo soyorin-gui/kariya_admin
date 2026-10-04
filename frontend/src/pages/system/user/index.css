@@ -19,3 +19,12 @@
 .user-page .ant-table-wrapper .ant-pagination {
   margin: 16px 0 0 !important;
 }
+.session-dialog-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  min-height: 24px;
+  margin-bottom: 4px;
+}
+.session-dialog-toolbar .ant-btn-link {
+  padding-inline: 0;
+}

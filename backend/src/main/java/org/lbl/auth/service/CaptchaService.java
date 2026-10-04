@@ -77,40 +77,37 @@ public class CaptchaService {
      */
     private static final int WIDTH = 148;
     private static final int HEIGHT = 44;
-    /** 未认证入口的来源级配额：见 {@link LoginAttemptGuard} 的说明。 */
+    /**
+     * 未认证入口的来源级配额：见 {@link LoginAttemptGuard} 的说明。
+     */
     private static final int ISSUE_QUOTA_LIMIT = 60;
     private static final Duration ISSUE_QUOTA_WINDOW = Duration.ofMinutes(1);
     private static final String QUOTA_BUCKET = "captcha";
 
     private final StringRedisTemplate redis;
     private final LoginAttemptGuard attempts;
-    private final boolean enabled;
     private final SecureRandom random = new SecureRandom();
 
     public CaptchaService(StringRedisTemplate redis, LoginAttemptGuard attempts, SecurityProperties security) {
         this.redis = redis;
         this.attempts = attempts;
-        this.enabled = security.captchaEnabled();
-        if (this.enabled) requireRenderableFont();
-        else log.warn("Graphical captcha is disabled (lbl.security.captcha-enabled=false). "
-                + "The registration endpoint will accept requests without a captcha.");
+        requireRenderableFont();
     }
 
     /**
      * 出一个新的验证码。
      *
      * @return 关闭该功能时 {@code enabled=false}，且不会占用配额、不写 Redis；
-     *         前端据此隐藏验证码输入框（而不是显示一个永远不会通过的框）
+     * 前端据此隐藏验证码输入框（而不是显示一个永远不会通过的框）
      */
     public Challenge issue() {
-        if (!enabled) return new Challenge(false, null, null);
         // 生成一张图不贵，但"每次请求都生成一张图 + 写一个 Redis key"是最容易被脚本放大的动作，
         // 所以这里加一条宽松的来源级配额，避免验证码接口自己变成新的滥用入口。
         attempts.requireSourceQuota(QUOTA_BUCKET, ISSUE_QUOTA_LIMIT, ISSUE_QUOTA_WINDOW);
         String code = randomCode();
         String captchaId = Base64.getUrlEncoder().withoutPadding().encodeToString(randomBytes(24));
         redis.opsForValue().set(key(captchaId), code, TTL);
-        return new Challenge(true, captchaId, "data:image/png;base64," + Base64.getEncoder().encodeToString(render(code)));
+        return new Challenge(captchaId, "data:image/png;base64," + Base64.getEncoder().encodeToString(render(code)));
     }
 
     /**
@@ -120,7 +117,6 @@ public class CaptchaService {
      * 若在这里仍然校验，开关就等于失效了。
      */
     public void verify(String captchaId, String code) {
-        if (!enabled) return;
         if (captchaId == null || captchaId.isBlank() || code == null || code.isBlank()) {
             throw new BusinessException("请输入图形验证码");
         }
@@ -163,7 +159,9 @@ public class CaptchaService {
         }
     }
 
-    /** 干扰点 + 干扰线：目标是让"把图片丢给通用 OCR"不再免费，而不是让人也看不清。 */
+    /**
+     * 干扰点 + 干扰线：目标是让"把图片丢给通用 OCR"不再免费，而不是让人也看不清。
+     */
     private void drawNoise(Graphics2D canvas) {
         for (int index = 0; index < 60; index++) {
             canvas.setColor(shade(180, 235));
@@ -176,7 +174,9 @@ public class CaptchaService {
         }
     }
 
-    /** 逐字符绘制：每个字符独立随机旋转与上下偏移，字符之间不共基线。 */
+    /**
+     * 逐字符绘制：每个字符独立随机旋转与上下偏移，字符之间不共基线。
+     */
     private void drawCode(Graphics2D canvas, String code) {
         canvas.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 28));
         FontMetrics metrics = canvas.getFontMetrics();
@@ -197,7 +197,9 @@ public class CaptchaService {
         }
     }
 
-    /** 在 [min, max] 区间内取一个随机灰阶偏色，避免出现纯黑/纯白导致对比度异常。 */
+    /**
+     * 在 [min, max] 区间内取一个随机灰阶偏色，避免出现纯黑/纯白导致对比度异常。
+     */
     private Color shade(int min, int max) {
         int range = max - min + 1;
         return new Color(min + random.nextInt(range), min + random.nextInt(range), min + random.nextInt(range));
@@ -228,12 +230,7 @@ public class CaptchaService {
      */
     private static void requireRenderableFont() {
         if (canRenderText()) return;
-        throw new IllegalStateException("""
-                当前运行环境没有可用于绘图的字体，图形验证码会渲染成空白图、注册功能将完全不可用。
-                两种处理方式：
-                  1) 安装字体（Debian/Ubuntu: apt-get install -y fontconfig fonts-dejavu-core；
-                     Alpine: apk add fontconfig ttf-dejavu），然后重启；
-                  2) 确认不需要验证码时，设置 CAPTCHA_ENABLED=false 关闭它（会打印告警）。""");
+        throw new IllegalStateException("当前运行环境没有可用于绘图的字体，图形验证码会渲染成空白图、注册功能将完全不可用。");
     }
 
     private static boolean canRenderText() {
@@ -264,10 +261,9 @@ public class CaptchaService {
     /**
      * 出题结果。
      *
-     * @param enabled   验证码功能是否开启；关闭时前端应隐藏输入框
      * @param captchaId 校验时回传的题目 id
      * @param image     {@code data:image/png;base64,...}，前端直接塞给 img 的 src
      */
-    public record Challenge(boolean enabled, String captchaId, String image) {
+    public record Challenge(String captchaId, String image) {
     }
 }
