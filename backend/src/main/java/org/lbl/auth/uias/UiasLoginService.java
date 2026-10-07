@@ -7,6 +7,7 @@ import org.lbl.auth.external.ExternalAuthProperties;
 import org.lbl.auth.external.ExternalLoginPersistence;
 import org.lbl.auth.external.ExternalLoginService;
 import org.lbl.auth.external.LoginTransaction;
+import org.lbl.config.ExternalAuthProviderRegistry;
 import org.lbl.auth.identity.VerifiedIdentity;
 import org.lbl.auth.service.LoginAttemptGuard;
 import org.lbl.auth.session.LoginSession;
@@ -36,7 +37,7 @@ public class UiasLoginService {
     private static final Logger log = LoggerFactory.getLogger(UiasLoginService.class);
     private static final Duration TRANSACTION_TTL = Duration.ofMinutes(10);
     private static final int START_QUOTA_LIMIT = 30;
-    private final ExternalAuthProperties externalAuth;
+    private final ExternalAuthProviderRegistry providers;
     private final ObjectProvider<UiasAssertionConsumer> assertionConsumers;
     private final ObjectProvider<EnterpriseDirectoryPort> directories;
     private final StringRedisTemplate redis;
@@ -48,11 +49,11 @@ public class UiasLoginService {
     private final LoginLogService loginLogs;
     private final SecureRandom random = new SecureRandom();
 
-    public UiasLoginService(ExternalAuthProperties externalAuth, ObjectProvider<UiasAssertionConsumer> assertionConsumers,
+    public UiasLoginService(ExternalAuthProviderRegistry providers, ObjectProvider<UiasAssertionConsumer> assertionConsumers,
                             ObjectProvider<EnterpriseDirectoryPort> directories, StringRedisTemplate redis,
                             ObjectMapper json, LoginAttemptGuard attempts, SessionService sessions,
                             UserMapper users, ExternalLoginPersistence persistence, LoginLogService loginLogs) {
-        this.externalAuth = externalAuth;
+        this.providers = providers;
         this.assertionConsumers = assertionConsumers;
         this.directories = directories;
         this.redis = redis;
@@ -158,7 +159,7 @@ public class UiasLoginService {
     private void requireUsable() {
         if (!isUsable()) throw new BusinessException("UIAS 尚未完成 SDK 或员工目录适配配置");
     }
-    private ExternalAuthProperties.Provider provider() { return externalAuth.getProviders().get("uias"); }
+    private ExternalAuthProperties.Provider provider() { return providers.find("uias"); }
     private UiasAssertionConsumer requireAssertionConsumer() {
         UiasAssertionConsumer consumer = assertionConsumers.getIfAvailable();
         if (consumer == null) throw new BusinessException("UIAS SDK 适配器尚未接入");

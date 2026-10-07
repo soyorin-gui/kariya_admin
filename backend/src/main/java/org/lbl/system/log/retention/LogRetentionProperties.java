@@ -18,7 +18,7 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  * @param cron          清理任务的 cron 表达式，由 LogRetentionJob 上的 @Scheduled 读取
  */
 @ConfigurationProperties(prefix = "lbl.log.retention")
-public record LogRetentionProperties(boolean enabled,
+public record LogRetentionProperties(@DefaultValue("true") boolean enabled,
                                      @DefaultValue("180") int loginDays,
                                      @DefaultValue("365") int operationDays,
                                      @DefaultValue("2000") int batchSize,

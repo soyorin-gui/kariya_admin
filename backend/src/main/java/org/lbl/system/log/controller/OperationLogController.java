@@ -2,6 +2,8 @@ package org.lbl.system.log.controller;
 
 import org.lbl.common.result.PageResult;
 import org.lbl.common.result.Result;
+import org.lbl.system.log.analysis.AuditAnalysisService;
+import org.lbl.system.log.analysis.model.OperationAuditOverview;
 import org.lbl.system.log.aspect.OperationLog;
 import org.lbl.system.log.entity.OperationLogEntity;
 import org.lbl.system.log.service.OperationLogService;
@@ -16,9 +18,11 @@ import java.util.List;
 @RequestMapping("/api/system/operation-logs")
 public class OperationLogController {
     private final OperationLogService service;
+    private final AuditAnalysisService analysis;
 
-    public OperationLogController(OperationLogService service) {
+    public OperationLogController(OperationLogService service, AuditAnalysisService analysis) {
         this.service = service;
+        this.analysis = analysis;
     }
 
     @GetMapping
@@ -31,6 +35,18 @@ public class OperationLogController {
                                                 @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime beginTime,
                                                 @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endTime) {
         return Result.ok(service.page(pageNum, pageSize, keyword, module, result, beginTime, endTime));
+    }
+
+    /**
+     * 返回指定时间窗口的操作统计。这里只返回客观数量，不判断是否异常。
+     */
+    @GetMapping("/statistics")
+    @PreAuthorize("hasAuthority('system:operatelog:list')")
+    Result<OperationAuditOverview> statistics(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime beginTime,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endTime,
+            @RequestParam(required = false) Integer topN) {
+        return Result.ok(analysis.operationOverview(beginTime, endTime, topN));
     }
 
     @DeleteMapping

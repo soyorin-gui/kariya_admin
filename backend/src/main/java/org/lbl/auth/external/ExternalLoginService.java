@@ -10,6 +10,7 @@ import org.lbl.auth.session.SessionService;
 import org.lbl.auth.service.LoginAttemptGuard;
 import org.lbl.common.exception.BusinessException;
 import org.lbl.common.exception.TooManyRequestsException;
+import org.lbl.config.ExternalAuthProviderRegistry;
 import org.lbl.system.log.service.LoginLogService;
 import org.lbl.system.log.support.LogResult;
 import org.slf4j.Logger;
@@ -49,6 +50,7 @@ public class ExternalLoginService {
     /** 外部平台报错信息写入日志时的长度上限，避免把超长响应体灌进日志。 */
     private static final int PROVIDER_ERROR_MAX_LENGTH = 200;
     private final ExternalAuthProperties properties;
+    private final ExternalAuthProviderRegistry providers;
     private final StringRedisTemplate redis;
     private final ObjectMapper json;
     private final LoginAttemptGuard attempts;
@@ -59,10 +61,12 @@ public class ExternalLoginService {
     private final SecureRandom random = new SecureRandom();
     private final HttpClient http;
 
-    public ExternalLoginService(ExternalAuthProperties properties, StringRedisTemplate redis, ObjectMapper json,
+    public ExternalLoginService(ExternalAuthProperties properties, ExternalAuthProviderRegistry providers,
+                                StringRedisTemplate redis, ObjectMapper json,
                                 LoginAttemptGuard attempts, LoginLogService loginLogs,
                                 ExternalLoginPersistence persistence, SessionService sessions, UiasLoginService uias) {
         this.properties = properties;
+        this.providers = providers;
         this.redis = redis;
         this.json = json;
         this.attempts = attempts;
@@ -81,7 +85,7 @@ public class ExternalLoginService {
     }
 
     public List<ProviderView> providers() {
-        return properties.getProviders().entrySet().stream()
+        return providers.all().entrySet().stream()
                 .map(entry -> new ProviderView(entry.getKey(), entry.getValue().getDisplayName(),
                         entry.getValue().getIcon(), entry.getValue().getProtocol(), isProviderUsable(entry.getKey())))
                 .toList();
@@ -95,7 +99,7 @@ public class ExternalLoginService {
      * 而且日志里不会有任何提示。这是排查三方登录时最容易卡住的一步。
      */
     public boolean isProviderUsable(String providerKey) {
-        ExternalAuthProperties.Provider provider = properties.getProviders().get(providerKey);
+        ExternalAuthProperties.Provider provider = providers.find(providerKey);
         if (provider == null || !provider.isEnabled()) return false;
         if ("uias".equalsIgnoreCase(providerKey)) return uias.isUsable();
         if (isSaml(provider)) return false;
@@ -357,7 +361,7 @@ public class ExternalLoginService {
     }
 
     private ExternalAuthProperties.Provider requireProvider(String key) {
-        ExternalAuthProperties.Provider provider = properties.getProviders().get(key);
+        ExternalAuthProperties.Provider provider = providers.find(key);
         if (provider == null || !provider.isEnabled()) throw new BusinessException("该登录方式未启用");
         return provider;
     }

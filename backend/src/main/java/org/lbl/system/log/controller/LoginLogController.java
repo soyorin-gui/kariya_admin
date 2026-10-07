@@ -2,6 +2,8 @@ package org.lbl.system.log.controller;
 
 import org.lbl.common.result.PageResult;
 import org.lbl.common.result.Result;
+import org.lbl.system.log.analysis.AuditAnalysisService;
+import org.lbl.system.log.analysis.model.LoginAuditOverview;
 import org.lbl.system.log.entity.LoginLogEntity;
 import org.lbl.system.log.service.LoginLogService;
 import org.lbl.system.log.aspect.OperationLog;
@@ -16,9 +18,11 @@ import java.util.List;
 @RequestMapping("/api/system/login-logs")
 public class LoginLogController {
     private final LoginLogService service;
+    private final AuditAnalysisService analysis;
 
-    public LoginLogController(LoginLogService service) {
+    public LoginLogController(LoginLogService service, AuditAnalysisService analysis) {
         this.service = service;
+        this.analysis = analysis;
     }
 
     /**
@@ -34,6 +38,18 @@ public class LoginLogController {
                                             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime beginTime,
                                             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endTime) {
         return Result.ok(service.page(pageNum, pageSize, username, result, beginTime, endTime));
+    }
+
+    /**
+     * 返回指定时间窗口的登录统计。时间采用左闭右开区间：[beginTime, endTime)。
+     */
+    @GetMapping("/statistics")
+    @PreAuthorize("hasAuthority('system:loginlog:list')")
+    Result<LoginAuditOverview> statistics(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime beginTime,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endTime,
+            @RequestParam(required = false) Integer topN) {
+        return Result.ok(analysis.loginOverview(beginTime, endTime, topN));
     }
 
     @DeleteMapping

@@ -1,6 +1,7 @@
 package org.lbl.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.bind.DefaultValue;
 
 import java.util.Arrays;
 import java.util.List;
@@ -25,9 +26,15 @@ import java.util.List;
  * @param passwordMaxAgeDays    密码最大使用天数；0 表示关闭定期改密。
  */
 @ConfigurationProperties(prefix = "lbl.security")
-public record SecurityProperties(String jwtSecret, long accessTokenMinutes, long idleHours, long rememberedIdleDays,
-                                 long rememberedAbsoluteDays, boolean secureCookie, String corsAllowedOrigins,
-                                 String trustedProxies, long passwordMaxAgeDays) {
+public record SecurityProperties(String jwtSecret,
+                                 @DefaultValue("15") long accessTokenMinutes,
+                                 @DefaultValue("2") long idleHours,
+                                 @DefaultValue("7") long rememberedIdleDays,
+                                 @DefaultValue("14") long rememberedAbsoluteDays,
+                                 @DefaultValue("false") boolean secureCookie,
+                                 @DefaultValue("") String corsAllowedOrigins,
+                                 @DefaultValue("") String trustedProxies,
+                                 @DefaultValue("0") long passwordMaxAgeDays) {
 
     /** 解析成列表；配置缺失或为空时返回空列表，调用方需自行决定"空"的含义。 */
     public List<String> corsAllowedOriginsList() {

@@ -232,6 +232,31 @@
   border-color: rgba(105, 126, 158, 0.18) !important;
 }
 
+/* 当前启用的统一认证长按钮；上面的圆形按钮样式保留，方便按环境切回原方案。 */
+.login-panel .ant-btn.login-unified-button {
+  width: 100%;
+  color: #214f91;
+  border: 1px solid rgba(22, 119, 255, 0.3);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.82), rgba(232, 244, 255, 0.72));
+  box-shadow: 0 10px 24px rgba(39, 87, 154, 0.1);
+  letter-spacing: 0.5px;
+}
+.login-panel .ant-btn.login-unified-button .anticon {
+  font-size: var(--fs-xl);
+}
+.login-panel .ant-btn.login-unified-button:not(.is-disabled):hover {
+  color: #1677ff;
+  border-color: #69a8ff;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 12px 28px rgba(22, 119, 255, 0.15);
+}
+.login-panel .ant-btn.login-unified-button.is-disabled {
+  color: #91a0b8;
+  border-color: rgba(105, 126, 158, 0.18);
+  background: rgba(245, 248, 252, 0.58);
+  box-shadow: none;
+}
+
 /* --------------------------------- 版权信息 --------------------------------- */
 
 .login-copyright {

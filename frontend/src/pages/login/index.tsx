@@ -17,6 +17,7 @@ const providerIcons: Record<string, ReactNode> = {
   google: <GoogleOutlined />,
   enterprise: <SafetyCertificateOutlined />,
 };
+
 const apiUrl = (path: string) => `${(import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')}${path}`;
 
 export default function LoginPage() {
@@ -28,6 +29,7 @@ export default function LoginPage() {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const location = useLocation();
+  const unifiedProvider = providers.find((provider) => provider.key === 'uias');
   useEffect(() => {
     void getExternalProviders()
       .then(setProviders)
@@ -114,6 +116,23 @@ export default function LoginPage() {
                 登录
               </Button>
             </Form>
+            {/* {unifiedProvider && (
+              <div className='login-social'>
+                <div className='login-social-divider'>统一身份认证</div>
+                <Button
+                  size='large'
+                  block
+                  aria-label={`统一认证登录${unifiedProvider.enabled ? '' : '，未启用'}`}
+                  aria-disabled={!unifiedProvider.enabled}
+                  className={`login-unified-button${unifiedProvider.enabled ? '' : ' is-disabled'}`}
+                  icon={<SafetyCertificateOutlined />}
+                  onClick={() => onThirdParty(unifiedProvider)}
+                >
+                  统一认证登录
+                </Button>
+              </div>
+            )} */}
+
             {providers.length > 0 && (
               <div className='login-social'>
                 <div className='login-social-divider'>其他登录方式</div>
