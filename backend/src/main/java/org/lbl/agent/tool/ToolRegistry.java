@@ -3,6 +3,7 @@ package org.lbl.agent.tool;
 import org.lbl.agent.domain.AgentActor;
 import org.springframework.stereotype.Component;
 
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -33,7 +34,7 @@ public class ToolRegistry {
     public List<AgentTool<?, ?>> visibleTo(AgentActor actor) {
         return tools.values().stream()
                 .filter(tool -> actor.hasAll(tool.descriptor().permissions()))
-                .sorted((left, right) -> left.descriptor().name().compareTo(right.descriptor().name()))
+                .sorted(Comparator.comparing(left -> left.descriptor().name()))
                 .toList();
     }
 

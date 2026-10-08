@@ -1,10 +1,6 @@
 package org.lbl.system.log.adapter.agent;
 
-import org.lbl.system.log.adapter.agent.model.AuditUserTimeline;
-import org.lbl.system.log.adapter.agent.model.LoginAuditAgentReport;
-import org.lbl.system.log.adapter.agent.model.LoginTimelineEvent;
-import org.lbl.system.log.adapter.agent.model.OperationAuditAgentReport;
-import org.lbl.system.log.adapter.agent.model.OperationTimelineEvent;
+import org.lbl.system.log.adapter.agent.model.*;
 import org.lbl.system.log.analysis.model.LoginUserStatistics;
 import org.lbl.system.log.analysis.model.OperationActionStatistics;
 import org.lbl.system.log.analysis.model.OperationUserStatistics;
