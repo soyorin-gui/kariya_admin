@@ -11,13 +11,12 @@ import org.lbl.system.log.adapter.agent.model.AuditRiskScanInput;
 import org.lbl.system.log.adapter.agent.model.ResolvedAuditRange;
 import org.lbl.system.log.risk.AuditRiskAnalysisService;
 import org.lbl.system.log.risk.model.AuditRiskReport;
-import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.util.Set;
 
 /** Runs operation risk rules only when a risk scan is requested. */
-@Component
+@Deprecated(forRemoval = false)
 public class OperationAuditRiskScanTool implements AgentTool<AuditRiskScanInput, AuditRiskReport> {
     private static final ToolDescriptor DESCRIPTOR = new ToolDescriptor(
             "operation_audit_risk_scan",

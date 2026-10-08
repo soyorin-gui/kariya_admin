@@ -12,13 +12,12 @@ import org.lbl.system.log.adapter.agent.model.AuditAnalyzeInput;
 import org.lbl.system.log.adapter.agent.model.ResolvedAuditRange;
 import org.lbl.system.log.analysis.AuditAnalysisService;
 import org.lbl.system.log.analysis.model.OperationAuditOverview;
-import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.util.Set;
 
 /** Operation statistics without a risk scan. */
-@Component
+@Deprecated(forRemoval = false)
 public class OperationAuditOverviewTool implements AgentTool<AuditAnalyzeInput, OperationAuditOverview> {
     private static final ToolDescriptor DESCRIPTOR = new ToolDescriptor(
             "operation_audit_overview",

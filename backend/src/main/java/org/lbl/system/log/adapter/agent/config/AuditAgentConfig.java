@@ -17,6 +17,7 @@ public class AuditAgentConfig {
                 10,
                 50,
                 100,
-                Duration.ofHours(24));
+                Duration.ofDays(31),
+                Duration.ofDays(31));
     }
 }

@@ -28,7 +28,8 @@ class LoginAuditOverviewToolTest {
     @Test
     void formatsDateTimeAndNumericTotalsInOneSummary() {
         ZoneId zone = ZoneId.of("Asia/Shanghai");
-        AuditAgentPolicy policy = new AuditAgentPolicy(zone, 10, 50, 100, Duration.ofHours(24));
+        AuditAgentPolicy policy = new AuditAgentPolicy(zone, 10, 50, 100,
+                Duration.ofHours(24), Duration.ofDays(31));
         AuditTimeRangeResolver ranges = new AuditTimeRangeResolver(policy,
                 Clock.fixed(Instant.parse("2026-10-08T00:00:00Z"), zone));
         AuditAnalysisService statistics = mock(AuditAnalysisService.class);

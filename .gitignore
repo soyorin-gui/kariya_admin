@@ -143,6 +143,7 @@ jspm_packages/
 # 构建产物
 dist/
 build/
+npm-offline/
 out/
 .next/
 .nuxt/

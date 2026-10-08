@@ -2,6 +2,7 @@ package org.lbl.system.log.adapter.agent;
 
 import org.lbl.agent.domain.AgentArtifact;
 import org.lbl.agent.domain.AgentExecutionContext;
+import org.lbl.agent.domain.report.AgentReport;
 import org.lbl.agent.tool.AgentTool;
 import org.lbl.agent.tool.ApprovalPolicy;
 import org.lbl.agent.tool.ToolDescriptor;
@@ -18,7 +19,7 @@ import java.util.Set;
 
 /** 在统计或规则命中后，按用户查看有界的操作证据时间线。 */
 @Component
-public class OperationUserTimelineTool implements AgentTool<AuditUserTimelineInput, AuditUserTimeline<OperationTimelineEvent>> {
+public class OperationUserTimelineTool implements AgentTool<AuditUserTimelineInput, AgentReport> {
     private static final ToolDescriptor DESCRIPTOR = new ToolDescriptor(
             "operation_user_timeline",
             "按 userId 或完整用户名查询指定时间范围内的操作事件时间线。用于核对高频或失败操作的动作、目标、耗时、requestId 和证据日志。",
@@ -27,10 +28,13 @@ public class OperationUserTimelineTool implements AgentTool<AuditUserTimelineInp
 
     private final AuditTimeRangeResolver ranges;
     private final AuditTimelineService timelines;
+    private final AuditAgentReportAssembler reports;
 
-    public OperationUserTimelineTool(AuditTimeRangeResolver ranges, AuditTimelineService timelines) {
+    public OperationUserTimelineTool(AuditTimeRangeResolver ranges, AuditTimelineService timelines,
+                                     AuditAgentReportAssembler reports) {
         this.ranges = ranges;
         this.timelines = timelines;
+        this.reports = reports;
     }
 
     @Override
@@ -44,13 +48,12 @@ public class OperationUserTimelineTool implements AgentTool<AuditUserTimelineInp
     }
 
     @Override
-    public ToolResult<AuditUserTimeline<OperationTimelineEvent>> execute(AuditUserTimelineInput input,
-                                                                         AgentExecutionContext context) {
+    public ToolResult<AgentReport> execute(AuditUserTimelineInput input, AgentExecutionContext context) {
         context.checkpoint();
         ResolvedAuditRange range = ranges.resolve(input);
         AuditUserTimeline<OperationTimelineEvent> timeline = timelines.operationTimeline(input, range);
         context.checkpoint();
         return ToolResult.artifact(AuditToolSummary.operationTimeline(timeline),
-                new AgentArtifact<>("audit.operation-timeline", 1, "用户操作时间线", timeline));
+                new AgentArtifact<>("ui.report", 1, "用户操作时间线", reports.operationTimeline(timeline)));
     }
 }

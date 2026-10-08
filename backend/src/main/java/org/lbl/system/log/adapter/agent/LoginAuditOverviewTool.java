@@ -12,12 +12,11 @@ import org.lbl.system.log.adapter.agent.model.AuditAnalyzeInput;
 import org.lbl.system.log.adapter.agent.model.ResolvedAuditRange;
 import org.lbl.system.log.analysis.AuditAnalysisService;
 import org.lbl.system.log.analysis.model.LoginAuditOverview;
-import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.util.Set;
 
-@Component
+@Deprecated(forRemoval = false)
 public class LoginAuditOverviewTool implements AgentTool<AuditAnalyzeInput, LoginAuditOverview> {
 
     private static final ToolDescriptor DESCRIPTOR = new ToolDescriptor(

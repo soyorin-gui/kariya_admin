@@ -64,13 +64,19 @@ public class AuditTimelineService {
 
     private int validate(ResolvedAuditRange range, Integer requestedLimit) {
         if (Duration.between(range.beginTime(), range.endTime()).compareTo(policy.maxTimelineRange()) > 0) {
-            throw new BusinessException("用户时间线单次最多查询 " + policy.maxTimelineRange().toHours() + " 小时");
+            throw new BusinessException("用户时间线单次最多查询 " + rangeLabel(policy.maxTimelineRange()));
         }
         int limit = requestedLimit == null ? policy.defaultTimelineLimit() : requestedLimit;
         if (limit < 1 || limit > policy.maxTimelineLimit()) {
             throw new BusinessException("用户时间线返回数量必须在 1 到 " + policy.maxTimelineLimit() + " 之间");
         }
         return limit;
+    }
+
+    private String rangeLabel(Duration duration) {
+        return duration.toHours() % 24 == 0
+                ? duration.toDays() + " 天"
+                : duration.toHours() + " 小时";
     }
 
     private LoginTimelineEvent toLoginEvent(LoginLogEntity row) {

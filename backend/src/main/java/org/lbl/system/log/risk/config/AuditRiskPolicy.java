@@ -25,4 +25,14 @@ public record AuditRiskPolicy(
             throw new IllegalArgumentException("风险规则策略不能为空");
         }
     }
+
+    /** 所有已配置规则中的最大观察窗口，用于多分片扫描时向前补齐上下文。 */
+    public Duration maxRuleWindow() {
+        Duration max = Duration.ZERO;
+        for (WindowRiskPolicy rule : new WindowRiskPolicy[]{loginFailureBurst, loginIpAccountSpray,
+                passwordChangeBurst, passwordResetBurst}) {
+            if (rule.enabled() && rule.window().compareTo(max) > 0) max = rule.window();
+        }
+        return max;
+    }
 }

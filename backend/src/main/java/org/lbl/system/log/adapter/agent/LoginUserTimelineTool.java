@@ -2,6 +2,7 @@ package org.lbl.system.log.adapter.agent;
 
 import org.lbl.agent.domain.AgentArtifact;
 import org.lbl.agent.domain.AgentExecutionContext;
+import org.lbl.agent.domain.report.AgentReport;
 import org.lbl.agent.tool.AgentTool;
 import org.lbl.agent.tool.ApprovalPolicy;
 import org.lbl.agent.tool.ToolDescriptor;
@@ -18,7 +19,7 @@ import java.util.Set;
 
 /** 在统计或规则命中后，按用户查看有界的登录证据时间线。 */
 @Component
-public class LoginUserTimelineTool implements AgentTool<AuditUserTimelineInput, AuditUserTimeline<LoginTimelineEvent>> {
+public class LoginUserTimelineTool implements AgentTool<AuditUserTimelineInput, AgentReport> {
     private static final ToolDescriptor DESCRIPTOR = new ToolDescriptor(
             "login_user_timeline",
             "按 userId 或完整用户名查询指定时间范围内的登录事件时间线。用于在登录排行或风险命中后核对具体成功、失败、锁定、来源 IP 和证据日志。",
@@ -27,10 +28,13 @@ public class LoginUserTimelineTool implements AgentTool<AuditUserTimelineInput, 
 
     private final AuditTimeRangeResolver ranges;
     private final AuditTimelineService timelines;
+    private final AuditAgentReportAssembler reports;
 
-    public LoginUserTimelineTool(AuditTimeRangeResolver ranges, AuditTimelineService timelines) {
+    public LoginUserTimelineTool(AuditTimeRangeResolver ranges, AuditTimelineService timelines,
+                                 AuditAgentReportAssembler reports) {
         this.ranges = ranges;
         this.timelines = timelines;
+        this.reports = reports;
     }
 
     @Override
@@ -44,13 +48,12 @@ public class LoginUserTimelineTool implements AgentTool<AuditUserTimelineInput, 
     }
 
     @Override
-    public ToolResult<AuditUserTimeline<LoginTimelineEvent>> execute(AuditUserTimelineInput input,
-                                                                     AgentExecutionContext context) {
+    public ToolResult<AgentReport> execute(AuditUserTimelineInput input, AgentExecutionContext context) {
         context.checkpoint();
         ResolvedAuditRange range = ranges.resolve(input);
         AuditUserTimeline<LoginTimelineEvent> timeline = timelines.loginTimeline(input, range);
         context.checkpoint();
         return ToolResult.artifact(AuditToolSummary.loginTimeline(timeline),
-                new AgentArtifact<>("audit.login-timeline", 1, "用户登录时间线", timeline));
+                new AgentArtifact<>("ui.report", 1, "用户登录时间线", reports.loginTimeline(timeline)));
     }
 }

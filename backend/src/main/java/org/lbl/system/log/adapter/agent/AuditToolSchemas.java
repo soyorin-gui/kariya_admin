@@ -20,6 +20,16 @@ final class AuditToolSchemas {
         return objectSchema(rangeProperties(), List.of("range"));
     }
 
+    static Map<String, Object> report() {
+        Map<String, Object> properties = rangeProperties();
+        properties.put("mode", Map.of(
+                "type", "string",
+                "enum", List.of("STATISTICS", "RISKS", "FULL"),
+                "description", "STATISTICS仅统计，RISKS仅风险，FULL同时执行"));
+        properties.put("topN", integer("排行榜返回数量，默认 10，范围 1-50", 1, 50));
+        return objectSchema(properties, List.of("range", "mode"));
+    }
+
     static Map<String, Object> timeline() {
         Map<String, Object> properties = rangeProperties();
         properties.put("userId", integer("用户 ID；已知时优先使用", 1, null));

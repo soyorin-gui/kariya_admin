@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Spin } from 'antd';
 import type { AgentConversationMessage } from '../../types/agent';
 import { AgentArtifactView } from './artifacts/AgentArtifactView';
+import { AgentMarkdown } from './AgentMarkdown';
 
 interface AiMessageListProps {
   messages: AgentConversationMessage[];
@@ -22,7 +23,7 @@ export function AiMessageList({ messages, loading, toolStatus }: AiMessageListPr
       {messages.map((message) =>
         message.text || message.artifacts?.length ? (
           <div className={`bubble ${message.role}`} key={message.id}>
-            {message.text}
+            {message.text && (message.role === 'assistant' ? <AgentMarkdown>{message.text}</AgentMarkdown> : message.text)}
             {message.artifacts?.map((artifact, index) => (
               <AgentArtifactView key={`${artifact.type}-${artifact.schemaVersion}-${index}`} artifact={artifact} />
             ))}

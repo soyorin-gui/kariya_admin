@@ -116,7 +116,11 @@ public class AgentRunner {
                         results.add(result);
                         messages.add(ModelMessage.tool(call.id(), result.modelSummary()));
                         sink.accept(AgentEvent.toolResult(context.runId(), call.name(), result.modelSummary(), result.artifact()));
-                    } catch (BusinessException | AccessDeniedException ex) {
+                    } catch (BusinessException ex) {
+                        // 参数边界等可恢复业务错误只反馈给模型，让它修正调用；不污染最终用户回答。
+                        String safeMessage = ex.getMessage() == null ? "工具调用被拒绝" : ex.getMessage();
+                        messages.add(ModelMessage.tool(call.id(), safeMessage));
+                    } catch (AccessDeniedException ex) {
                         String safeMessage = ex.getMessage() == null ? "工具调用被拒绝" : ex.getMessage();
                         messages.add(ModelMessage.tool(call.id(), safeMessage));
                         sink.accept(AgentEvent.error(context.runId(), safeMessage));

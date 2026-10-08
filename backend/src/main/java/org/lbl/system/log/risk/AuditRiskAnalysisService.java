@@ -42,7 +42,7 @@ public class AuditRiskAnalysisService {
         List<OperationRiskEvent> operationEvents = operationLogs.findRiskEvents(beginTime, endTime, queryLimit);
         rejectOverflow(loginEvents.size(), operationEvents.size());
 
-        return evaluate(beginTime, endTime, loginEvents, operationEvents);
+        return evaluate(beginTime, endTime, loginEvents, operationEvents, true);
     }
 
     /** 仅扫描登录日志，供只拥有登录日志权限的 Agent 工具复用。 */
@@ -51,7 +51,7 @@ public class AuditRiskAnalysisService {
         List<LoginRiskEvent> loginEvents = loginLogs.findRiskEvents(
                 beginTime, endTime, policy.maxEventsPerSource() + 1);
         if (loginEvents.size() > policy.maxEventsPerSource()) rejectOverflow(loginEvents.size(), 0);
-        return evaluate(beginTime, endTime, loginEvents, List.of());
+        return evaluate(beginTime, endTime, loginEvents, List.of(), true);
     }
 
     /** 仅扫描操作日志，避免操作审计工具越权读取登录日志。 */
@@ -60,12 +60,30 @@ public class AuditRiskAnalysisService {
         List<OperationRiskEvent> operationEvents = operationLogs.findRiskEvents(
                 beginTime, endTime, policy.maxEventsPerSource() + 1);
         if (operationEvents.size() > policy.maxEventsPerSource()) rejectOverflow(0, operationEvents.size());
-        return evaluate(beginTime, endTime, List.of(), operationEvents);
+        return evaluate(beginTime, endTime, List.of(), operationEvents, true);
+    }
+
+    /** 多日编排器专用：允许“一个主分片 + 最大规则窗口”的重叠范围，并暂不裁剪命中。 */
+    public AuditRiskReport scanLoginRiskChunk(LocalDateTime beginTime, LocalDateTime endTime) {
+        validateRange(beginTime, endTime, policy.maxScanRange().plus(policy.maxRuleWindow()));
+        List<LoginRiskEvent> events = loginLogs.findRiskEvents(beginTime, endTime, policy.maxEventsPerSource() + 1);
+        if (events.size() > policy.maxEventsPerSource()) rejectOverflow(events.size(), 0);
+        return evaluate(beginTime, endTime, events, List.of(), false);
+    }
+
+    /** 同 {@link #scanLoginRiskChunk(LocalDateTime, LocalDateTime)}，但只读取操作日志。 */
+    public AuditRiskReport scanOperationRiskChunk(LocalDateTime beginTime, LocalDateTime endTime) {
+        validateRange(beginTime, endTime, policy.maxScanRange().plus(policy.maxRuleWindow()));
+        List<OperationRiskEvent> events = operationLogs.findRiskEvents(
+                beginTime, endTime, policy.maxEventsPerSource() + 1);
+        if (events.size() > policy.maxEventsPerSource()) rejectOverflow(0, events.size());
+        return evaluate(beginTime, endTime, List.of(), events, false);
     }
 
     private AuditRiskReport evaluate(LocalDateTime beginTime, LocalDateTime endTime,
                                      List<LoginRiskEvent> loginEvents,
-                                     List<OperationRiskEvent> operationEvents) {
+                                     List<OperationRiskEvent> operationEvents,
+                                     boolean truncate) {
         AuditRiskContext context = new AuditRiskContext(beginTime, endTime, loginEvents, operationEvents);
         List<AuditRiskFinding> findings = new ArrayList<>();
         for (AuditRiskRule rule : rules) findings.addAll(rule.evaluate(context));
@@ -76,15 +94,21 @@ public class AuditRiskAnalysisService {
                 .thenComparing(AuditRiskFinding::subjectId));
 
         int total = findings.size();
-        List<AuditRiskFinding> returned = findings.stream().limit(policy.maxFindings()).toList();
+        List<AuditRiskFinding> returned = truncate
+                ? findings.stream().limit(policy.maxFindings()).toList()
+                : List.copyOf(findings);
         return new AuditRiskReport(beginTime, endTime, total, returned.size(), total > returned.size(), returned);
     }
 
     private void validateRange(LocalDateTime beginTime, LocalDateTime endTime) {
+        validateRange(beginTime, endTime, policy.maxScanRange());
+    }
+
+    private void validateRange(LocalDateTime beginTime, LocalDateTime endTime, Duration maxRange) {
         if (beginTime == null || endTime == null) throw new BusinessException("风险扫描开始时间和结束时间不能为空");
         if (!beginTime.isBefore(endTime)) throw new BusinessException("风险扫描开始时间必须早于结束时间");
-        if (Duration.between(beginTime, endTime).compareTo(policy.maxScanRange()) > 0) {
-            throw new BusinessException("单次风险扫描时间范围不能超过 " + policy.maxScanRange().toHours() + " 小时");
+        if (Duration.between(beginTime, endTime).compareTo(maxRange) > 0) {
+            throw new BusinessException("单次风险扫描时间范围不能超过 " + maxRange.toHours() + " 小时");
         }
     }
 

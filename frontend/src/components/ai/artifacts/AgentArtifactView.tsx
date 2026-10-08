@@ -1,40 +1,26 @@
-import { Alert, Typography } from 'antd';
-import type { ComponentType } from 'react';
-import type { AgentArtifact } from '../../../types/agent';
+import { Card, Typography } from 'antd';
+import type { AgentArtifact, AgentReport } from '../../../types/agent';
+import { registerArtifactRenderer, resolveArtifactRenderer, type AgentArtifactRendererProps } from './ArtifactRendererRegistry';
+import { ArtifactRawDataDrawer } from './common/ArtifactRawDataDrawer';
+import { GenericReportRenderer } from './renderers/GenericReportRenderer';
 
-export interface AgentArtifactRendererProps<T = unknown> {
-  artifact: AgentArtifact<T>;
-}
+registerArtifactRenderer<AgentReport>('ui.report', 1, GenericReportRenderer);
 
-type Renderer = ComponentType<AgentArtifactRendererProps<never>>;
-const renderers = new Map<string, Renderer>();
+export { registerArtifactRenderer } from './ArtifactRendererRegistry';
+export type { AgentArtifactRendererProps } from './ArtifactRendererRegistry';
 
-function rendererKey(type: string, schemaVersion: number): string {
-  return `${type}@${schemaVersion}`;
-}
-
-/** 业务模块在自身入口注册渲染器，公共 AI 面板无需添加业务 if/else。 */
-export function registerArtifactRenderer<T>(type: string, schemaVersion: number, renderer: ComponentType<AgentArtifactRendererProps<T>>): () => void {
-  const key = rendererKey(type, schemaVersion);
-  renderers.set(key, renderer as Renderer);
-  return () => renderers.delete(key);
-}
-
-/** 未知制品只显示安全的 JSON 文本，不解释 HTML，也不执行其中的脚本。 */
+/** 未知制品安全降级为简短提示，原始 JSON 放入按需打开的抽屉。 */
 export function AgentArtifactView({ artifact }: AgentArtifactRendererProps) {
-  const Renderer = renderers.get(rendererKey(artifact.type, artifact.schemaVersion));
+  const Renderer = resolveArtifactRenderer(artifact.type, artifact.schemaVersion);
   if (Renderer) return <Renderer artifact={artifact as AgentArtifact<never>} />;
   return (
-    <Alert
+    <Card
       className='ai-artifact-fallback'
-      type='info'
-      showIcon
-      message={artifact.title || `${artifact.type} · v${artifact.schemaVersion}`}
-      description={
-        <Typography.Text code className='ai-artifact-json'>
-          {JSON.stringify(artifact.data, null, 2)}
-        </Typography.Text>
-      }
-    />
+      size='small'
+      title={artifact.title || `${artifact.type} · v${artifact.schemaVersion}`}
+      extra={<ArtifactRawDataDrawer data={artifact.data} />}
+    >
+      <Typography.Text type='secondary'>已生成结构化结果，当前版本暂无专用展示组件。</Typography.Text>
+    </Card>
   );
 }

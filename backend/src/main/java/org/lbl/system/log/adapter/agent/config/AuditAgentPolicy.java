@@ -9,11 +9,13 @@ public record AuditAgentPolicy(
         int defaultTopN,
         int defaultTimelineLimit,
         int maxTimelineLimit,
-        Duration maxTimelineRange) {
+        Duration maxTimelineRange,
+        Duration maxReportRange) {
 
     public AuditAgentPolicy {
         if (zoneId == null || maxTimelineRange == null || maxTimelineRange.isNegative()
-                || maxTimelineRange.isZero()) {
+                || maxTimelineRange.isZero() || maxReportRange == null || maxReportRange.isNegative()
+                || maxReportRange.isZero()) {
             throw new IllegalArgumentException("审计 Agent 时间策略无效");
         }
         if (defaultTopN < 1 || defaultTimelineLimit < 1
