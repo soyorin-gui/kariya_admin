@@ -56,8 +56,8 @@ public class LoginAuditOverviewTool implements AgentTool<AuditAnalyzeInput, Logi
         int topN = input.topN() == null ? policy.defaultTopN() : input.topN();
         LoginAuditOverview overview = statistics.loginOverview(range.beginTime(), range.endTime(), topN);
         context.checkpoint();
-        String summary = "已查询登录统计，时间范围[%s, %s)，时区%s；"
-                + "总尝试%d，成功%d，失败%d，锁定%d；登录次数排行：%s。"
+        String summary = ("已查询登录统计，时间范围[%s, %s)，时区%s；"
+                + "总尝试%d，成功%d，失败%d，锁定%d；登录次数排行：%s。")
                 .formatted(range.beginTime(), range.endTime(), range.zoneId(), overview.totals().getTotalAttempts(),
                         overview.totals().getSuccessCount(), overview.totals().getFailureCount(),
                         overview.totals().getLockedCount(), overview.topByAttempts().isEmpty()

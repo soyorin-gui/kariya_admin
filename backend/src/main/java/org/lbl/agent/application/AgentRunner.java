@@ -1,7 +1,8 @@
 package org.lbl.agent.application;
 
 import org.lbl.agent.config.AgentProperties;
-import org.lbl.agent.domain.AgentDefinition;
+import org.lbl.agent.domain.AgentProfile;
+import org.lbl.agent.domain.AgentProfileRegistry;
 import org.lbl.agent.domain.AgentEvent;
 import org.lbl.agent.domain.AgentExecutionContext;
 import org.lbl.agent.domain.AgentMessage;
@@ -26,7 +27,9 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.function.Consumer;
 
@@ -41,17 +44,17 @@ public class AgentRunner {
     private final ModelGateway model;
     private final ToolRegistry tools;
     private final ToolExecutionService toolExecution;
-    private final AgentDefinition definition;
+    private final AgentProfileRegistry profiles;
     private final AgentProperties properties;
     private final List<AgentRunObserver> observers;
 
     public AgentRunner(ModelGateway model, ToolRegistry tools, ToolExecutionService toolExecution,
-                       AgentDefinition definition, AgentProperties properties,
+                       AgentProfileRegistry profiles, AgentProperties properties,
                        List<AgentRunObserver> observers) {
         this.model = model;
         this.tools = tools;
         this.toolExecution = toolExecution;
-        this.definition = definition;
+        this.profiles = profiles;
         this.properties = properties;
         this.observers = List.copyOf(observers);
     }
@@ -59,7 +62,10 @@ public class AgentRunner {
     public AgentRun run(AgentCommand command, AgentExecutionContext context, Consumer<AgentEvent> sink) {
         notifyStarted(context);
         try {
-            List<AgentTool<?, ?>> visibleTools = tools.visibleTo(context.actor());
+            AgentProfile profile = profiles.resolve(command.profileId());
+            List<AgentTool<?, ?>> visibleTools = tools.visibleTo(context.actor()).stream()
+                    .filter(tool -> profile.allows(tool.descriptor().name()))
+                    .toList();
             List<ModelToolDefinition> toolDefinitions = visibleTools.stream()
                     // 审批请求/恢复协议尚未实现前，不把无法执行的工具暴露给模型。
                     .filter(tool -> tool.descriptor().approval() == ApprovalPolicy.NOT_REQUIRED)
@@ -68,11 +74,12 @@ public class AgentRunner {
                     .toList();
 
             List<ModelMessage> messages = new ArrayList<>();
-            messages.add(ModelMessage.system(definition.instructions()));
+            messages.add(ModelMessage.system(profile.instructions()));
             command.history().stream().map(this::toModelMessage).forEach(messages::add);
             messages.add(ModelMessage.user(withPageContext(command.message(), command.pageContext())));
 
             List<ToolResult<?>> results = new ArrayList<>();
+            Set<String> unexpectedlyFailedTools = new HashSet<>();
             for (int step = 0; step < properties.maxSteps(); step++) {
                 context.checkpoint();
                 ModelResponse response = model.complete(new ModelRequest(messages, toolDefinitions), context);
@@ -89,6 +96,18 @@ public class AgentRunner {
                 messages.add(ModelMessage.assistant(assistant.content(), calls));
                 for (ModelToolCall call : calls) {
                     context.checkpoint();
+                    if (unexpectedlyFailedTools.contains(call.name())) {
+                        String safeMessage = "工具本轮执行曾发生内部错误，已停止重复调用：" + call.name();
+                        messages.add(ModelMessage.tool(call.id(), safeMessage));
+                        sink.accept(AgentEvent.error(context.runId(), safeMessage));
+                        continue;
+                    }
+                    if (!profile.allows(call.name())) {
+                        String safeMessage = "当前助手配置不允许调用工具：" + call.name();
+                        messages.add(ModelMessage.tool(call.id(), safeMessage));
+                        sink.accept(AgentEvent.error(context.runId(), safeMessage));
+                        continue;
+                    }
                     AgentTool<?, ?> tool = tools.find(call.name());
                     if (tool != null) notifyToolStarted(context, tool);
                     sink.accept(AgentEvent.toolCall(context.runId(), call.name()));
@@ -104,8 +123,9 @@ public class AgentRunner {
                     } catch (CancellationException ex) {
                         throw ex;
                     } catch (Exception ex) {
+                        unexpectedlyFailedTools.add(call.name());
                         log.warn("Agent tool failed runId={} tool={}", context.runId(), call.name(), ex);
-                        String safeMessage = "工具执行失败，请稍后重试";
+                        String safeMessage = "工具执行失败，本轮不会重复调用，请稍后重试";
                         messages.add(ModelMessage.tool(call.id(), safeMessage));
                         sink.accept(AgentEvent.error(context.runId(), safeMessage));
                     }

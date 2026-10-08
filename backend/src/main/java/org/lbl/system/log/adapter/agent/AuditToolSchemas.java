@@ -4,7 +4,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** 四个审计工具共用的 JSON Schema，避免复制后约束逐渐不一致。 */
+/** 审计工具共用的 JSON Schema，避免复制后约束逐渐不一致。 */
 final class AuditToolSchemas {
     private AuditToolSchemas() {
     }
@@ -13,6 +13,11 @@ final class AuditToolSchemas {
         Map<String, Object> properties = rangeProperties();
         properties.put("topN", integer("排行榜返回数量，默认 10，范围 1-50", 1, 50));
         return objectSchema(properties, List.of("range"));
+    }
+
+    /** Risk scans only need a range, not ranking parameters. */
+    static Map<String, Object> riskScan() {
+        return objectSchema(rangeProperties(), List.of("range"));
     }
 
     static Map<String, Object> timeline() {

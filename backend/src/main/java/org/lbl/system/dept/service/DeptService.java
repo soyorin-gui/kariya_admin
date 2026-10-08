@@ -79,7 +79,7 @@ public class DeptService {
     private Map<Long, String> leaderNames(List<DeptEntity> depts) {
         Set<Long> leaderIds = depts.stream().map(DeptEntity::getLeaderUserId).filter(Objects::nonNull).collect(Collectors.toSet());
         if (leaderIds.isEmpty()) return Map.of();
-        return users.selectBatchIds(leaderIds).stream()
+        return users.selectByIds(leaderIds).stream()
                 .collect(Collectors.toMap(UserEntity::getId, UserEntity::getRealName, (first, second) -> first));
     }
 

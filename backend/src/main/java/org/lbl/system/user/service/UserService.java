@@ -341,7 +341,7 @@ public class UserService {
         Map<Long, List<UserRoleAssignment>> rolesByUser = roles.selectAssignedByUserIds(userIds).stream()
                 .collect(Collectors.groupingBy(UserRoleAssignment::getUserId));
         Set<Long> deptIds = users.stream().map(UserEntity::getDeptId).filter(Objects::nonNull).collect(Collectors.toSet());
-        Map<Long, String> departmentNames = deptIds.isEmpty() ? Map.of() : depts.selectBatchIds(deptIds).stream()
+        Map<Long, String> departmentNames = deptIds.isEmpty() ? Map.of() : depts.selectByIds(deptIds).stream()
                 .collect(Collectors.toMap(DeptEntity::getId, DeptEntity::getDeptName));
         Map<Long, RoleEntity> roleEntities = new HashMap<>();
         rolesByUser.values().stream().flatMap(List::stream).forEach(value -> {

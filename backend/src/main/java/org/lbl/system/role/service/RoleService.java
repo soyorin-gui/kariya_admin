@@ -178,7 +178,7 @@ public class RoleService {
         Set<Long> platformOnly = AccessPolicy.platformOnlyMenuIds(allMenus());
         AccessPolicy.requireNotPlatformOnly(ids, platformOnly);
         if (!actor.superAdmin()) {
-            Set<String> grantedCodes = ids.isEmpty() ? Set.of() : menus.selectBatchIds(ids).stream()
+            Set<String> grantedCodes = ids.isEmpty() ? Set.of() : menus.selectByIds(ids).stream()
                     .filter(menu -> menu.getPermissionCode() != null && menu.getStatus() == 1)
                     .map(MenuEntity::getPermissionCode).collect(Collectors.toSet());
             access.requireRoleGrantScope(actor, role, grantedCodes);

@@ -72,7 +72,7 @@ public class UserExportService {
         Map<Long, List<UserRoleAssignment>> rolesByUser = roles.selectAssignedByUserIds(userIds).stream()
                 .filter(role -> role.getStatus() == 1).collect(Collectors.groupingBy(UserRoleAssignment::getUserId));
         Set<Long> deptIds = values.stream().map(UserEntity::getDeptId).filter(Objects::nonNull).collect(Collectors.toSet());
-        Map<Long, String> departmentNames = deptIds.isEmpty() ? Map.of() : depts.selectBatchIds(deptIds).stream()
+        Map<Long, String> departmentNames = deptIds.isEmpty() ? Map.of() : depts.selectByIds(deptIds).stream()
                 .collect(Collectors.toMap(DeptEntity::getId, DeptEntity::getDeptName));
         return values.stream().map(user -> new UserExportRow(user.getUsername(), user.getRealName(), user.getPhone(), user.getEmail(),
                 rolesByUser.getOrDefault(user.getId(), List.of()).stream().map(UserRoleAssignment::getRoleName).collect(Collectors.joining("、")),
