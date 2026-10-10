@@ -18,7 +18,7 @@
 | --- | --- | --- |
 | `backend/src/main/java/org/lbl/intranet/` | 后端内网领域、接口、服务、持久层与专属公共代码 | 未创建 |
 | `frontend/src/pages/intranet/` | 前端内网页面、专属组件/API/类型 | 未创建 |
-| `backend/src/main/resources/db/intranet/` 或最终确认路径 | 内网表结构、迁移和脱敏样例脚本 | 路径待确认 |
+| `backend/src/main/resources/db/intranet/` | 内网表结构与菜单权限迁移脚本 | 已创建 P1-01 脚本 |
 | `docs/intranet/` | 架构、决策、实施与迁移说明 | 已创建文档框架 |
 
 ### 可能需要同步或在目标工程中适配的公共契约
@@ -39,7 +39,12 @@
 
 | 顺序 | 脚本 | 用途 | 幂等/回滚 | 依赖 | 状态 |
 | --- | --- | --- | --- | --- | --- |
-| 待定 | 待创建 | 交易、版本、字段、数组对象 | 待确认 | P1 模型 | 未开始 |
+| V1 | `db/intranet/V1__create_intranet_transaction.sql` | 交易资产主表 | 独立执行；物理删除，无回滚脚本 | P1-01 | 待执行 |
+| V2 | `db/intranet/V2__seed_intranet_transaction_menu.sql` | 内网交易菜单、按钮权限与超管初始授权 | 独立执行；幂等插入 | V1、既有 RBAC 表 | 待执行 |
+| V3 | `db/intranet/V3__insert_intranet_transaction_demo_data.sql` | 虚构交易演示数据 | 按需执行；不用于生产数据 | V1 | 待执行 |
+| V4 | `db/intranet/V4__create_intranet_transaction_message_field.sql` | 交易请求/响应字段、对象及数组节点 | 独立执行；物理删除，无回滚脚本 | V1 | 待执行 |
+| V5 | `db/intranet/V5__insert_intranet_transaction_message_field_demo_data.sql` | 虚构交易报文字段演示数据 | 按需执行；不用于生产数据 | V1、V3、V4 | 待执行 |
+| V6 | `db/intranet/V6__seed_intranet_transaction_field_design_menu.sql` | 隐藏交易字段设计页及超管初始授权 | 独立执行；幂等插入 | V2 | 待执行 |
 | 待定 | 待创建 | 源系统/HBase/ES 资产 | 待确认 | P1 模型 | 未开始 |
 | 待定 | 待创建 | 需求、审批关联、交易调用 | 待确认 | P2 方案 | 未开始 |
 | 待定 | 待创建 | 血缘节点、关系、证据和有效期 | 待确认 | P3 模型 | 未开始 |

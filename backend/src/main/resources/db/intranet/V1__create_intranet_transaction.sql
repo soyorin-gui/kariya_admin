@@ -1,0 +1,28 @@
+CREATE TABLE intranet_transaction
+(
+    id                         BIGINT AUTO_INCREMENT PRIMARY KEY,
+    transaction_name           VARCHAR(128)  NOT NULL,
+    transaction_code           VARCHAR(64)   NOT NULL,
+    description                VARCHAR(1000) NULL,
+    status                     TINYINT       NOT NULL DEFAULT 0,
+    esf_service_name           VARCHAR(64)   NOT NULL,
+    esf_service_operation_id   VARCHAR(64)   NOT NULL,
+    esf_service_address        VARCHAR(64)   NOT NULL,
+    esf_service_operation_name VARCHAR(64)   NOT NULL,
+    label                      VARCHAR(10)   NULL,
+    business_contact           VARCHAR(32)   NULL,
+    data_timeliness            VARCHAR(50)   NULL,
+    print_file_mode            TINYINT       NOT NULL DEFAULT 0,
+    sort_rule                  VARCHAR(500)  NULL,
+    data_validation_scope      VARCHAR(500)  NULL,
+    query_scope                VARCHAR(100)  NULL,
+    file_generation_scope      VARCHAR(500)  NULL,
+    file_name_rule             VARCHAR(255)  NULL,
+    created_by                 BIGINT        NULL,
+    created_time               DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by                 BIGINT        NULL,
+    updated_time               DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_intranet_transaction_code (transaction_code),
+    INDEX idx_intranet_transaction_name (transaction_name),
+    INDEX idx_intranet_transaction_status (status)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;

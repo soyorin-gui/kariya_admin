@@ -1,0 +1,13 @@
+import request from '../../../utils/request';
+import type { PageResult, Result } from '../../../types/common';
+import type { Transaction, TransactionListItem, TransactionRequest } from './types';
+import type { MessageSide, TransactionMessageField, TransactionMessageFieldRequest } from './types';
+export const getTransactions = (params: { pageNum: number; pageSize: number; keyword?: string; status?: number; sortField?: string; sortOrder?: 'asc' | 'desc' }) => request.get<Result<PageResult<TransactionListItem>>>('/intranet/transactions', { params }).then(r => r.data.data);
+export const getTransaction = (id: number) => request.get<Result<Transaction>>(`/intranet/transactions/${id}`).then(r => r.data.data);
+export const createTransaction = (data: TransactionRequest) => request.post<Result<Transaction>>('/intranet/transactions', data).then(r => r.data);
+export const updateTransaction = (id: number, data: TransactionRequest) => request.put<Result<Transaction>>(`/intranet/transactions/${id}`, data).then(r => r.data);
+export const deleteTransaction = (id: number) => request.delete(`/intranet/transactions/${id}`);
+export const getTransactionMessageFields = (transactionId: number, side: MessageSide) => request.get<Result<TransactionMessageField[]>>(`/intranet/transactions/${transactionId}/message-fields`, { params: { side } }).then(r => r.data.data);
+export const createTransactionMessageField = (transactionId: number, side: MessageSide, data: TransactionMessageFieldRequest) => request.post<Result<TransactionMessageField>>(`/intranet/transactions/${transactionId}/message-fields`, data, { params: { side } }).then(r => r.data);
+export const updateTransactionMessageField = (transactionId: number, side: MessageSide, id: number, data: TransactionMessageFieldRequest) => request.put<Result<TransactionMessageField>>(`/intranet/transactions/${transactionId}/message-fields/${id}`, data, { params: { side } }).then(r => r.data);
+export const deleteTransactionMessageField = (transactionId: number, side: MessageSide, id: number) => request.delete(`/intranet/transactions/${transactionId}/message-fields/${id}`, { params: { side } });

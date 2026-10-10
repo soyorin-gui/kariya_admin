@@ -1,0 +1,7 @@
+@import '../../../system/shared.css';
+.transaction-field-page .table-card { min-height: calc(100vh - 240px); }
+.transaction-field-subtitle { margin-top: 4px; color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.transaction-field-page .ant-table .ant-input,
+.transaction-field-page .ant-table .ant-select-selector { min-height: 32px !important; }
+.transaction-field-page .ant-table .ant-select-selection-item { line-height: 30px !important; }
+.transaction-field-page .ant-table textarea.ant-input { padding-block: 5px; }

@@ -13,6 +13,21 @@
 
 初始化轻量级跨设备 Codex 协同机制，只阅读现有项目并创建协作文档，不创建 intranet 业务代码，不修改现有业务逻辑、数据库、依赖、分支或远程配置，不执行 commit/push。
 
+## P1-01 最新现场（2026-10-10）
+
+- 用户已确认交易主表字段并明确允许建表。交易编码为 `VARCHAR(64)`；状态为 `0-3`、默认 `0`；删除为物理删除；四个 ESF 字段必填；打印文件方式为 `0=无/1=异步/2=同步`，方式为无时服务端清空文件配置。
+- 已新增独立内网 SQL：`V1__create_intranet_transaction.sql` 创建 `intranet_transaction`；`V2__seed_intranet_transaction_menu.sql` 创建内网交易菜单/按钮权限并授予超管。脚本尚未执行。
+- 已新增后端 `org.lbl.intranet.transaction` 的 Entity、Mapper、Request、VO、Service、Controller，提供分页查询、详情、新增、编辑与物理删除，并使用 `intranet:transaction:*` 权限码。
+- 已新增前端 `pages/intranet/transaction` 的列表、查询、编辑弹窗和详情抽屉，复用 SmartTable、Permission、Ant Design 与既有请求封装。
+- 已将交易弹窗调整为与系统用户管理一致的 660px 横向表单及共享 `system-dialog` 间距规范；新增仅含虚构信息的 `V3__insert_intranet_transaction_demo_data.sql` 供界面验证。
+- 交易详情抽屉的 Descriptions 已扩展至抽屉正文全高；交易表单标签已局部改为单行省略展示并补充输入提示；交易状态改为表头筛选，更新时间支持服务端升降序排序。未修改 SmartTable：它已具备将表头 filters/sorter 传入请求的能力。
+- P1-02 已确认单表 `intranet_transaction_message_field` 管理请求、响应、对象、数组及嵌套字段；已新增 V4 建表脚本、后端 CRUD 与详情抽屉内的请求/响应树形字段维护。未对同父节点英文名增加唯一约束（该规则尚未确认）。
+- 已新增 V5 虚构字段演示数据，覆盖请求字段、响应对象、响应数组及数组内对象/字段，依赖 V1、V3、V4 后按需执行。
+- 字段维护已从交易详情抽屉迁至隐藏路由 `/intranet/transaction/fields?transactionId=<id>`，新增 V6 隐藏菜单脚本；页面使用树形行内编辑、保存、取消、删除及新增子字段，不修改动态路由基础设施或 SmartTable。
+- 字段设计行内保存会显式提交既有行或草稿行的 `parentId`，避免因未挂载的表单字段导致后端报“parentId不能为空”；请求/响应切换改为 Ant Design 标签页。字段中文名、英文名使用中文必填提示，说明编辑改为本地多行输入，表格编辑控件的宽度和高度已在内网页面样式内调整。未将弹出式文本域提升为基线通用组件。
+- 验证：`mvn -q -DskipTests compile` 未执行成功，当前终端没有 `mvn` 命令；`npm run build` 执行到 TypeScript 依赖解析，但基线缺少 `react-markdown`、`remark-gfm` 模块，在既有 `AgentMarkdown.tsx` 停止。两者均未显示 P1-01 源码错误。
+- 未修改任何基线业务代码、全局路由、全局权限初始化器、依赖或现有 SQL；仅新增 intranet 目录内容及协作文档。未执行 commit/push。
+
 ## 最近完成内容
 
 - 检查仓库结构、Git 状态和近期提交。

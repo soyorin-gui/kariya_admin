@@ -1,0 +1,14 @@
+@import '../../system/shared.css';
+.transaction-page .ant-table-wrapper .ant-pagination {
+  margin: 16px 0 0 !important;
+}
+.transaction-dialog .ant-form-item-label-wrap,
+.transaction-dialog .ant-form-item-label-wrap > label {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.transaction-detail-drawer .ant-drawer-body { display: flex; }
+.transaction-detail-descriptions { flex: 1; }
+.transaction-detail-descriptions .ant-descriptions-view,
+.transaction-detail-descriptions table { height: 100%; }
