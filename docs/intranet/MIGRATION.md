@@ -1,7 +1,7 @@
 # Intranet 内网迁移清单
 
-> 更新日期：2026-10-09  
-> 当前状态：规划模板。尚未创建 intranet 业务代码、数据库脚本或环境配置；具体条目随各阶段实现持续补充。
+> 更新日期：2026-10-10  
+> 当前状态：P1-01（交易基础信息）与 P1-02（请求/响应报文字段）的代码与 SQL 已实现；代码已通过编译与单元测试，**数据库脚本尚未执行**，因此尚无任何运行验证。本清单随各阶段实现持续补充。
 
 ## 1. 迁移原则
 
@@ -16,9 +16,10 @@
 
 | 路径 | 内容 | 当前状态 |
 | --- | --- | --- |
-| `backend/src/main/java/org/lbl/intranet/` | 后端内网领域、接口、服务、持久层与专属公共代码 | 未创建 |
-| `frontend/src/pages/intranet/` | 前端内网页面、专属组件/API/类型 | 未创建 |
-| `backend/src/main/resources/db/intranet/` | 内网表结构与菜单权限迁移脚本 | 已创建 P1-01 脚本 |
+| `backend/src/main/java/org/lbl/intranet/` | 后端内网领域、接口、服务、持久层与专属公共代码 | 已创建 P1-01 交易与 P1-02 报文字段 |
+| `frontend/src/pages/intranet/` | 前端内网页面、专属组件/API/类型 | 已创建 P1-01 交易列表/详情、P1-02 隐藏字段设计页 |
+| `backend/src/main/resources/db/intranet/` | 内网表结构与菜单权限迁移脚本 | 已创建 P1-01 / P1-02 脚本 |
+| `backend/src/test/java/org/lbl/intranet/` | 内网专属单元测试 | 已创建报文节点环校验测试 |
 | `docs/intranet/` | 架构、决策、实施与迁移说明 | 已创建文档框架 |
 
 ### 可能需要同步或在目标工程中适配的公共契约
@@ -52,12 +53,38 @@
 
 迁移校验至少包括：表/索引/约束存在性、记录数、唯一键冲突、外键或逻辑引用完整性、字符集与时区、失败后的恢复方式。
 
+已知幂等边界（执行前须确认）：V2/V6 的 `NOT EXISTS` 守卫未排除 `sys_menu.deleted = 1`，而该表为逻辑删除且 `route_path` / `permission_code` 上有唯一键。若目标库存在同路径或同权限码的软删除菜单，脚本会静默跳过插入而不报错，导致菜单不出现。执行前请先核查，或先决定守卫的修正方式。
+
 ## 4. 构建和运行依赖
 
 ### 当前已存在、预计复用
 
 - 后端：Java 17、Spring Boot 3.4.4、Spring Security、MyBatis-Plus、MySQL 驱动、Redis、WebSocket。
 - 前端：Node 版本范围 `>=20.19 <25`、React 18、TypeScript、Vite、Ant Design、Redux Toolkit、`@antv/g6` 5.x。
+
+### 本机实测版本（2026-10-10，仅代表当前设备）
+
+| 项 | 实测值 |
+| --- | --- |
+| Node | `v22.23.2` |
+| Java | `17.0.12`（`E:\codesoftware\Java\jdk17`） |
+| Maven | `3.9.14`（`E:\codesoftware\apache-maven-3.9.14\bin\mvn.cmd`，**不在 PATH**） |
+| Maven 本地仓库 | `E:\codesoftware\maven\mavenRepo` |
+| 构建验证 | `mvn -o -B test` 17/17 通过；`npm run build` 通过 |
+| 本地服务 | MySQL 3306 / Redis 6379 / ES 9200 / 应用 8080 均未监听 |
+
+两条已验证命令（另一台设备请重新实测）：
+
+```powershell
+$env:JAVA_HOME = 'E:\codesoftware\Java\jdk17'
+& 'E:\codesoftware\apache-maven-3.9.14\bin\mvn.cmd' -o -B test -f backend\pom.xml
+```
+
+```powershell
+cd frontend; npm.cmd run build
+```
+
+> Windows 注意：本机执行策略禁止直接运行 `.ps1`，`npm` 会被拦，请用 `npm.cmd`；机器上只有 Windows PowerShell 5.1，没有 `pwsh`。
 
 ### 未来可能新增（均待确认，当前不得安装）
 

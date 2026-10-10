@@ -9,7 +9,11 @@ import org.lbl.intranet.transaction.field.vo.TransactionMessageFieldVO;
 import org.lbl.intranet.transaction.mapper.TransactionAssetMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 import static org.lbl.common.util.TextValues.trimToNull;
 
 @Service
@@ -37,7 +41,16 @@ public class TransactionMessageFieldService {
     private void requireParent(Long transactionId, String side, Long parentId, Long selfId) {
         if (parentId == null || parentId == 0) return;
         if (selfId != null && selfId.equals(parentId)) throw new BusinessException("父节点不能选择自身");
-        require(transactionId, side, parentId);
+        Map<Long, Long> parentOf = mapper.selectList(new LambdaQueryWrapper<TransactionMessageFieldEntity>().eq(TransactionMessageFieldEntity::getTransactionId, transactionId).eq(TransactionMessageFieldEntity::getMessageSide, side)).stream().collect(Collectors.toMap(TransactionMessageFieldEntity::getId, field -> field.getParentId() == null ? 0L : field.getParentId()));
+        if (!parentOf.containsKey(parentId)) throw new BusinessException("父节点不存在");
+        if (selfId == null) return;
+        // 从目标父节点沿已有父子关系向上回溯：一旦回到自身，说明父节点落在自己的子树内，挂接后形成环。
+        // 环必须在这里拦住：前端建树时环上的节点找不到根，整棵子树会从界面静默消失，而不是报错。
+        // visited 兼作脏数据兜底，避免历史数据已存在环时死循环。
+        Set<Long> visited = new HashSet<>();
+        for (Long cursor = parentId; cursor != null && cursor != 0 && visited.add(cursor); cursor = parentOf.get(cursor)) {
+            if (cursor.equals(selfId)) throw new BusinessException("父节点不能选择自身的子节点");
+        }
     }
     private TransactionMessageFieldEntity require(Long transactionId, String side, Long id) { TransactionMessageFieldEntity e = mapper.selectOne(new LambdaQueryWrapper<TransactionMessageFieldEntity>().eq(TransactionMessageFieldEntity::getId, id).eq(TransactionMessageFieldEntity::getTransactionId, transactionId).eq(TransactionMessageFieldEntity::getMessageSide, side)); if (e == null) throw new BusinessException("报文字段不存在"); return e; }
     private static void requireSide(String side) { if (!"REQUEST".equals(side) && !"RESPONSE".equals(side)) throw new BusinessException("报文方向无效"); }

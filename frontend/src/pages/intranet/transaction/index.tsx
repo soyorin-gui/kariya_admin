@@ -95,8 +95,10 @@ export default function TransactionPage() {
           columns={columns}
           initialSearch={{ keyword: '' }}
           request={async ({ page, pageSize, search, filters, sorter }) => {
-            const selectedStatus = filters.status;
-            const data = await getTransactions({ pageNum: page, pageSize, keyword: search.keyword, status: selectedStatus ? Number((selectedStatus as Array<string | number>)[0]) : undefined, sortField: sorter?.field, sortOrder: sorter?.order });
+            // filters 在 TableRequestParams 里是可选的，且清空筛选时可能是空数组；
+            // 空数组是真值，直接取 [0] 会得到 NaN 并发出 status=NaN 的请求，所以先收敛为数组再判长度。
+            const selectedStatus = Array.isArray(filters?.status) ? filters.status : [];
+            const data = await getTransactions({ pageNum: page, pageSize, keyword: search.keyword, status: selectedStatus.length ? Number(selectedStatus[0]) : undefined, sortField: sorter?.field, sortOrder: sorter?.order });
             return { list: data.records, total: data.total };
           }}
           onRequestError={(e) => message.error(getApiErrorMessage(e, '无法获取交易列表'))}
