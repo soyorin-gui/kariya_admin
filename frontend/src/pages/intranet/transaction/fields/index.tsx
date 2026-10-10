@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type Key, type ReactNode } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { App, Button, Form, Input, Popconfirm, Select, Space, Table, Tabs, Tag } from 'antd';
 import { ArrowLeftOutlined, DeleteOutlined, EditOutlined, PlusOutlined, SaveOutlined, CloseOutlined } from '@ant-design/icons';
@@ -24,6 +24,10 @@ function toTree(rows: TransactionMessageField[]): TreeField[] {
   });
   return roots;
 }
+/** 默认全展开：收集所有还有子节点的节点 id（与菜单管理页的默认展开语义一致）。 */
+function collectParentIds(nodes: TreeField[]): number[] {
+  return nodes.flatMap((node) => (node.children?.length ? [node.id, ...collectParentIds(node.children)] : []));
+}
 
 export default function TransactionFieldDesignPage() {
   const { message } = App.useApp();
@@ -35,6 +39,7 @@ export default function TransactionFieldDesignPage() {
   const [rows, setRows] = useState<TransactionMessageField[]>([]);
   const [editingId, setEditingId] = useState<number>();
   const [draftParentId, setDraftParentId] = useState<number>();
+  const [expandedRowKeys, setExpandedRowKeys] = useState<readonly Key[]>();
   const [form] = Form.useForm<TransactionMessageFieldRequest>();
   const load = async () => {
     if (!Number.isInteger(transactionId) || transactionId <= 0) return;
@@ -50,9 +55,23 @@ export default function TransactionFieldDesignPage() {
     void load();
   }, [side, transactionId]);
   const editing = editingId !== undefined;
+  const tableRows = useMemo(() => {
+    if (editingId !== DRAFT_ID) return rows;
+    return [...rows, { id: DRAFT_ID, transactionId, messageSide: side, ...empty(draftParentId ?? 0) }];
+  }, [draftParentId, editingId, rows, side, transactionId]);
+  const tree = useMemo(() => toTree(tableRows), [tableRows]);
+  const defaultExpanded = useMemo(() => collectParentIds(tree), [tree]);
   const startCreate = (parentId = 0) => {
     setDraftParentId(parentId);
     setEditingId(DRAFT_ID);
+    // 草稿行会挂在 parentId 下面。父节点若正收起着，编辑器就藏在里面，用户点了"子字段"看不到任何反应。
+    // 所以在开始新增子字段时把该父节点并入展开集合；用户没手动点过箭头时，先把默认全展开物化出来。
+    if (parentId !== 0) {
+      setExpandedRowKeys((keys) => {
+        const current = keys ?? defaultExpanded;
+        return current.includes(parentId) ? current : [...current, parentId];
+      });
+    }
     form.setFieldsValue(empty(parentId));
   };
   const startEdit = (row: TransactionMessageField) => {
@@ -78,11 +97,6 @@ export default function TransactionFieldDesignPage() {
       if (!(error as { errorFields?: unknown }).errorFields) message.error(getApiErrorMessage(error, '保存失败'));
     }
   };
-  const tableRows = useMemo(() => {
-    if (editingId !== DRAFT_ID) return rows;
-    return [...rows, { id: DRAFT_ID, transactionId, messageSide: side, ...empty(draftParentId ?? 0) }];
-  }, [draftParentId, editingId, rows, side, transactionId]);
-  const tree = useMemo(() => toTree(tableRows), [tableRows]);
   const fieldRules = (name: keyof TransactionMessageFieldRequest) => {
     if (name === 'fieldNameCn') return [{ required: true, message: '请输入字段中文名' }];
     if (name === 'fieldNameEn') return [{ required: true, message: '请输入字段英文名' }];
@@ -198,6 +212,8 @@ export default function TransactionFieldDesignPage() {
           activeKey={side}
           onChange={(key) => {
             cancel();
+            // 换方向等于换了一棵全新的树，清掉旧展开集合，让新方向回到"默认全展开"。
+            setExpandedRowKeys(undefined);
             setSide(key as MessageSide);
           }}
           items={[
@@ -213,7 +229,25 @@ export default function TransactionFieldDesignPage() {
           }
         />
         <Form form={form} component={false}>
-          <Table<TreeField> rowKey='id' columns={columns} dataSource={tree} pagination={false} scroll={{ x: 1400 }} locale={{ emptyText: '暂无字段，点击“新增根字段”开始维护。' }} />
+          <Table<TreeField>
+            rowKey='id'
+            columns={columns}
+            dataSource={tree}
+            pagination={false}
+            scroll={{ x: 1400 }}
+            locale={{ emptyText: '暂无字段，点击“新增根字段”开始维护。' }}
+            expandable={{
+              expandedRowKeys: expandedRowKeys ?? defaultExpanded,
+              onExpandedRowsChange: setExpandedRowKeys,
+              indentSize: 18,
+              // 与菜单管理、部门管理、侧边栏子菜单同一个 chevron：样式类来自基线 system/shared.css，
+              // 本页的 index.css 已经 @import 了它，因此不需要新增任何样式。
+              expandIcon: ({ expanded, onExpand, record }) =>
+                record.children?.length ? (
+                  <button type='button' className={`tree-expand-arrow${expanded ? ' is-expanded' : ''}`} aria-label={expanded ? '收起子字段' : '展开子字段'} onClick={(event) => onExpand(record, event)} />
+                ) : null,
+            }}
+          />
         </Form>
       </div>
     </div>

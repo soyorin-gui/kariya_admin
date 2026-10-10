@@ -47,6 +47,21 @@ frontend/src/pages/intranet/
 
 前端选择 `src/pages/intranet/` 是为了同时满足目录隔离与现有动态页面扫描机制，不需要修改路由基础设施。API、类型和专属组件是否全部内聚在该目录，待 P1 首个页面落地时按现有代码风格确认。
 
+### 动态页面扫描对 `shared/` 的约束（2026-10-10 从代码确认）
+
+`componentRegistry` 用 `import.meta.glob(['../pages/**/*.tsx', ...])` 收录页面，并把每个命中的模块强制断言为 `{ default: ComponentType }`。由此产生两个必须注意的后果：
+
+1. `pages/` 下**任何** `.tsx` 都会进入 `availableComponents()`，也就是「菜单管理 → 前端组件」下拉的候选列表；
+2. 只有命名导出、没有 default 导出的组件（例如 `intranet/transaction/TransactionDialog`）同样会出现在该下拉里，一旦被选为菜单组件，`React.lazy` 取不到 `default`，页面渲染失败。
+
+因此 `frontend/src/pages/intranet/shared/` **不能无脑放共享 `.tsx` 组件**。在步骤 P1 之后抽取内网共享组件前，必须先解决这个约束，可选方向：
+
+- 把页面注册表收敛为只收录 `**/index.tsx`——全仓库 9 个菜单 `component` 值全部以 `/index` 结尾（已核对 `init_data.sql` 与 V2/V6），所以该约定是安全的。这属于**基线修改**，需按 D-003 批准；
+- 或把内网共享组件放到 `pages/` 之外（需要先修改本节的目录约定）；
+- 纯逻辑（无 JSX）的共享代码用 `.ts` 文件，不会被 glob 收录。
+
+`availableComponents()` 目前只有 `MenuDialog` 一处消费者（构建期映射的 keys + sort）。
+
 ## 3. 业务模块划分
 
 | 模块 | 主要职责 | 不承担的职责 |
