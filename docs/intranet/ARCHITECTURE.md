@@ -113,7 +113,7 @@ frontend/src/pages/intranet/
 | 当前用户 / 超管判定 | `AccessPolicy`（`actor()`、`superAdmin()`） | 直接复用 |
 | 菜单 / RBAC / 按钮权限 | `sys_menu` + 前端 `Permission` 组件 | 内网用独立权限码（D-011） |
 
-#### 仍然绑定部门调动的地方（接入内网需求前必须处理）
+#### 改造前绑定部门调动的地方（历史代码事实，2026-10-12 已处理）
 
 1. `org.lbl.approval.task.ApprovalTaskMapper`：6 条注解 SQL 全部 `FROM sys_department_change_request` / `sys_department_change_step`，并硬编码 `'DEPARTMENT_CHANGE' business_type` 与 `r.status IN ('PENDING_SOURCE','PENDING_TARGET')`。
 2. `ApprovalTaskView`：字段按部门调动命名（`fromDeptName`、`targetDeptName`、`currentStep`、`stepType`），不是通用任务模型。
@@ -123,7 +123,7 @@ frontend/src/pages/intranet/
 6. 前端 `pages/account/notifications/index.tsx:43`：只有 `businessType === 'DEPARTMENT_CHANGE'` 才拉详情，其它业务类型点通知没有详情可看。
 7. 顶部待办角标：只统计 `pending-count`，即部门调动待办数。
 
-**结论**：所谓"公共审批聚合"目前是一个披着通用名字的**部门调动专用视图**，不能直接承载内网需求。
+**当时结论**：改造前所谓“公共审批聚合”是一个披着通用名字的部门调动专用视图，不能直接承载内网需求。D-034 已完成代码层改造：审批中心现在只查询公共实例/任务表，部门调动通过业务类型接入。
 
 #### 三个方案
 
@@ -143,30 +143,27 @@ frontend/src/pages/intranet/
 - 代价（必须承认）：**跨异构来源的分页与排序**。现有实现靠 SQL `LIMIT offset,size` + `COUNT(*)` 天然正确；多来源合并需要各自取数再内存归并，才能保证全局排序与总数正确。审批待办量级（几十条）下可接受，但要写明阈值——超出该量级应改走方案 2。
 - 基线改动量：中（新增接口 + 改 `ApprovalTaskService` 做合并 + `ApprovalTaskView` 增加可空的 `businessType` 与业务标题、部门字段改为可空 + 前端按 `businessType` 分支渲染），**需要用户批准**。
 
-#### 选型结论：方案 2（2026-10-11 用户决定，见 D-033）
+#### 选型结论：纯方案 2（2026-10-12 用户确认，见 D-034）
 
 用户目标已明确：本项目最终要移入内网正式使用，**审批中心与顶部角标必须能看到内网需求**，因此不接受方案 1 的双入口体验。上述"先方案 1"的建议已被 D-033 取代，保留在此仅作历史记录。
 
-**方案 2 必须遵守的形态约束（否则会破坏可剥离性）**：
+**公共审批模型必须遵守的形态约束**：
 
 - 公共审批表**自包含**：冗余保存业务类型、业务 ID、申请人、业务标题、状态、步骤、办理人、时间等展示与过滤所需的列，**不得 JOIN 任何业务表**（含内网需求表与部门调动表）。
-- 基线聚合 SQL 只允许 `UNION ALL` 各"来源段"；**基线代码中不得出现任何 `intranet_` 表名**。剥离内网模块时只需删掉写入方，基线不需要跟着改。
+- 审批中心只查询 `sys_approval_instance` / `sys_approval_task`，不再直接查询任何业务审批表；**基线代码中不得出现任何 `intranet_` 表名**。
 - 内网侧通过 `business_type + business_id` 引用自己的需求记录；公共表不建指向业务表的外键。
 
-**部门调动怎么做（二选一，推荐 B）**：
+**部门调动迁移**：用户已执行 `db/approval/V1`、`V2` 并确认两个缺失计数均为 0。按 D-035，业务表最终命名为 `sys_department_change`，只保存申请人、原部门、目标部门、原因和审计时间；`status`、`current_step`、`version`、`finished_time` 统一从公共实例读取。旧 `sys_department_change_step` 由一次性 AP3 删除。AP3 执行后旧表结构不再存在，不能直接回滚到旧应用，也不能再次运行依赖旧表名的 AP2。
 
-- **A 迁移**：把部门调动也改写成写公共审批表，由它取代 `sys_department_change_step` 的职责。最干净，但要改现有审批服务，**回归面覆盖整个部门调动审批**。
-- **B 并存（推荐）**：新建公共审批表，`ApprovalTaskMapper` 改为"公共表段 `UNION ALL` 现有部门调动段"，两段用同名别名对齐列；现有部门调动**逻辑与表结构零变更**，回归面最小。代价是聚合 SQL 长期存在两段，未来可再收敛为 A。
+**分页与排序**：审批中心只对公共表执行统一的 `ORDER BY`、`LIMIT` 和 `COUNT(*)`；以后新增审批业务只创建公共实例/任务，不修改审批中心 SQL，不采用长期 `UNION ALL`，也不做 Java 内存归并。
 
-**分页与排序**：这是方案 2 相对方案 3 的决定性优势——聚合仍由 SQL 完成（外层包裹后统一 `ORDER BY` + `LIMIT offset,size` + `COUNT(*)`），分页与总数天然正确，不需要 Java 端内存归并。注意两段的"决策时间"来自不同列，UNION 时必须用统一别名。
-
-**仍需用户确认**：公共审批表的表名、字段、类型、长度、约束与索引（按数据库约束，未确认前不写脚本）。
+**并发控制**：`sys_approval_instance` 不设 `version` 字段。审批、驳回和撤销在同一 Spring 事务内先以 `SELECT ... FOR UPDATE` 锁定实例，再复核实例与当前任务状态；数据库行锁对连接同一 MySQL 主库的多个应用容器共同生效。不增加 Redis 分布式锁或 JVM 本地锁。
 
 #### 实现顺序
 
 1. 确认三类需求的状态机与流转（产品规则，必须用户定）
-2. 一起设计需求表与公共审批表 DDL（用户逐项确认）
-3. 基线：建公共审批表 + 聚合 SQL 改造 + 前端按 `businessType` 渲染；回归验证部门调动审批与角标
+2. ~~设计公共审批表 DDL~~ → 已确认并实现 `sys_approval_instance` / `sys_approval_task`，无 `version`
+3. 基线：~~执行建表/回填脚本~~ → AP1/AP2 已完成；执行 AP3 后部署公共审批代码，回归验证部门调动审批与角标
 4. intranet：需求草稿 / 提交（写公共审批表 + `NotificationService` 通知）
 5. intranet：审批动作（通过 / 驳回）与通知
 6. P2 后半：审批通过后的版本生效、交易调用关系

@@ -138,41 +138,63 @@ CREATE TABLE sys_role_dept
     INDEX idx_role_dept_dept (dept_id)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
 
--- 部门变更审批主单：保存申请人、原/目标部门、当前阶段与最终状态。
-CREATE TABLE sys_department_change_request
+-- 部门变更业务单：只保存申请人、原/目标部门和申请原因；审批状态与步骤由公共审批表承载。
+CREATE TABLE sys_department_change
 (
     id             BIGINT AUTO_INCREMENT PRIMARY KEY,
     requester_id   BIGINT       NOT NULL,
     from_dept_id   BIGINT NULL,
     target_dept_id BIGINT       NOT NULL,
     reason         VARCHAR(500) NOT NULL,
-    status         VARCHAR(32)  NOT NULL,
-    current_step   INT          NOT NULL,
-    version        BIGINT       NOT NULL DEFAULT 1,
-    finished_time  DATETIME NULL,
     created_time   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_time   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    INDEX idx_dept_change_requester (requester_id, status),
-    INDEX idx_dept_change_status (status, updated_time)
+    INDEX idx_dept_change_requester (requester_id)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
 
--- 部门变更审批步骤：每条主单的原部门/目标部门审批人与决策记录。
-CREATE TABLE sys_department_change_step
+-- 公共审批实例：保存与具体业务表解耦的审批列表快照和整体状态。
+CREATE TABLE sys_approval_instance
 (
     id               BIGINT AUTO_INCREMENT PRIMARY KEY,
-    request_id       BIGINT       NOT NULL,
-    step_order       INT          NOT NULL,
-    step_type        VARCHAR(16)  NOT NULL,
-    dept_id          BIGINT NULL,
-    assigned_user_id BIGINT NULL,
-    status           VARCHAR(16)  NOT NULL,
-    decided_by       BIGINT NULL,
-    decision_reason  VARCHAR(500) NULL,
-    decided_time     DATETIME NULL,
-    created_time     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_time     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE KEY uk_dept_change_step (request_id, step_order),
-    INDEX idx_dept_change_assignee (assigned_user_id, status)
+    business_type    VARCHAR(64)   NOT NULL,
+    business_id      BIGINT        NOT NULL,
+    business_title   VARCHAR(255)  NOT NULL,
+    business_summary VARCHAR(1000) NULL,
+    requester_id     BIGINT        NOT NULL,
+    requester_name   VARCHAR(64)   NOT NULL,
+    status           VARCHAR(32)   NOT NULL,
+    current_step     INT           NOT NULL DEFAULT 1,
+    approval_round   INT           NOT NULL DEFAULT 1,
+    submitted_time   DATETIME      NOT NULL,
+    finished_time    DATETIME      NULL,
+    created_time     DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_time     DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_approval_business (business_type, business_id),
+    INDEX idx_approval_requester (requester_id, status, created_time),
+    INDEX idx_approval_status (status, updated_time),
+    INDEX idx_approval_business_type (business_type, status)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
+
+-- 公共审批任务：保存每一审批轮次中的串行步骤及办理结果。
+CREATE TABLE sys_approval_task
+(
+    id                   BIGINT AUTO_INCREMENT PRIMARY KEY,
+    approval_instance_id BIGINT       NOT NULL,
+    approval_round       INT          NOT NULL,
+    step_order           INT          NOT NULL,
+    step_type            VARCHAR(32)  NOT NULL,
+    step_name            VARCHAR(64)  NOT NULL,
+    assigned_user_id     BIGINT       NULL,
+    assigned_user_name   VARCHAR(64)  NULL,
+    status               VARCHAR(16)  NOT NULL,
+    decided_by           BIGINT       NULL,
+    decided_by_name      VARCHAR(64)  NULL,
+    decision_reason      VARCHAR(500) NULL,
+    decided_time         DATETIME     NULL,
+    created_time         DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_time         DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_approval_task_step (approval_instance_id, approval_round, step_order),
+    INDEX idx_approval_task_assignee (assigned_user_id, status, created_time),
+    INDEX idx_approval_task_instance (approval_instance_id, approval_round)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
 
 CREATE TABLE sys_notification

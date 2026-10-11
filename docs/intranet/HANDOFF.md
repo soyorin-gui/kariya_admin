@@ -2,7 +2,19 @@
 
 > 当前工作现场；长期模型见 `ARCHITECTURE.md` / `DECISIONS.md`，计划见 `PLAN.md`，脚本见 `MIGRATION.md`。
 
-## 0. 最新会话（2026-10-11 接手复核，仅文档修复）
+## 0. 最新会话（2026-10-12，公共审批纯方案 2基线）
+
+- Git 基线：开始时 `main` = `origin/main` = `b4e55bf`，工作区干净；本轮未执行 commit、push、pull、merge、rebase、reset、clean 或数据库脚本。
+- 用户确认：需求类型采用 `NEW_TRANSACTION` / `CHANGE_TRANSACTION` / `TRANSACTION_CALL`；需求状态采用 `DRAFT` / `PENDING` / `APPROVED` / `REJECTED` / `CANCELLED`；公共审批采用纯方案 2，不使用长期 `UNION ALL`；实例表不设 `version`，并发使用事务内 `SELECT ... FOR UPDATE`。
+- 基线新增：`approval/core` 下公共实例/任务实体、Mapper 和 `ApprovalWorkflowService`；支持串行步骤、通过、驳回、撤销和驳回后新轮次重提。
+- 部门调动已改为把审批状态和步骤写入公共表；业务详情由精简后的 `sys_department_change` 提供，审批中心只查公共表。旧步骤 Java 实体/Mapper 已删除，业务实体也已删除 `status`、`currentStep`、`version`、`finishedTime` 等重复审批字段。
+- 数据库：用户已执行 `db/approval/V1`、`V2`，并确认 AP2 输出的 `missing_instance_count` / `missing_task_count` 均为 0；新增一次性 AP3，把空表 `sys_department_change_request` 重命名为 `sys_department_change`，删除空表 `sys_department_change_step` 及业务表中的四个重复审批字段。**AP3 尚未执行，本会话未直接查询数据库复核。**
+- 前端：审批中心改为通用业务类型、标题、摘要和步骤列；部门调动详情与操作保持原接口。
+- 验证：`mvn.cmd -o -B -DskipTests compile` BUILD SUCCESS（280 个主源码）；`ApprovalWorkflowServiceTest` 3/3 通过且未启动 Spring/数据库；`npm.cmd run build` 通过（5314 个模块，仅既存 chunk 告警）；`git diff --check` 无内容错误。
+- 未完成：用户执行 AP3、部门调动提交/两级通过/驳回/撤销/角标/通知的浏览器端到端回归、非超管权限验证；需求审批人来源仍待确认，因此尚未开始 `intranet_requirement`。
+- 基线修改披露：本轮按用户明确批准修改公共审批后端、基线初始化 SQL、审批中心前端，并新增公共审批迁移脚本与定向测试；没有修改 intranet P1 业务代码。
+
+## 0.1 上一会话（2026-10-11 接手复核，仅文档修复）
 
 - 会话性质：只读复核 + 文档修复。**未修改任何代码、未执行数据库脚本、未执行任何 Git 写操作。**
 - HEAD：`2be715c`；上一轮的实现代码与 V10/V11 脚本已由用户提交进该提交，工作区干净。
@@ -27,11 +39,11 @@
 
 ## 1. Git 与阶段
 
-- 日期：2026-10-11（Asia/Shanghai）
+- 日期：2026-10-12（Asia/Shanghai）
 - 分支：`main`，跟踪 `origin/main`
-- 上一轮开始时 HEAD：`a3b8d0b`；上一轮改动已由用户提交为 `2be715c`，当前 ahead/behind = 0/0 且工作区干净
-- 当前阶段：P1-03 数据资产字段设计与通用查询能力收尾
-- 上一轮未执行 commit、push、pull、merge、rebase、reset、clean 或数据库脚本
+- 本轮开始时 HEAD：`b4e55bf`，ahead/behind = 0/0；当前存在本轮公共审批未提交改动
+- 当前阶段：P2 公共审批基线实施；AP1/AP2 已由用户执行并确认完整性计数为 0，等待 AP3 执行与部门调动回归
+- 本轮未执行 commit、push、pull、merge、rebase、reset、clean 或数据库脚本
 
 ## 2. 上一轮实现（P1-03 数据资产字段设计与通用查询能力收尾）
 

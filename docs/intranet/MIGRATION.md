@@ -1,7 +1,7 @@
 # Intranet 内网迁移清单
 
-> 更新日期：2026-10-11
-> 当前状态：P1-01/P1-02/P1-03 代码与 SQL 已实现；用户确认 V1~V11 已执行（2026-10-11 确认 V7~V11 已实际执行并验证，本会话未查库复核）。前端构建与后端现存测试已由 2026-10-11 接手复核复现通过；P1-03 定向测试仍缺失。
+> 更新日期：2026-10-12
+> 当前状态：P1-01/P1-02/P1-03 代码与 SQL 已实现；公共审批纯方案 2的 AP1/AP2 已由用户执行并确认完整性计数均为 0，AP3 清理脚本待执行。前端构建、后端编译与公共审批状态机定向测试已通过。
 
 ## 1. 迁移原则
 
@@ -18,7 +18,7 @@
 | --- | --- | --- |
 | `backend/src/main/java/org/lbl/intranet/` | 后端内网领域、接口、服务、持久层与专属公共代码 | 已创建 P1-01 交易、P1-02 报文字段、P1-03 `dataasset`（`hbase`/`es`/`relation` 三个子包） |
 | `frontend/src/pages/intranet/` | 前端内网页面、专属组件/API/类型 | 已创建交易及数据资产页面、两类隐藏字段设计页、交易资源对话框和 intranet 行内编辑共享组件 |
-| `backend/src/main/resources/db/intranet/` | 内网表结构、菜单权限和虚构演示数据脚本 | 已创建 P1-01 / P1-02 / P1-03 共 11 个脚本；V11 待执行 |
+| `backend/src/main/resources/db/intranet/` | 内网表结构、菜单权限和虚构演示数据脚本 | 已创建 P1-01 / P1-02 / P1-03 共 11 个脚本；V1~V11 均已由用户执行 |
 | `backend/src/test/java/org/lbl/intranet/` | 内网专属单元测试 | 当前 HEAD 中不存在；用户已决定本期不补（见 D-030），迁移时不随代码复制 |
 | `docs/intranet/` | 架构、决策、实施与迁移说明 | 已创建文档框架 |
 
@@ -29,7 +29,8 @@
 - 统一返回 `Result` / `PageResult` 与全局异常处理。
 - Spring Security 当前用户、权限码及菜单/RBAC 模型。
 - `NotificationService`、通知表契约、WebSocket 实时通道和前端实时客户端。
-- 审批任务页面/API/聚合契约（具体方案待 P2 决策）。
+- 审批任务页面/API/聚合契约（纯方案 2，见 D-034）。
+- 公共审批基线 `backend/src/main/java/org/lbl/approval/core/`、`approval/task/` 及 `db/approval/`。纯方案 2下所有审批业务都写公共实例/任务表；迁移内网模块时应优先对接目标工程的等价公共审批能力，而不是复制第二套审批中心。
 - 前端请求封装、布局、主题和明确复用的通用组件（含 `frontend/src/components/SmartTable/`、`frontend/src/components/EllipsisText/`）。
 - 全局布局约定：intranet 字段页依赖基线 `frontend/src/styles/global.css` 中的 `page-fill` / `card-scroll` 规则（见 D-031），并由 `pages/intranet/components/InlineEditableTable.tsx` 渲染滚动容器、统一给 Table 传 `sticky`。迁移到目标工程时必须同时带上这组全局规则和该组件的这一版实现，否则"标题固定 + 表头固定 + 表格内滚动"会失效。
 - `G6Graph` 封装与 `@antv/g6` 版本。
@@ -54,6 +55,9 @@
 | V9 | `db/intranet/V9__seed_intranet_data_asset_menu.sql` | 内网数据资产菜单、四个按钮权限与超管初始授权 | 幂等插入；守卫未排除逻辑删除（见下方幂等边界） | V8、V2、既有 RBAC 表 | 已执行（用户确认，本会话未查库复核） |
 | V10 | `db/intranet/V10__insert_intranet_data_asset_demo_data.sql` | 3 张虚构 HBase 表、字段、3 个逻辑 ES 索引及字段；存在 V3 演示交易时补充资源关联 | 按业务唯一键守卫，可重复执行；仅用于本地/测试展示 | V8；关联演示可选依赖 V3 | 已执行（用户确认，本会话未查库复核） |
 | V11 | `db/intranet/V11__seed_intranet_data_asset_field_design_menu.sql` | 数据资产字段设计隐藏路由及超管初始授权 | 幂等插入；沿用既有软删除菜单边界 | V9 | 已执行（用户确认，本会话未查库复核） |
+| AP1 | `db/approval/V1__create_public_approval_tables.sql` | 创建公共审批实例、任务表 | 直接建表；重复执行会报表已存在 | 现有用户表 | 已执行（用户确认，本会话未查库复核） |
+| AP2 | `db/approval/V2__backfill_department_change_approval.sql` | 把现有部门调动实例和步骤回填公共表，并输出缺失计数 | `NOT EXISTS` 守卫；仅可在 AP3 前执行 | AP1、旧部门调动表 | 已执行，两个缺失计数均为 0（用户确认，本会话未查库复核） |
+| AP3 | `db/approval/V3__cleanup_legacy_department_change_approval.sql` | 业务表改名为 `sys_department_change`，删除旧步骤表和四个重复审批字段 | 一次性破坏性清理，不可重复执行；执行前备份 | AP1、AP2 完整性计数均为 0 | **待执行** |
 | 待定 | 待创建 | 源系统资产（是否独立建模待确认） | 待确认 | P1 模型 | 未开始 |
 | 待定 | 待创建 | 需求、审批关联、交易调用 | 待确认 | P2 方案 | 未开始 |
 | 待定 | 待创建 | 血缘节点、关系、证据和有效期 | 待确认 | P3 模型 | 未开始 |
@@ -66,6 +70,8 @@
 V8 相关执行注意：六张表用直接 `CREATE TABLE`（与 V1/V4 一致），重复执行会因表已存在而报错；V8 未建数据库外键，`hbase_table_id` / `es_index_id` / `transaction_id` 的引用完整性完全由服务层校验，迁移校验阶段无法用外键工具核对孤立引用，需要写 SQL 自查。V9 的菜单 `component` 值为 `intranet/dataasset/index`，对应的 `frontend/src/pages/intranet/dataasset/index.tsx` 必须存在于目标构建产物中。
 
 V10 仅包含虚构数据，覆盖 HDS/PBM 两个集市、按年/按月逻辑索引族、可空锁标识、`id` RowKey 字段及四类 ES 数据类型。执行 V10 前必须先执行 V8；如 V3 演示交易不存在，末尾三条资源关联语句会安全地插入 0 行。
+
+公共审批部署顺序为：①备份现有部门调动两张表；②执行 AP1；③执行 AP2；④确认 AP2 最后的 `missing_instance_count` 和 `missing_task_count` 均为 0；⑤执行 AP3；⑥部署切换后的应用代码。用户已完成第②~④步，并确认旧部门调动两张表没有业务数据；当前只剩 AP3 待执行。AP3 会直接重命名业务表、删除旧步骤表和重复列，且不可重复执行；执行后 AP2 因依赖旧表名而不能再次运行。切换后审批中心只查询公共表，旧结构不能作为直接降级的数据源。
 
 ## 4. 构建和运行依赖
 

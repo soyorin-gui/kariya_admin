@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { App, Button, Empty, Input, Modal, Space, Steps, Table, Tabs, Tag, Typography } from 'antd';
+import { App, Button, Empty, Input, Modal, Steps, Table, Tabs, Tag, Typography } from 'antd';
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import { CheckOutlined, EyeOutlined, ReloadOutlined, StopOutlined } from '@ant-design/icons';
 import { getApprovalTasks, type ApprovalScope, type ApprovalTask } from '../../../api/approvals';
@@ -9,8 +9,7 @@ import { EllipsisText } from '../../../components/EllipsisText';
 import '../../system/shared.css';
 
 const requestStatus: Record<string, { text: string; color: string }> = {
-  PENDING_SOURCE: { text: '原部门审批中', color: 'processing' },
-  PENDING_TARGET: { text: '目标部门审批中', color: 'processing' },
+  PENDING: { text: '审批中', color: 'processing' },
   APPROVED: { text: '已通过', color: 'success' },
   REJECTED: { text: '已拒绝', color: 'error' },
   CANCELLED: { text: '已撤销', color: 'default' },
@@ -48,7 +47,11 @@ export default function ApprovalCenterPage() {
 
   const openDetail = async (task: ApprovalTask) => {
     try {
-      setDetail(await getDepartmentChange(task.requestId));
+      if (task.businessType !== 'DEPARTMENT_CHANGE') {
+        message.info('该业务类型的详情页面尚未接入');
+        return;
+      }
+      setDetail(await getDepartmentChange(task.businessId));
     } catch (error) {
       message.error(getApiErrorMessage(error, '审批详情加载失败'));
     }
@@ -85,18 +88,20 @@ export default function ApprovalCenterPage() {
   };
 
   const columns: ColumnsType<ApprovalTask> = [
+    {
+      title: '业务类型',
+      dataIndex: 'businessType',
+      width: 120,
+      render: (value) => <Tag>{value === 'DEPARTMENT_CHANGE' ? '部门调动' : value}</Tag>,
+    },
     { title: '申请人', dataIndex: 'requesterName', width: 120 },
     {
-      title: '部门变更',
-      render: (_, row) => (
-        <Space size={6}>
-          <span>{row.fromDeptName}</span>
-          <span>→</span>
-          <strong>{row.targetDeptName}</strong>
-        </Space>
-      ),
+      title: '审批事项',
+      dataIndex: 'businessTitle',
+      ellipsis: { showTitle: false },
+      render: (value) => <EllipsisText value={value} />,
     },
-    { title: '申请说明', dataIndex: 'reason', ellipsis: { showTitle: false }, render: (value) => <EllipsisText value={value} /> },
+    { title: '申请说明', dataIndex: 'businessSummary', ellipsis: { showTitle: false }, render: (value) => <EllipsisText value={value} /> },
     {
       title: scope === 'processed' ? '处理结果' : '状态',
       width: 140,
@@ -106,7 +111,12 @@ export default function ApprovalCenterPage() {
         return <Tag color={status.color}>{status.text}</Tag>;
       },
     },
-    { title: '当前处理人', dataIndex: 'assignedUserName', width: 140 },
+    { title: scope === 'processed' ? '审批步骤' : '当前步骤', dataIndex: 'stepName', width: 140 },
+    {
+      title: scope === 'processed' ? '实际办理人' : '当前处理人',
+      dataIndex: scope === 'processed' ? 'decidedByName' : 'assignedUserName',
+      width: 140,
+    },
     { title: '提交时间', dataIndex: 'createdTime', width: 180, render: (value: string) => value?.replace('T', ' ') },
     {
       title: '操作',
@@ -158,13 +168,13 @@ export default function ApprovalCenterPage() {
           ]}
         />
         <Table
-          rowKey={(row) => `${row.requestId}-${row.stepType}-${row.decidedTime ?? ''}`}
+          rowKey={(row) => `${row.approvalInstanceId}-${row.approvalRound}-${row.stepType}-${row.decidedTime ?? ''}`}
           columns={columns}
           dataSource={records}
           loading={loading}
           pagination={pagination}
           locale={{ emptyText: <Empty description={scope === 'pending' ? '暂无待办审批' : '暂无记录'} /> }}
-          scroll={{ x: 980 }}
+          scroll={{ x: 1180 }}
         />
       </div>
       <Modal

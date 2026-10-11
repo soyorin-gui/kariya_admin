@@ -1,11 +1,26 @@
 @import '../../../system/shared.css';
 /* 高度与滚动由 global.css 的 page-fill 约定负责，本页不再手算 calc(100vh - N)：
    见 .dataasset-field-page 根节点上的 page-fill 类和卡片内的 .card-scroll。 */
-.dataasset-field-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
-.dataasset-field-toolbar > .ant-input-affix-wrapper { width: 320px; }
+.dataasset-field-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.dataasset-field-toolbar > .ant-input-affix-wrapper {
+  width: 320px;
+}
 .dataasset-field-page .ant-table .ant-input,
-.dataasset-field-page .ant-table .ant-select-selector { min-height: 32px !important; }
+.dataasset-field-page .ant-table .ant-select-selector {
+  min-height: 32px !important;
+}
 @media (max-width: 600px) {
-  .dataasset-field-toolbar { align-items: stretch; flex-direction: column; }
-  .dataasset-field-toolbar > .ant-input-affix-wrapper { width: 100%; }
+  .dataasset-field-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .dataasset-field-toolbar > .ant-input-affix-wrapper {
+    width: 100%;
+  }
 }

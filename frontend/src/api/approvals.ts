@@ -4,15 +4,17 @@ import type { PageResult, Result } from '../types/common';
 export type ApprovalScope = 'pending' | 'processed' | 'mine';
 
 export interface ApprovalTask {
-  requestId: number;
-  businessType: 'DEPARTMENT_CHANGE';
+  approvalInstanceId: number;
+  businessId: number;
+  businessType: string;
+  businessTitle: string;
+  businessSummary?: string;
   requesterName: string;
-  fromDeptName: string;
-  targetDeptName: string;
-  reason: string;
   requestStatus: string;
   currentStep: number;
-  stepType: 'SOURCE' | 'TARGET';
+  approvalRound: number;
+  stepType: string;
+  stepName: string;
   stepStatus: string;
   assignedUserName?: string;
   decidedByName?: string;
