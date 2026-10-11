@@ -14,13 +14,6 @@
 .danger {
   color: var(--error) !important;
 }
-/* 可选的两列栅格：字段少、彼此无从属关系时可用它压短弹窗。
-   当前四个弹窗都改成了一行一个字段（横向 label），所以暂时没有使用者。 */
-.form-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-}
 .dialog-loading {
   height: 230px;
   display: flex;
@@ -224,9 +217,6 @@
   }
   .table-toolbar > .ant-input-affix-wrapper {
     width: 100%;
-  }
-  .form-grid {
-    grid-template-columns: 1fr;
   }
   /* 窄屏下把 label 列再收窄一点，给输入框让出空间：labelCol 是内联样式，必须 !important 才能覆盖。 */
   .system-dialog .ant-form-item-label {

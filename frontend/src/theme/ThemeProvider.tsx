@@ -166,9 +166,3 @@ export function useThemePreference(): ThemeContextValue {
   return value;
 }
 
-/**
- * 兼容性再导出：`BRAND_COLORS` 的定义已经搬到 `./tokens`（那里才是设计令牌的家），
- * 但历史上有文件从本模块引入它。保留这一行，避免为了搬家去改一圈 import。
- * 新代码请直接从 `../theme/tokens` 引入。
- */
-export { BRAND_COLORS } from './tokens';

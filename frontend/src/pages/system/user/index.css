@@ -1,21 +1,6 @@
 @import '../shared.css';
 /* 弹窗外壳（圆角、阴影、标题、内边距、内容区滚动上限）统一由 shared.css 的 .system-dialog 提供，
    UserDialog 已经带上该类名，这里只保留用户模块自己的样式。 */
-.password-note {
-  padding: 11px 13px;
-  border-radius: 8px;
-  background: var(--surface-soft);
-  color: var(--muted);
-  font-size: var(--fs-sm);
-  line-height: 1.6;
-}
-.password-note svg {
-  color: var(--brand);
-  margin-right: 7px;
-}
-.password-note strong {
-  color: var(--ink-soft);
-}
 .user-page .ant-table-wrapper .ant-pagination {
   margin: 16px 0 0 !important;
 }

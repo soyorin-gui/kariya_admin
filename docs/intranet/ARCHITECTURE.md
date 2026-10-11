@@ -101,14 +101,75 @@ frontend/src/pages/intranet/
 - 审批通过后才允许形成或激活版本；草稿版本的创建时机、版本号规则、回滚策略均为待确认。
 - 版本应能追溯来源需求和审批结论，历史版本不可被无痕覆盖。
 
-### 现有审批复用边界
+### 现有审批复用边界（2026-10-11 代码复核 + 方案评审）
 
-- 已有 `approval` 包定义了共享审批生命周期思想，通知服务和 `approval.request.updated` 实时事件具有一定通用性。
-- 但当前 `ApprovalTaskMapper` 直接查询部门调动请求/步骤表，并固定 `DEPARTMENT_CHANGE` 业务类型；因此目前不能直接宣称支持内网需求。
-- P2 前必须比较两种方案：
-  1. 在 `intranet` 内实现审批适配，并接入现有通知与页面交互；
-  2. 将公共审批任务聚合扩展为多业务类型。
-- 方案 2 会修改基线公共代码，必须先说明影响和替代方案并取得用户批准。
+#### 可以直接复用的（业务无关，已从代码确认）
+
+| 能力 | 位置 | 复用方式 |
+| --- | --- | --- |
+| 通知落库 + 实时推送 | `NotificationService.create(recipientId, type, title, content, businessType, businessId)` | 完全业务无关，任意 `businessType` 可用；落库后 `afterCommit` 推送 `notification.created`，payload 带 `businessType` / `businessId` |
+| 审批状态刷新事件 | `NotificationService.approvalUpdated(users, requestId)`（事件名 `approval.request.updated`） | 源码注释明确"事件不绑定某一种审批类型"，可复用 |
+| 操作日志 | `@OperationLog` | 直接复用 |
+| 当前用户 / 超管判定 | `AccessPolicy`（`actor()`、`superAdmin()`） | 直接复用 |
+| 菜单 / RBAC / 按钮权限 | `sys_menu` + 前端 `Permission` 组件 | 内网用独立权限码（D-011） |
+
+#### 仍然绑定部门调动的地方（接入内网需求前必须处理）
+
+1. `org.lbl.approval.task.ApprovalTaskMapper`：6 条注解 SQL 全部 `FROM sys_department_change_request` / `sys_department_change_step`，并硬编码 `'DEPARTMENT_CHANGE' business_type` 与 `r.status IN ('PENDING_SOURCE','PENDING_TARGET')`。
+2. `ApprovalTaskView`：字段按部门调动命名（`fromDeptName`、`targetDeptName`、`currentStep`、`stepType`），不是通用任务模型。
+3. `ApprovalTaskController`：`/api/account/approvals` 与 `/pending-count` 都没有业务类型过滤，返回值只可能是部门调动。
+4. 前端 `api/approvals.ts`：`businessType: 'DEPARTMENT_CHANGE'`、`stepType: 'SOURCE' | 'TARGET'` 是**字面量类型**，类型层面就只允许部门调动。
+5. 前端 `pages/account/approvals/index.tsx`：列是"原部门 → 目标部门"，详情 / 通过 / 拒绝调的是 `api/departmentChange`。
+6. 前端 `pages/account/notifications/index.tsx:43`：只有 `businessType === 'DEPARTMENT_CHANGE'` 才拉详情，其它业务类型点通知没有详情可看。
+7. 顶部待办角标：只统计 `pending-count`，即部门调动待办数。
+
+**结论**：所谓"公共审批聚合"目前是一个披着通用名字的**部门调动专用视图**，不能直接承载内网需求。
+
+#### 三个方案
+
+**方案 1：intranet 内完全自建（零基线改动）**
+- 在 `org.lbl.intranet.requirement` 内自建申请 / 步骤表与服务、Controller，前端建 `/intranet/requirement/*`；通知走 `NotificationService.create`（`businessType = INTRANET_REQUIREMENT`），刷新走 `approvalUpdated`。
+- 优点：基线零改动，完全符合 D-002 / D-003 与可剥离要求，不影响部门调动。
+- 代价：审批中心页面与顶部角标看不到内网需求，用户有两个审批入口；通知中心的"查看详情"对内网业务类型不生效（要么只显示文字，要么改上表第 6 条那**一行**基线代码）。
+
+**方案 2：把公共聚合改成通用审批任务表（基线大改）**
+- 新建通用审批任务表，各业务把自己的待办登记进去；审批中心只查该表，分页 / 排序 / 总数天然正确，且基线不依赖任何业务表。
+- 优点：最彻底，体验完全统一，长期最干净。
+- 代价：**新表结构必须由用户确认**；要迁移现有部门调动数据并改现有部门调动服务逐处写入；回归面覆盖整个部门调动审批（后端 + 审批页 + 角标 + 通知跳转）。工作量与风险最高。
+
+**方案 3：基线提供"待办来源"扩展点，内网实现接口（依赖反转）**
+- 基线定义类似 `ApprovalPendingSource`（给定 actor 返回该业务的待办 / 已办分页项与计数），部门调动作为内置实现，内网模块提供自己的实现；基线只依赖接口，不引用任何内网表。
+- 优点：审批中心与角标统一；剥离内网模块时实现类随之消失，基线不受影响，不破坏可剥离性。
+- 代价（必须承认）：**跨异构来源的分页与排序**。现有实现靠 SQL `LIMIT offset,size` + `COUNT(*)` 天然正确；多来源合并需要各自取数再内存归并，才能保证全局排序与总数正确。审批待办量级（几十条）下可接受，但要写明阈值——超出该量级应改走方案 2。
+- 基线改动量：中（新增接口 + 改 `ApprovalTaskService` 做合并 + `ApprovalTaskView` 增加可空的 `businessType` 与业务标题、部门字段改为可空 + 前端按 `businessType` 分支渲染），**需要用户批准**。
+
+#### 选型结论：方案 2（2026-10-11 用户决定，见 D-033）
+
+用户目标已明确：本项目最终要移入内网正式使用，**审批中心与顶部角标必须能看到内网需求**，因此不接受方案 1 的双入口体验。上述"先方案 1"的建议已被 D-033 取代，保留在此仅作历史记录。
+
+**方案 2 必须遵守的形态约束（否则会破坏可剥离性）**：
+
+- 公共审批表**自包含**：冗余保存业务类型、业务 ID、申请人、业务标题、状态、步骤、办理人、时间等展示与过滤所需的列，**不得 JOIN 任何业务表**（含内网需求表与部门调动表）。
+- 基线聚合 SQL 只允许 `UNION ALL` 各"来源段"；**基线代码中不得出现任何 `intranet_` 表名**。剥离内网模块时只需删掉写入方，基线不需要跟着改。
+- 内网侧通过 `business_type + business_id` 引用自己的需求记录；公共表不建指向业务表的外键。
+
+**部门调动怎么做（二选一，推荐 B）**：
+
+- **A 迁移**：把部门调动也改写成写公共审批表，由它取代 `sys_department_change_step` 的职责。最干净，但要改现有审批服务，**回归面覆盖整个部门调动审批**。
+- **B 并存（推荐）**：新建公共审批表，`ApprovalTaskMapper` 改为"公共表段 `UNION ALL` 现有部门调动段"，两段用同名别名对齐列；现有部门调动**逻辑与表结构零变更**，回归面最小。代价是聚合 SQL 长期存在两段，未来可再收敛为 A。
+
+**分页与排序**：这是方案 2 相对方案 3 的决定性优势——聚合仍由 SQL 完成（外层包裹后统一 `ORDER BY` + `LIMIT offset,size` + `COUNT(*)`），分页与总数天然正确，不需要 Java 端内存归并。注意两段的"决策时间"来自不同列，UNION 时必须用统一别名。
+
+**仍需用户确认**：公共审批表的表名、字段、类型、长度、约束与索引（按数据库约束，未确认前不写脚本）。
+
+#### 实现顺序
+
+1. 确认三类需求的状态机与流转（产品规则，必须用户定）
+2. 一起设计需求表与公共审批表 DDL（用户逐项确认）
+3. 基线：建公共审批表 + 聚合 SQL 改造 + 前端按 `businessType` 渲染；回归验证部门调动审批与角标
+4. intranet：需求草稿 / 提交（写公共审批表 + `NotificationService` 通知）
+5. intranet：审批动作（通过 / 驳回）与通知
+6. P2 后半：审批通过后的版本生效、交易调用关系
 
 ## 5. ES 检索与 HBase RowKey 回表
 
