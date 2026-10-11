@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type Key, type ReactNode } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { App, Button, Form, Input, Popconfirm, Select, Space, Table, Tabs, Tag } from 'antd';
-import { ArrowLeftOutlined, DeleteOutlined, EditOutlined, PlusOutlined, SaveOutlined, CloseOutlined } from '@ant-design/icons';
+import { App, Button, Form, Input, Popconfirm, Popover, Select, Space, Table, Tabs, Tag, Tooltip } from 'antd';
+import { ArrowLeftOutlined, DeleteOutlined, EditOutlined, ExpandOutlined, PlusOutlined, SaveOutlined, CloseOutlined, SearchOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { createTransactionMessageField, deleteTransactionMessageField, getTransaction, getTransactionMessageFields, updateTransactionMessageField } from '../api';
 import type { MessageSide, Transaction, TransactionMessageField, TransactionMessageFieldRequest } from '../types';
@@ -28,6 +28,51 @@ function toTree(rows: TransactionMessageField[]): TreeField[] {
 function collectParentIds(nodes: TreeField[]): number[] {
   return nodes.flatMap((node) => (node.children?.length ? [node.id, ...collectParentIds(node.children)] : []));
 }
+function filterTree(nodes: TreeField[], keyword: string, editingId?: number): TreeField[] {
+  const normalized = keyword.trim().toLowerCase();
+  const prune = (items: TreeField[]): TreeField[] =>
+    items.flatMap((item) => {
+      const children = prune(item.children ?? []);
+      const matchesKeyword = !normalized || [item.fieldNameCn, item.fieldNameEn].some((value) => value.toLowerCase().includes(normalized));
+      return item.id === editingId || matchesKeyword || children.length ? [{ ...item, children: children.length ? children : undefined }] : [];
+    });
+  return prune(nodes);
+}
+function countNodes(nodes: TreeField[]): number {
+  return nodes.reduce((total, node) => total + 1 + countNodes(node.children ?? []), 0);
+}
+function ExpandableTextInput({ value, onChange, maxLength = 1000, placeholder }: { value?: string; onChange?: (value: string) => void; maxLength?: number; placeholder?: string }) {
+  const current = value ?? '';
+  const expandedEditor = (
+    <div className='transaction-field-description-editor'>
+      <Input.TextArea value={current} onChange={(event) => onChange?.(event.target.value)} autoSize={{ minRows: 5, maxRows: 10 }} maxLength={maxLength} showCount placeholder={placeholder} />
+    </div>
+  );
+  return (
+    <Input
+      size='small'
+      value={current}
+      onChange={(event) => onChange?.(event.target.value)}
+      maxLength={maxLength}
+      placeholder={placeholder}
+      suffix={
+        <Popover trigger='click' placement='topRight' content={expandedEditor}>
+          <button type='button' className='transaction-field-description-expand' aria-label='展开编辑字段说明' onMouseDown={(event) => event.preventDefault()}>
+            <ExpandOutlined />
+          </button>
+        </Popover>
+      }
+    />
+  );
+}
+function DescriptionText({ value }: { value?: string }) {
+  if (!value) return '-';
+  return (
+    <Tooltip placement='topLeft' styles={{ root: { maxWidth: 520 } }} title={<div className='transaction-field-description-tooltip'>{value}</div>}>
+      <span className='transaction-field-description-text'>{value}</span>
+    </Tooltip>
+  );
+}
 
 export default function TransactionFieldDesignPage() {
   const { message } = App.useApp();
@@ -37,18 +82,23 @@ export default function TransactionFieldDesignPage() {
   const [transaction, setTransaction] = useState<Transaction>();
   const [side, setSide] = useState<MessageSide>('REQUEST');
   const [rows, setRows] = useState<TransactionMessageField[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [keyword, setKeyword] = useState('');
   const [editingId, setEditingId] = useState<number>();
   const [draftParentId, setDraftParentId] = useState<number>();
   const [expandedRowKeys, setExpandedRowKeys] = useState<readonly Key[]>();
   const [form] = Form.useForm<TransactionMessageFieldRequest>();
   const load = async () => {
     if (!Number.isInteger(transactionId) || transactionId <= 0) return;
+    setLoading(true);
     try {
       const [detail, fields] = await Promise.all([getTransaction(transactionId), getTransactionMessageFields(transactionId, side)]);
       setTransaction(detail);
       setRows(fields);
     } catch (error) {
       message.error(getApiErrorMessage(error, '无法加载交易字段设计'));
+    } finally {
+      setLoading(false);
     }
   };
   useEffect(() => {
@@ -61,6 +111,10 @@ export default function TransactionFieldDesignPage() {
   }, [draftParentId, editingId, rows, side, transactionId]);
   const tree = useMemo(() => toTree(tableRows), [tableRows]);
   const defaultExpanded = useMemo(() => collectParentIds(tree), [tree]);
+  const filteredTree = useMemo(() => filterTree(tree, keyword, editingId), [editingId, keyword, tree]);
+  const filtering = keyword.trim().length > 0;
+  const filteredExpanded = useMemo(() => collectParentIds(filteredTree), [filteredTree]);
+  const visibleCount = useMemo(() => countNodes(filteredTree), [filteredTree]);
   const startCreate = (parentId = 0) => {
     setDraftParentId(parentId);
     setEditingId(DRAFT_ID);
@@ -144,7 +198,7 @@ export default function TransactionFieldDesignPage() {
       title: '说明',
       dataIndex: 'description',
       width: 300,
-      render: (v, row) => cell(row, 'description', v || '-', <Input.TextArea autoSize={{ minRows: 1, maxRows: 4 }} maxLength={1000} placeholder='字段说明' />),
+      render: (v, row) => cell(row, 'description', <DescriptionText value={v} />, <ExpandableTextInput maxLength={1000} placeholder='字段说明' />),
     },
     {
       title: '操作',
@@ -212,6 +266,7 @@ export default function TransactionFieldDesignPage() {
           activeKey={side}
           onChange={(key) => {
             cancel();
+            setLoading(true);
             // 换方向等于换了一棵全新的树，清掉旧展开集合，让新方向回到"默认全展开"。
             setExpandedRowKeys(undefined);
             setSide(key as MessageSide);
@@ -228,17 +283,32 @@ export default function TransactionFieldDesignPage() {
             </Permission>
           }
         />
+        <div className='transaction-field-toolbar'>
+          <Space wrap>
+            <Input
+              className='transaction-field-search'
+              value={keyword}
+              onChange={(event) => setKeyword(event.target.value)}
+              prefix={<SearchOutlined />}
+              allowClear
+              disabled={editing}
+              placeholder='搜索字段中文名或英文名'
+            />
+            {filtering && <span className='transaction-field-filter-count'>显示 {visibleCount} / {tableRows.length} 个节点</span>}
+          </Space>
+        </div>
         <Form form={form} component={false}>
           <Table<TreeField>
             rowKey='id'
             columns={columns}
-            dataSource={tree}
+            dataSource={filteredTree}
+            loading={{ spinning: loading, tip: '正在加载字段数据…' }}
             pagination={false}
             scroll={{ x: 1400 }}
             locale={{ emptyText: '暂无字段，点击“新增根字段”开始维护。' }}
             expandable={{
-              expandedRowKeys: expandedRowKeys ?? defaultExpanded,
-              onExpandedRowsChange: setExpandedRowKeys,
+              expandedRowKeys: filtering ? filteredExpanded : expandedRowKeys ?? defaultExpanded,
+              onExpandedRowsChange: filtering ? undefined : setExpandedRowKeys,
               indentSize: 18,
               // 与菜单管理、部门管理、侧边栏子菜单同一个 chevron：样式类来自基线 system/shared.css，
               // 本页的 index.css 已经 @import 了它，因此不需要新增任何样式。

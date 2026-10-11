@@ -1,6 +1,6 @@
 import request from '../../../utils/request';
 import type { PageResult, Result } from '../../../types/common';
-import type { Transaction, TransactionListItem, TransactionRequest } from './types';
+import type { Transaction, TransactionDataResources, TransactionListItem, TransactionRequest } from './types';
 import type { MessageSide, TransactionMessageField, TransactionMessageFieldRequest } from './types';
 export const getTransactions = (params: { pageNum: number; pageSize: number; keyword?: string; status?: number; sortField?: string; sortOrder?: 'asc' | 'desc' }) => request.get<Result<PageResult<TransactionListItem>>>('/intranet/transactions', { params }).then(r => r.data.data);
 export const getTransaction = (id: number) => request.get<Result<Transaction>>(`/intranet/transactions/${id}`).then(r => r.data.data);
@@ -11,3 +11,5 @@ export const getTransactionMessageFields = (transactionId: number, side: Message
 export const createTransactionMessageField = (transactionId: number, side: MessageSide, data: TransactionMessageFieldRequest) => request.post<Result<TransactionMessageField>>(`/intranet/transactions/${transactionId}/message-fields`, data, { params: { side } }).then(r => r.data);
 export const updateTransactionMessageField = (transactionId: number, side: MessageSide, id: number, data: TransactionMessageFieldRequest) => request.put<Result<TransactionMessageField>>(`/intranet/transactions/${transactionId}/message-fields/${id}`, data, { params: { side } }).then(r => r.data);
 export const deleteTransactionMessageField = (transactionId: number, side: MessageSide, id: number) => request.delete(`/intranet/transactions/${transactionId}/message-fields/${id}`, { params: { side } });
+export const getTransactionDataResources = (transactionId: number) => request.get<Result<TransactionDataResources>>(`/intranet/transactions/${transactionId}/data-resources`).then(r => r.data.data);
+export const updateTransactionDataResources = (transactionId: number, data: TransactionDataResources) => request.put<Result<TransactionDataResources>>(`/intranet/transactions/${transactionId}/data-resources`, data).then(r => r.data);

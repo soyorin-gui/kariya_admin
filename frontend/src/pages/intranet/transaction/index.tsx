@@ -1,11 +1,12 @@
 import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { App, Button, Descriptions, Drawer, Input, Popconfirm, Space, Tag } from 'antd';
+import { App, Button, Descriptions, Drawer, Input, Popconfirm, Space, Tag, Tooltip } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { DeleteOutlined, EditOutlined, EyeOutlined, PlusOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
+import { DatabaseOutlined, DeleteOutlined, EditOutlined, EyeOutlined, PlusOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
 import { deleteTransaction, getTransaction, getTransactions } from './api';
 import type { Transaction, TransactionListItem } from './types';
 import { TransactionDialog } from './TransactionDialog';
+import { DataResourceDialog } from './DataResourceDialog';
 import { Permission } from '../../../permission/Permission';
 import { SmartTable, type SmartTableRef } from '../../../components/SmartTable';
 import { getApiErrorMessage } from '../../../utils/apiError';
@@ -19,6 +20,16 @@ const statuses: Record<number, { label: string; color: string }> = {
   3: { label: '已下线', color: 'error' },
 };
 const printMode: Record<number, string> = { 0: '无', 1: '异步', 2: '同步' };
+
+function EllipsisText({ value }: { value?: string }) {
+  if (!value) return <>-</>;
+  return (
+    <Tooltip placement='topLeft' title={value}>
+      <span className='transaction-list-ellipsis'>{value}</span>
+    </Tooltip>
+  );
+}
+
 export default function TransactionPage() {
   const { message } = App.useApp();
   const navigate = useNavigate();
@@ -26,6 +37,7 @@ export default function TransactionPage() {
   const [editingId, setEditingId] = useState<number | null | undefined>(undefined);
   const [detail, setDetail] = useState<Transaction>();
   const [detailOpen, setDetailOpen] = useState(false);
+  const [resourceTransactionId, setResourceTransactionId] = useState<number>();
   const showDetail = async (id: number) => {
     try {
       setDetail(await getTransaction(id));
@@ -38,15 +50,15 @@ export default function TransactionPage() {
     { title: '交易名称', dataIndex: 'transactionName', width: 180 },
     { title: '交易编码', dataIndex: 'transactionCode', width: 150, render: (v) => <code>{v}</code> },
     { title: '状态', dataIndex: 'status', width: 100, filters: Object.entries(statuses).map(([value, item]) => ({ text: item.label, value })), render: (v) => <Tag color={statuses[v]?.color}>{statuses[v]?.label || v}</Tag> },
-    { title: 'ESF 服务名', dataIndex: 'esfServiceName', width: 150 },
-    { title: '操作名称', dataIndex: 'esfServiceOperationName', width: 170 },
+    { title: 'ESF 服务名', dataIndex: 'esfServiceName', width: 150, ellipsis: { showTitle: false }, render: (v) => <EllipsisText value={v} /> },
+    { title: '操作名称', dataIndex: 'esfServiceOperationName', width: 170, ellipsis: { showTitle: false }, render: (v) => <EllipsisText value={v} /> },
     { title: '标签', dataIndex: 'label', width: 100, render: (v) => (v ? <Tag>{v}</Tag> : '-') },
     { title: '业务对接人', dataIndex: 'businessContact', width: 130, render: (v) => v || '-' },
     { title: '更新时间', dataIndex: 'updatedTime', width: 170, sorter: true, render: (v) => v?.replace('T', ' ') },
     {
       title: '操作',
       fixed: 'right',
-      width: 250,
+      width: 330,
       render: (_, row) => (
         <Space size='middle'>
           <a onClick={() => void showDetail(row.id)}>
@@ -54,6 +66,7 @@ export default function TransactionPage() {
           </a>
           <a onClick={() => void navigate({ pathname: '/intranet/transaction/fields', search: `?transactionId=${row.id}` })}>字段设计</a>
           <Permission code='intranet:transaction:update'>
+            <a onClick={() => setResourceTransactionId(row.id)}><DatabaseOutlined /> 数据资源</a>
             <a onClick={() => setEditingId(row.id)}>
               <EditOutlined /> 编辑
             </a>
@@ -127,10 +140,11 @@ export default function TransactionPage() {
             </Space>
           )}
           pagination={{ pageSize: 10, showSizeChanger: false, showTotal: (v) => `共 ${v} 条记录` }}
-          scroll={{ x: 1300 }}
+          scroll={{ x: 1380 }}
         />
       </div>
       <TransactionDialog open={editingId !== undefined} id={editingId ?? null} onClose={() => setEditingId(undefined)} onSaved={() => tableRef.current?.reload()} />
+      <DataResourceDialog transactionId={resourceTransactionId} onClose={() => setResourceTransactionId(undefined)} />
       <Drawer rootClassName='transaction-detail-drawer' title={detail ? `交易详情 · ${detail.transactionName}` : '交易详情'} width={680} open={detailOpen} onClose={() => setDetailOpen(false)}>
         <Descriptions className='transaction-detail-descriptions' bordered column={1} size='small'>
           {detail && (

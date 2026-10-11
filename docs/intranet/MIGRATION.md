@@ -1,7 +1,7 @@
 # Intranet 内网迁移清单
 
-> 更新日期：2026-10-10  
-> 当前状态：P1-01（交易基础信息）与 P1-02（请求/响应报文字段）的代码与 SQL 已实现；代码已通过编译与单元测试，**数据库脚本尚未执行**，因此尚无任何运行验证。本清单随各阶段实现持续补充。
+> 更新日期：2026-10-11
+> 当前状态：P1-01（交易基础信息）、P1-02（请求/响应报文字段）与 P1-03（HBase/ES 数据资产与交易资源关联）的代码与 SQL 均已实现；用户确认 V1~V6 已在数据库执行，但当前会话未通过数据库查询复核；V7、V8、V9 全部**待执行**。2026-10-11 复核：前端 `npm run build` 通过，后端 `mvn -o -B test` 失败于测试编译阶段（`EsAssetServiceTest.java:32` 的 `updateById` 重载歧义），因此 P1-03 尚未取得任何编译期或运行期验证证据。本清单随各阶段实现持续补充。
 
 ## 1. 迁移原则
 
@@ -16,10 +16,10 @@
 
 | 路径 | 内容 | 当前状态 |
 | --- | --- | --- |
-| `backend/src/main/java/org/lbl/intranet/` | 后端内网领域、接口、服务、持久层与专属公共代码 | 已创建 P1-01 交易与 P1-02 报文字段 |
-| `frontend/src/pages/intranet/` | 前端内网页面、专属组件/API/类型 | 已创建 P1-01 交易列表/详情、P1-02 隐藏字段设计页 |
-| `backend/src/main/resources/db/intranet/` | 内网表结构与菜单权限迁移脚本 | 已创建 P1-01 / P1-02 脚本 |
-| `backend/src/test/java/org/lbl/intranet/` | 内网专属单元测试 | 已创建报文节点环校验测试 |
+| `backend/src/main/java/org/lbl/intranet/` | 后端内网领域、接口、服务、持久层与专属公共代码 | 已创建 P1-01 交易、P1-02 报文字段、P1-03 `dataasset`（`hbase`/`es`/`relation` 三个子包） |
+| `frontend/src/pages/intranet/` | 前端内网页面、专属组件/API/类型 | 已创建 P1-01 交易列表/详情、P1-02 隐藏字段设计页、P1-03 `dataasset` 资产页与交易 `DataResourceDialog` |
+| `backend/src/main/resources/db/intranet/` | 内网表结构与菜单权限迁移脚本 | 已创建 P1-01 / P1-02 / P1-03 共 9 个脚本，V7~V9 未执行 |
+| `backend/src/test/java/org/lbl/intranet/` | 内网专属单元测试 | 已创建报文字段、交易删除契约、HBase/ES 资产、交易资源关联测试；当前测试套件编译失败（见 `HANDOFF.md`） |
 | `docs/intranet/` | 架构、决策、实施与迁移说明 | 已创建文档框架 |
 
 ### 可能需要同步或在目标工程中适配的公共契约
@@ -40,20 +40,25 @@
 
 | 顺序 | 脚本 | 用途 | 幂等/回滚 | 依赖 | 状态 |
 | --- | --- | --- | --- | --- | --- |
-| V1 | `db/intranet/V1__create_intranet_transaction.sql` | 交易资产主表 | 独立执行；物理删除，无回滚脚本 | P1-01 | 待执行 |
-| V2 | `db/intranet/V2__seed_intranet_transaction_menu.sql` | 内网交易菜单、按钮权限与超管初始授权 | 独立执行；幂等插入 | V1、既有 RBAC 表 | 待执行 |
-| V3 | `db/intranet/V3__insert_intranet_transaction_demo_data.sql` | 虚构交易演示数据 | 按需执行；不用于生产数据 | V1 | 待执行 |
-| V4 | `db/intranet/V4__create_intranet_transaction_message_field.sql` | 交易请求/响应字段、对象及数组节点 | 独立执行；物理删除，无回滚脚本 | V1 | 待执行 |
-| V5 | `db/intranet/V5__insert_intranet_transaction_message_field_demo_data.sql` | 虚构交易报文字段演示数据 | 按需执行；不用于生产数据 | V1、V3、V4 | 待执行 |
-| V6 | `db/intranet/V6__seed_intranet_transaction_field_design_menu.sql` | 隐藏交易字段设计页及超管初始授权 | 独立执行；幂等插入 | V2 | 待执行 |
-| 待定 | 待创建 | 源系统/HBase/ES 资产 | 待确认 | P1 模型 | 未开始 |
+| V1 | `db/intranet/V1__create_intranet_transaction.sql` | 交易资产主表 | 独立执行；物理删除，无回滚脚本 | P1-01 | 已执行（用户确认，当前会话未查库复核） |
+| V2 | `db/intranet/V2__seed_intranet_transaction_menu.sql` | 内网交易菜单、按钮权限与超管初始授权 | 独立执行；幂等插入 | V1、既有 RBAC 表 | 已执行（用户确认，当前会话未查库复核） |
+| V3 | `db/intranet/V3__insert_intranet_transaction_demo_data.sql` | 虚构交易演示数据 | 按需执行；不用于生产数据 | V1 | 已执行（用户确认，当前会话未查库复核） |
+| V4 | `db/intranet/V4__create_intranet_transaction_message_field.sql` | 交易请求/响应字段、对象及数组节点 | 独立执行；物理删除，无回滚脚本 | V1 | 已执行（用户确认，当前会话未查库复核） |
+| V5 | `db/intranet/V5__insert_intranet_transaction_message_field_demo_data.sql` | 虚构交易报文字段演示数据 | 按需执行；不用于生产数据 | V1、V3、V4 | 已执行（用户确认，当前会话未查库复核） |
+| V6 | `db/intranet/V6__seed_intranet_transaction_field_design_menu.sql` | 隐藏交易字段设计页及超管初始授权 | 独立执行；幂等插入 | V2 | 已执行（用户确认，当前会话未查库复核） |
+| V7 | `db/intranet/V7__add_intranet_message_field_sibling_unique_key.sql` | 同一交易/方向/父节点下字段英文名唯一 | 先查询重复数据；存在重复时唯一索引创建失败且不自动清理 | V4 | 待执行 |
+| V8 | `db/intranet/V8__create_intranet_data_asset_tables.sql` | HBase 表/字段、ES 索引/字段、交易 HBase/ES 资源关联共六张表 | 直接 `CREATE TABLE`，无 `IF NOT EXISTS`；重复执行报错，需先确认目标库无同名表 | V1 | 待执行 |
+| V9 | `db/intranet/V9__seed_intranet_data_asset_menu.sql` | 内网数据资产菜单、四个按钮权限与超管初始授权 | 幂等插入；守卫未排除逻辑删除（见下方幂等边界） | V8、V2、既有 RBAC 表 | 待执行 |
+| 待定 | 待创建 | 源系统资产（是否独立建模待确认） | 待确认 | P1 模型 | 未开始 |
 | 待定 | 待创建 | 需求、审批关联、交易调用 | 待确认 | P2 方案 | 未开始 |
 | 待定 | 待创建 | 血缘节点、关系、证据和有效期 | 待确认 | P3 模型 | 未开始 |
 | 待定 | 待创建 | 变更事件、影响结果和处置记录 | 待确认 | P4 规则 | 未开始 |
 
 迁移校验至少包括：表/索引/约束存在性、记录数、唯一键冲突、外键或逻辑引用完整性、字符集与时区、失败后的恢复方式。
 
-已知幂等边界（执行前须确认）：V2/V6 的 `NOT EXISTS` 守卫未排除 `sys_menu.deleted = 1`，而该表为逻辑删除且 `route_path` / `permission_code` 上有唯一键。若目标库存在同路径或同权限码的软删除菜单，脚本会静默跳过插入而不报错，导致菜单不出现。执行前请先核查，或先决定守卫的修正方式。
+已知幂等边界（执行前须确认）：V2/V6/V9 的 `NOT EXISTS` 守卫未排除 `sys_menu.deleted = 1`，而该表为逻辑删除且 `route_path` / `permission_code` 上有唯一键。若目标库存在同路径或同权限码的软删除菜单，脚本会静默跳过插入而不报错，导致菜单不出现。执行前请先核查，或先决定守卫的修正方式。
+
+V8 相关执行注意：六张表用直接 `CREATE TABLE`（与 V1/V4 一致），重复执行会因表已存在而报错；V8 未建数据库外键，`hbase_table_id` / `es_index_id` / `transaction_id` 的引用完整性完全由服务层校验，迁移校验阶段无法用外键工具核对孤立引用，需要写 SQL 自查。V9 的菜单 `component` 值为 `intranet/dataasset/index`，对应的 `frontend/src/pages/intranet/dataasset/index.tsx` 必须存在于目标构建产物中。
 
 ## 4. 构建和运行依赖
 
@@ -66,18 +71,18 @@
 
 | 项 | 实测值 |
 | --- | --- |
-| Node | `v22.23.2` |
-| Java | `17.0.12`（`E:\codesoftware\Java\jdk17`） |
-| Maven | `3.9.14`（`E:\codesoftware\apache-maven-3.9.14\bin\mvn.cmd`，**不在 PATH**） |
-| Maven 本地仓库 | `E:\codesoftware\maven\mavenRepo` |
-| 构建验证 | `mvn -o -B test` 17/17 通过；`npm run build` 通过 |
+| Node | `v24.14.0`（2026-10-11 当前设备实测） |
+| Java | `17.0.12`（2026-10-11 Maven 测试日志确认） |
+| Maven | `D:\software\apache-maven\bin\mvn.cmd`（当前 PATH 可直接调用 `mvn.cmd`） |
+| Maven 本地仓库 | 当前会话未单独核对 |
+| 构建验证 | 2026-10-11：`npm.cmd run build` 通过；`mvn.cmd -o -B test -f backend\pom.xml` **失败于测试编译阶段**（`EsAssetServiceTest.java:32` 的 `updateById` 重载歧义），主代码编译通过，测试结果未取得 |
 | 本地服务 | MySQL 3306 / Redis 6379 / ES 9200 / 应用 8080 均未监听 |
+| 执行环境限制 | 2026-10-11 会话的 shell 受 Windows 沙箱限制无法写入工作区（含 `backend\target`、`frontend\dist`），Maven 构建因此在 `maven-resources-plugin` 阶段报 `application-dev.yml (拒绝访问)`；需要放宽该次命令权限后才能构建 |
 
 两条已验证命令（另一台设备请重新实测）：
 
 ```powershell
-$env:JAVA_HOME = 'E:\codesoftware\Java\jdk17'
-& 'E:\codesoftware\apache-maven-3.9.14\bin\mvn.cmd' -o -B test -f backend\pom.xml
+mvn.cmd -o -B test -f backend\pom.xml
 ```
 
 ```powershell
@@ -97,7 +102,7 @@ cd frontend; npm.cmd run build
 
 ## 5. 权限与菜单配置
 
-迁移时需随代码同步以下逻辑配置，具体权限码待 P1 确认：
+迁移时需随代码同步以下逻辑配置；交易资产现有权限码已确认，后续模块权限码在对应任务开发前确认：
 
 - intranet 顶级菜单及需求、交易资产、数据资产、血缘、影响分析子菜单。
 - 各页面的查看、新增、修改、删除、导入/导出、审批、发布、分析等按钮权限。
@@ -106,7 +111,7 @@ cd frontend; npm.cmd run build
 - 动态菜单的 `route_path`、`component`，以及目标构建产物中对应页面是否存在。
 - P5 Agent 工具权限与普通页面权限之间的映射。
 
-待确认：菜单/权限通过 SQL、管理员界面还是初始化器迁移。任何修改现有 `SystemPermissionInitializer` 的方案属于基线修改，必须先获批准。
+已确认：内网菜单与权限通过 `db/intranet/` 种子脚本写入现有 RBAC（D-011），不修改 `SystemPermissionInitializer`。已落地权限码：交易资产 `intranet:transaction:list/add/update/delete`（V2）、数据资产 `intranet:dataasset:list/add/update/delete`（V9）；资产选项接口额外声明 `intranet:transaction:list`、`intranet:transaction:update`。V6 隐藏页面是否需要独立权限码仍待确认；任何修改现有初始化器的方案仍属于基线修改，必须先获批准。
 
 ## 6. 环境配置项
 

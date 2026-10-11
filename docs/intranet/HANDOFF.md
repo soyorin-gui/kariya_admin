@@ -1,229 +1,257 @@
 # Intranet 跨设备交接
 
-> 本文件保存“当前工作现场”，每次开发结束时覆盖更新对应章节。历史设计结论放入 `DECISIONS.md`，长期计划放入 `PLAN.md`。接手设备必须用真实代码和 Git 命令复核本文件。
+> 本文件保存当前工作现场。历史设计结论放入 `DECISIONS.md`，长期计划放入 `PLAN.md`，架构现状放入 `ARCHITECTURE.md`，迁移清单放入 `MIGRATION.md`。
+> 接手方必须用真实代码和 Git 命令复核本文件；本文只记录能从代码、脚本命令输出或用户明确确认中验证的事实。未验证的内容一律标注“未执行”。
 
-## 交接元信息
+## 0. 交接元信息
 
-- 更新时间：2026-10-10 18:36（Asia/Shanghai）
-- 交接设备/人员：当前接管会话（DeepSeek Harness）；具体设备标识待用户按需补充
-- 当前阶段：P1 交易资产与数据资产管理（P0 仍有未收尾任务，见“未完成事项”）
-- 当前分支：`main`，跟踪 `origin/main`，与远程完全同步（ahead/behind = 0/0）
-- 上一轮交接（范围 B 的最小修复批次）已由用户提交为 `c1d34d2`，工作区仅剩本轮改动
+- 本次交接整理时间：2026-10-11（Asia/Shanghai）
+- 当前阶段：P1 交易资产与数据资产管理（P1-01 / P1-02 已完成，P1-03 代码已落地但未验证）
+- 当前分支：`main`，跟踪 `origin/main`，ahead/behind = 0/0
+- 当前 HEAD：`5113b62135536b88db81975e7e9dfe77824b9324`（提交信息仅显示时间戳“2026年10月10日 18:45:55”）
+- 工作区状态：**有 16 个已跟踪文件被修改、8 个未跟踪路径，全部未提交、未推送**
+- 本轮交接**没有**修改任何业务代码，**没有**执行 `commit` / `push` / `pull` / `merge` / `rebase` / `reset` / `clean`，**没有**执行数据库脚本，**没有**启动应用
+- 本轮只做了三件事：复核代码与文档差异、运行构建验证、更新协作文档
 
-## 当前开发任务
+### 给接手 AI 的一条硬约束
 
-**本轮（2026-10-10 第三轮）**：按用户批准的范围，只做「字段设计可编辑表格」的**步骤 1**——
+**P1-03（数据资产）的代码从未通过编译验证。** 本轮 `mvn -o -B test -f backend\pom.xml` 在**测试编译阶段**失败，因此在读到本文时：
 
-1. 展开图标改为与菜单管理页/侧边栏子菜单一致的 chevron；
-2. 表格默认全展开；
-3. 新增子字段时自动展开其父节点。
+- 不要相信任何“P1-03 已测试通过”的说法；
+- 修好 `EsAssetServiceTest.java:32` 的编译错误并重跑测试之前，禁止在 `dataasset` 包上继续叠加新功能；
+- 修这个错误需要用户批准（本轮用户明确要求“不要改，只记录为阻塞项”）。
 
-用户同时确认了两项设计决策：可编辑树形表格**暂不提升为基线通用组件**（将来先放 `intranet/shared`，等第二个用例再评估提升，见 D-012）；该表格**不引入分页**，数据量靠筛选控制（见 D-013）。
+## 1. 本轮任务与完成情况
 
-**步骤 2（搜索 + 节点类型筛选）与步骤 3（抽取 `intranet/shared` 组件）本轮明确不做。**
-
-未获批准因而**未执行**：运行 V1~V6 SQL、启动数据库或后端服务、修改任何基线代码、`commit` / `push`。
-
-### 上一轮（2026-10-10 第二轮，已提交 `c1d34d2`）
-
-「Codex 交接后的只读复核 + 用户批准的最小修复批次（范围 B）」：修复前端类型检查阻断、更新失效文档、删除死代码 `MessageFieldPanel.tsx`、后端补报文节点树环校验。用户同时确认 `V2`/`V6` 向基线 `sys_menu` / `sys_role_menu` 写入种子数据属于「复用现有 RBAC」（见 D-011）。
-
-## P1 现场
-
-### P1-01 交易基础信息（2026-10-10，已完成编码，未做运行验证）
-
-- 用户已确认交易主表字段并明确允许建表。交易编码为 `VARCHAR(64)`；状态为 `0-3`、默认 `0`；删除为物理删除；四个 ESF 字段必填；打印文件方式为 `0=无/1=异步/2=同步`，方式为无时服务端清空文件配置。
-- 已新增独立内网 SQL：`V1__create_intranet_transaction.sql` 创建 `intranet_transaction`；`V2__seed_intranet_transaction_menu.sql` 创建内网交易菜单/按钮权限并授予超管。脚本尚未执行。
-- 已新增后端 `org.lbl.intranet.transaction` 的 Entity、Mapper、Request、VO、Service、Controller，提供分页查询、详情、新增、编辑与物理删除，并使用 `intranet:transaction:*` 权限码。
-- 已新增前端 `pages/intranet/transaction` 的列表、查询、编辑弹窗和详情抽屉，复用 SmartTable、Permission、Ant Design 与既有请求封装。
-- 交易弹窗为与系统用户管理一致的 660px 横向表单及共享 `system-dialog` 间距规范；`V3__insert_intranet_transaction_demo_data.sql` 仅含虚构信息，供界面验证。
-- 交易详情抽屉的 Descriptions 扩展至抽屉正文全高；表单标签局部改为单行省略；交易状态改为表头筛选，更新时间支持服务端升降序排序。未修改 SmartTable。
-
-### P1-02 请求与响应报文字段（2026-10-10，已完成编码，未做运行验证）
-
-- 已确认单表 `intranet_transaction_message_field` 管理请求、响应、对象、数组及嵌套字段；已新增 V4 建表脚本、后端 CRUD 与字段设计页面。未对同父节点英文名增加唯一约束（该规则尚未确认）。
-- 已新增 V5 虚构字段演示数据，覆盖请求字段、响应对象、响应数组及数组内对象/字段，依赖 V1、V3、V4 后按需执行。
-- 字段维护已从交易详情抽屉迁至隐藏路由 `/intranet/transaction/fields?transactionId=<id>`，新增 V6 隐藏菜单脚本；页面使用树形行内编辑、保存、取消、删除及新增子字段，不修改动态路由基础设施或 SmartTable。
-- 字段设计行内保存会显式提交既有行或草稿行的 `parentId`；请求/响应切换改为 Ant Design 标签页。字段中文名、英文名使用中文必填提示，说明编辑改为本地多行输入。
-- 迁移后遗留的 `MessageFieldPanel.tsx` 已在本轮删除（无任何引用）。
-
-### 本轮：字段设计表格的展开体验（2026-10-10 18:36，步骤 1）
-
-范围仅限 `frontend/src/pages/intranet/transaction/fields/index.tsx`：
-
-- **展开图标对齐基线**：原先该表格没有传 `expandable`，用的是 antd 默认的 `.ant-table-row-expand-icon`（带边框的方块，内部画 +/−），与菜单管理页/侧边栏子菜单的 chevron 不是同一视觉。现改为基线同款 `tree-expand-arrow` 按钮 + `indentSize: 18`，写法照抄菜单管理页与部门管理页。
-- **零新增样式**：`tree-expand-arrow` 定义在基线 `pages/system/shared.css`，而本页 `fields/index.css` 已经 `@import '../../../system/shared.css'`。已核对构建产物 —— 该类出现在 8 个产物 CSS chunk 中，本页本就带着它，**不需要任何基线改动**。
-- **默认全展开**：新增 `collectParentIds` 收集所有仍有子节点的节点 id，配合 `expandedRowKeys ?? defaultExpanded` 受控展开 + `onExpandedRowsChange`，语义与菜单管理页一致（用户首次点箭头后转为固定集合）。
-- **新增子字段时自动展开父节点**：这是本页特有的坑 —— 草稿行挂在 `parentId` 下，父节点若正收起着，编辑器就藏在里面，用户点「子字段」看不到任何反应。现 `startCreate(parentId)` 会把该父节点并入展开集合；若用户尚未手动操作过，则先把默认全展开物化出来再追加。
-- **切换请求/响应时重置展开集合**：换 Tab 等于换了一棵全新的树，`setExpandedRowKeys(undefined)` 让新方向重新回到默认全展开，而不是沿用旧方向的 id 集合。
-
-**本轮未做**（用户明确划出范围）：步骤 2 的搜索与节点类型筛选；步骤 3 的 `intranet/shared` 组件抽取。
-
-### 上一轮修复（2026-10-10 17:58，已提交 `c1d34d2`）
-
-- **前端类型检查阻断已修复**：`index.tsx` 原先读取 `filters.status`，而 `TableRequestParams.filters` 声明为可选，`tsc --noEmit` 报 `TS18048: 'filters' is possibly 'undefined'`，导致 `npm run build` 失败。现按基线写法（对照 `pages/home/index.tsx`）先收敛为数组再判长度。同一处顺带修掉一个隐蔽问题：antd 返回空数组 `[]` 时它是真值，原写法会算出 `NaN` 并发出 `status=NaN` 请求触发后端 400。
-- **死代码清理**：删除 `frontend/src/pages/intranet/transaction/MessageFieldPanel.tsx`（154 行，无任何引用）。附带效果：由于 `componentRegistry` 用 `../pages/**/*.tsx` 全量 glob，该文件此前会被打成独立 chunk 并出现在「菜单管理 → 前端组件」下拉里，现已消失。
-- **后端补环校验**：`TransactionMessageFieldService.requireParent` 原先只挡「父节点 = 自身」。若把节点挂到自己的后代下会形成环，而前端 `toTree` 中环上节点找不到根，**整棵子树会从界面静默消失而非报错**。现从目标父节点向上回溯，回到自身即拒绝；`visited` 集合兼作脏数据兜底，避免历史数据已有环时死循环。同时把「父节点不存在」的报错文案从「报文字段不存在」改为更准确的「父节点不存在」。
-- **新增内网单元测试**：`TransactionMessageFieldServiceTest`（4 例），锁定上述环规则与「父节点不存在」判定。
-
-## 最近完成内容
-
-- 完成 Codex 交接后的只读复核：核对 5 份协作文档、Git 状态与全部 intranet 真实代码。
-- 修正交接文档中 4 处与代码/命令不符的描述（详见下文“文档纠错记录”）。
-- 完成用户在范围 B 内批准的全部 4 项修复，并补齐验证证据。
-
-## 文档纠错记录（本轮修正的失效描述）
-
-| 原文档说法 | 实际事实 |
+| 用户要求 | 完成情况 |
 | --- | --- |
-| 「未执行 commit/push」「`AGENTS.md` 和 `docs/` 为未跟踪新增项」 | 已全部提交。接管时 HEAD = `b638c91`，工作区干净 |
-| 「`npm run build` 因缺少 `react-markdown`、`remark-gfm` 停止」 | 两依赖已在 `b20d1c0` 写入 `package.json` 且已安装；当时真正的阻断是 1 个 TS 类型错误（本轮已修） |
-| 「`mvn compile` 未执行成功，终端没有 `mvn` 命令」 | Maven 只是不在 PATH；用完整路径编译成功。见“开发环境实测” |
-| 元信息「当前阶段：P0」 | 正文实际已推进到 P1-01 / P1-02 |
+| 更新 `HANDOFF.md` | 完成（本文重写） |
+| 更新 `PLAN.md` 相关任务进度 | 完成（P1 表格、P1-03 执行任务、新增 P1 实现小结表） |
+| 有新设计决策则更新 `DECISIONS.md` | 完成（新增 D-022/D-023/D-024，修正 D-014/D-015/D-020/T-006） |
+| 涉及内网迁移则更新 `MIGRATION.md` | 完成（新增 V8/V9、幂等边界、权限码、构建与执行环境限制） |
+| 标记已完成验证与仅初步实现的代码 | 完成（见第 3、4 节） |
+| 明确下一步改哪些文件、禁止改哪些文件 | 完成（见第 8 节） |
+| 明确数据库字段哪些已确认、哪些未确认 | 完成（见第 9 节） |
+| 检查是否误改 intranet 以外基线代码 | 完成（见第 10 节，结论：未误改） |
 
-## 开发环境实测（本机，2026-10-10）
+## 2. 本轮实际动过的文件（只有文档）
 
-| 项 | 实测值 | 备注 |
+- `docs/intranet/HANDOFF.md`（重写）
+- `docs/intranet/PLAN.md`
+- `docs/intranet/DECISIONS.md`
+- `docs/intranet/MIGRATION.md`
+- `docs/intranet/ARCHITECTURE.md`
+
+除上述五个文档外，本轮没有写入任何仓库文件。`AGENTS.md` 未修改。构建只写入了被 `.gitignore` 忽略的产物目录（`backend/target/`、`frontend/dist/`，证据：`git check-ignore -v` 分别命中 `.gitignore:71 target/` 与 `.gitignore:144 dist/`）。
+
+## 3. 已验证事实（有命令输出证据）
+
+| 项 | 结果 | 证据 |
 | --- | --- | --- |
-| Node | `v22.23.2` | 满足 `package.json` 的 `>=20.19 <25` |
-| Java | `17.0.12`（`E:\codesoftware\Java\jdk17`） | 与 pom 的 Java 17 一致 |
-| Maven | `3.9.14`（`E:\codesoftware\apache-maven-3.9.14\bin\mvn.cmd`） | **不在 PATH**，必须用完整路径；本地仓库 `E:\codesoftware\maven\mavenRepo` |
-| 前端依赖 | `frontend/node_modules` 已安装 | 含 `react-markdown`、`remark-gfm`、`antd` |
-| MySQL 3306 / Redis 6379 / ES 9200 / 后端 8080 | **均未监听** | 因此无法启动应用、无法执行 V1~V6、无法端到端验证 |
+| 前端构建 | **通过** | 2026-10-11 执行 `npm.cmd run build`（工作目录 `frontend`），输出 `✓ built in 24.68s`，产出 `dist/assets/**`；仅有 chunk 体积告警。PowerShell 因 npm 把告警写到 stderr 而报 exit 1，不代表构建失败 |
+| 后端主代码编译 | **通过** | `mvn.cmd -o -B test -f backend\pom.xml` 在 `maven-compiler-plugin` 的 `default-compile` 阶段无错；`backend/target/classes/org/lbl/intranet/dataasset/**` 已生成 28 个 class 文件 |
+| 后端测试套件编译 | **失败（阻塞项）** | 同一次构建在 `default-testCompile` 失败：`EsAssetServiceTest.java:[32,32] updateById 的引用不明确`（`参考: updateById(T) 与 updateById(Collection<T>)`），`BUILD FAILURE`，`Total time: 7.744 s` |
+| 后端单元测试结果 | **未执行** | 测试编译失败，未产生任何测试运行结果。旧文档中“19/19 通过”是本次代码变更之前的记录，**不能**用于现在的代码状态 |
+| 工作区改动范围 | 全部位于 `intranet` 路径或 `docs/intranet/` | `git diff --name-only` 的 16 个文件全部命中 `intranet`；未跟踪路径同样全部在 `intranet` 相关目录 |
+| 基线文件改动 | **无** | `git diff --name-only | Where-Object { $_ -notmatch 'intranet' }` 输出为空 |
+| 数据库脚本执行 | **V1~V6 已执行（用户确认）；V7/V8/V9 未执行** | V1~V6 来自用户 2026-10-11 明确确认，本次会话未查库复核；V7~V9 为本轮新增/既存脚本，无执行记录 |
+| 应用启动与接口/页面联调 | **未执行** | 8080 / 5173 / 3306 / 6379 / 9200 均未监听；`Get-Process java,node` 无结果 |
+| 构建执行环境限制 | 已确认并绕过 | 本会话 shell 受 Windows 沙箱限制无法写入工作区（`frontend\`、`backend\`、`backend\target\classes` 直接建文件均“访问被拒绝”），Maven 因此在 `maven-resources-plugin` 报 `application-dev.yml (拒绝访问)`。经用户批准后放宽该次命令权限才完成上述两次构建。**接手方若遇到同样报错，先申请放宽该次命令权限，不要怀疑代码** |
 
-> 环境注意：本机为 Windows PowerShell 5.1（无 `pwsh`），且执行策略禁止直接运行 `.ps1`，`npm`/`npm.ps1` 会被拦；请用 `npm.cmd` 或直接调用 `node_modules\vite\bin\vite.js`。仓库 `core.autocrlf = true` 且无 `.gitattributes`，Git 会提示 LF 将被替换为 CRLF，属预期现象。
+本机工具链（2026-10-11 实测，仅代表当前设备）：Node `v24.14.0`；Java `17.0.12`；Maven `D:\software\apache-maven\bin\mvn.cmd`（在 PATH 中）；`frontend/node_modules` 与 `backend/target` 均已存在。
 
-## 已验证功能和测试结果
+## 4. 当前代码完成度：哪些已验证，哪些只是初步实现
 
-| 命令/场景 | 结果 | 备注 |
+### 4.1 已验证（构建层面）
+
+- P1-03 前端：`frontend/src/pages/intranet/dataasset/**`、`frontend/src/pages/intranet/transaction/DataResourceDialog.tsx` 及其对交易页的接入，随 `npm run build` 通过 TypeScript 检查与 Vite 构建。
+- P1-03 后端：`dataasset` 三个子包通过 `default-compile`，只证明语法与类型正确。
+
+### 4.2 只是初步实现（未运行、未联调、未执行 SQL）
+
+- P1-03 后端全部业务行为：HBase/ES 资产 CRUD、字段 CRUD、删除引用保护、交易数据资源整体替换（D-022）、交易删除时清理关联（D-015/D-024）。
+- P1-03 数据层：V8 六张表、V9 菜单与权限，**均未在任何数据库执行过**。
+- P1-03 前端交互：资产页两个 Tab、字段抽屉、删除确认、交易“数据资源”弹窗，**没有任何人工浏览器验证**。
+- P1-02 的既有实现（报文字段 CRUD、同父英文名唯一预检、字段审计定位、字段页搜索/说明编辑/超长展示、交易详情高度修复）：代码在仓库中，但本轮**无法重跑测试**，因此也回到“未验证”状态。
+- P1-03 的四个定向测试文件（`HbaseAssetServiceTest`、`EsAssetServiceTest`、`TransactionDataResourceServiceTest`、`TransactionAssetServiceTest`）：已写入仓库，**从未成功编译过**。
+
+## 5. 工作区未提交内容清单（8 个未跟踪路径 + 16 个已跟踪修改）
+
+### 5.1 P1-03 新增（未跟踪）
+
+后端主代码：
+
+- `backend/src/main/java/org/lbl/intranet/dataasset/hbase/{controller,entity,mapper,request,service,vo}`（`HbaseAssetController`、`HbaseTableEntity`、`HbaseFieldEntity`、`HbaseTableMapper`、`HbaseFieldMapper`、`HbaseTableRequest`、`HbaseFieldRequest`、`HbaseTableVO`、`HbaseFieldVO`、`HbaseAssetService`）
+- `backend/src/main/java/org/lbl/intranet/dataasset/es/{controller,entity,mapper,request,service,vo}`（`EsAssetController`、`EsIndexEntity`、`EsFieldEntity`、`EsIndexMapper`、`EsFieldMapper`、`EsIndexRequest`、`EsFieldRequest`、`EsIndexVO`、`EsFieldVO`、`EsAssetService`）
+- `backend/src/main/java/org/lbl/intranet/dataasset/relation/{controller,entity,mapper,request,service,vo}`（`TransactionDataResourceController`、`TransactionHbaseResourceEntity`、`TransactionEsResourceEntity`、`TransactionHbaseResourceMapper`、`TransactionEsResourceMapper`、`TransactionDataResourceRequest`、`TransactionDataResourceVO`、`TransactionDataResourceService`）
+
+后端测试：
+
+- `backend/src/test/java/org/lbl/intranet/dataasset/es/service/EsAssetServiceTest.java`（**编译失败源**）
+- `backend/src/test/java/org/lbl/intranet/dataasset/hbase/service/HbaseAssetServiceTest.java`
+- `backend/src/test/java/org/lbl/intranet/dataasset/relation/service/TransactionDataResourceServiceTest.java`
+- `backend/src/test/java/org/lbl/intranet/transaction/service/TransactionAssetServiceTest.java`
+
+数据库脚本：
+
+- `backend/src/main/resources/db/intranet/V7__add_intranet_message_field_sibling_unique_key.sql`
+- `backend/src/main/resources/db/intranet/V8__create_intranet_data_asset_tables.sql`
+- `backend/src/main/resources/db/intranet/V9__seed_intranet_data_asset_menu.sql`
+
+前端：
+
+- `frontend/src/pages/intranet/dataasset/{index.tsx,index.css,AssetDialogs.tsx,api.ts,types.ts}`
+- `frontend/src/pages/intranet/transaction/DataResourceDialog.tsx`
+
+### 5.2 已跟踪但未提交的修改
+
+后端：
+
+- `backend/src/main/java/org/lbl/intranet/transaction/service/TransactionAssetService.java`（删除交易时按 HBase 关联 → ES 关联 → 报文字段 → 交易主记录的顺序清理；构造函数新增 3 个 mapper 依赖）
+- `backend/src/main/java/org/lbl/intranet/transaction/field/controller/TransactionMessageFieldController.java`（审计 `targetType=INTRANET_TRANSACTION_MESSAGE_FIELD`，新增用 `交易ID:方向:父节点ID:英文名` 定位）
+- `backend/src/main/java/org/lbl/intranet/transaction/field/mapper/TransactionMessageFieldMapper.java`（`deleteByTransactionId`、`countBySiblingFieldName`）
+- `backend/src/main/java/org/lbl/intranet/transaction/field/service/TransactionMessageFieldService.java`（同父英文名唯一预检）
+- `backend/src/test/java/org/lbl/intranet/transaction/field/service/TransactionMessageFieldServiceTest.java`（新增重复名用例）
+
+前端：
+
+- `frontend/src/pages/intranet/transaction/{index.tsx,index.css,api.ts,types.ts}`（数据资源入口与两个接口、ESF 服务名/操作名称单行截断+Tooltip、详情自然高度）
+- `frontend/src/pages/intranet/transaction/fields/{index.tsx,index.css}`（请求遮罩、说明 Popover 多行编辑、超长截断、中英文名搜索与祖先链保留）
+
+文档：第 2 节列出的五个文件。
+
+## 6. 阻塞项与风险
+
+### 6.1 阻塞：后端测试套件无法编译（必须先修）
+
+- 位置：`backend/src/test/java/org/lbl/intranet/dataasset/es/service/EsAssetServiceTest.java:32`
+- 现状代码：`verify(fields, never()).updateById(any());`
+- 报错：`updateById 的引用不明确`，`BaseMapper.updateById(T)` 与 `BaseMapper.updateById(Collection<T>)` 均匹配
+- 同文件 `HbaseAssetServiceTest` 用的是 `deleteById(anyLong())`，故不受影响；`TransactionMessageFieldServiceTest` 用的是 `any(TransactionMessageFieldEntity.class)`，是仓库内既有的正确写法
+- 建议修法（**需用户批准后才能执行**）：改为 `verify(fields, never()).updateById(any(EsFieldEntity.class));` 或 `anyLong()` 风格的等价写法
+- 影响：修好之前，P1-01/P1-02/P1-03 的任何测试都无法运行，`mvn test` 永远是红的
+
+### 6.2 未确认项：ES 固定 RowKey 字段名
+
+代码把 RowKey 字段名硬编码为 `id`（`EsAssetService.ROWKEY_FIELD_NAME = "id"`，前端 `AssetDialogs.tsx` 用 `field?.fieldName === 'id'` 禁止改名），但 `DECISIONS.md` 的 D-020 记录的是“固定字段名待用户提供”。**这属于未经用户确认的实现假设**，必须在 P1-03 定稿前确认（见第 9 节）。若用户给出别的名字，需同时改：后端常量与校验、`EsFieldMapper.countRowkeyField` 中的 `field_name = 'id'`、前端禁用逻辑与字段页提示。
+
+### 6.3 模型缺口：源系统未建模
+
+`ARCHITECTURE.md` 概念图中的“源系统”在 V8 中没有对应表，`intranet_hbase_table` 也没有 `system_id`/归属字段。P1-03 代码因此无法回答“这张 HBase 表属于哪个业务系统”。要么补一张源系统表并给 HBase/ES 加归属字段，要么由用户明确 P1 不做源系统——**当前是文档与实现之间的真实差异**，不要当成已完成。
+
+### 6.4 一致性风险：ES 索引允许改挂 HBase 表
+
+`EsAssetService.update` 只校验新的 `hbaseTableId` 存在（`requireHbase`），不阻止把已被交易关联的索引改挂到另一张 HBase 表，也不校验新表的 RowKey 语义是否与已有字段匹配。需要决定是否加“被交易关联时禁止变更归属表”的约束。
+
+### 6.5 数据层风险：无数据库外键
+
+V8 未建外键，`hbase_table_id`、`es_index_id`、`transaction_id` 的引用完整性全靠服务层。绕过应用直写库会产生孤立引用；服务层已有的删除保护（D-024）是唯一防线。若后续引入批量导入，必须重新评估。
+
+### 6.6 已接受的历史风险（延续，不再阻塞）
+
+- V2/V6（以及新增的 V9）用 `NOT EXISTS` 判断菜单路径/权限码，但未排除 `sys_menu.deleted = 1`；用户 2026-10-11 决定不修，靠业务操作避免“删除菜单后重复执行脚本”。
+- `frontend/src/` 的 `pages/**/*.tsx` 动态扫描会把对话框类组件也列为菜单候选；用户 2026-10-11 决定不改基线扫描规则，靠菜单配置操作规范规避。P1-03 新页面同样受此约定约束。
+
+### 6.7 新增的跨子域依赖（内网内部，但影响未来剥离）
+
+`org.lbl.intranet.transaction.service.TransactionAssetService` 现在直接 import `org.lbl.intranet.dataasset.relation.mapper.*`。这是 D-015 删除契约的必然结果，仍在 `intranet` 包内，**不属于基线污染**；但将来若按子域拆分内网模块，需保留这个依赖或改为事件/接口解耦。
+
+## 7. 测试执行情况汇总
+
+| 命令 | 执行时间 | 结果 |
 | --- | --- | --- |
-| `git status --short --branch` | `## main...origin/main`，工作区干净 | 接管时状态 |
-| `git rev-list --left-right --count origin/main...main` | `0  0` | 与远程完全同步 |
-| `mvn -o -B -DskipTests compile` | **BUILD SUCCESS**，261 个源文件 | intranet 后端代码**首次获得编译级验证** |
-| `mvn -o -B test`（修改前） | Tests run: **13**, Failures: 0, Errors: 0 | 全部为基线审计/Jasypt 测试，intranet 当时无测试 |
-| `mvn -o -B test`（修改后） | Tests run: **17**, Failures: 0, Errors: 0 | 13 基线 + **4 新增 intranet 测试**；`TransactionMessageFieldServiceTest` 4/4 通过 |
-| `tsc --noEmit -p tsconfig.app.json`（修改前） | **失败**，1 个错误 `TS18048`（`index.tsx:98`） | 阻断 `npm run build` |
-| `tsc --noEmit -p tsconfig.app.json`（修改后） | **通过**，无错误 | |
-| `vite build`（修改前） | 成功，40.98s | 说明打包链路本身没问题，只卡类型检查 |
-| `npm.cmd run build`（修改后） | **通过**，exit 0，37.86s | `tsc && vite build` 两步均通过 |
-| 产物核对 | 构建输出中不再出现 `MessageFieldPanel` chunk | 确认死代码已从产物中移除 |
-| `tsc --noEmit -p tsconfig.app.json`（本轮展开改动后） | **通过**，exit 0 | 受控 `expandedRowKeys` 类型与基线写法一致 |
-| `npm.cmd run build`（本轮展开改动后） | **通过**，exit 0，45.05s | 展开逻辑已进入产物 chunk（可按 `收起子字段` 文案检索到） |
-| 展开箭头样式可用性 | `.tree-expand-arrow` 出现在 8 个产物 CSS chunk 中 | 本页 `index.css` 已 `@import` 基线 `shared.css`，无需新增样式 |
-| 展开交互的实际观感 | **未执行** | 需启动前后端与数据库后人工确认（默认全展开、点箭头收起、新建子字段自动展开） |
-| 应用启动 / 接口联调 / SQL 执行 | **未执行** | 本机无 MySQL、Redis；且未获授权执行建表脚本 |
+| `npm.cmd run build`（`frontend`） | 2026-10-11 | 通过（`✓ built in 24.68s`） |
+| `mvn.cmd -o -B test -f backend\pom.xml` | 2026-10-11 | 失败于测试编译：`EsAssetServiceTest.java:32 updateById 引用不明确` |
+| 应用启动 | 未执行 | 相关端口未监听 |
+| V7 / V8 / V9 数据库脚本 | 未执行 | 未连接数据库 |
+| 浏览器人工验收（字段页、资产页、交易数据资源弹窗） | 未执行 | 无运行环境 |
+| 跨设备拉取复核 | 未执行 | 本轮未提交，另一台设备看不到这些改动 |
 
-## 新增或修改的主要文件
+## 8. 下一步行动（按顺序）
 
-### 本轮修改（相对 `c1d34d2`，尚未提交）
+### 8.1 必须先做
 
-- `frontend/src/pages/intranet/transaction/fields/index.tsx`（修改）：`tree-expand-arrow` 展开图标 + `indentSize: 18`、默认全展开（`collectParentIds` + 受控 `expandedRowKeys`）、新增子字段时自动展开父节点、切 Tab 重置展开集合。
-- `docs/intranet/DECISIONS.md`（修改）：新增 D-012（可编辑树形表格暂不提升为基线组件）与 D-013（不分页，用筛选控制数据量）。
-- `docs/intranet/ARCHITECTURE.md`（修改）：新增「动态页面扫描对 `shared/` 的约束」，记录 `pages/**/*.tsx` 全量 glob 带来的菜单组件候选污染与其解决方向。
-- `docs/intranet/HANDOFF.md`、`PLAN.md`（修改）：同步本轮现场与状态。
+1. **请用户确认两件事**：ES 固定 RowKey 字段名是否为 `id`；HBase 表“数据量/数据深度”的业务语义与样例值（见第 9 节）。
+2. **修复后端测试编译错误**（6.1 节），需用户批准；然后重跑 `mvn.cmd -o -B test -f backend\pom.xml`，把真实用例数写回本文档。
+3. **决定源系统是否在 P1 建模**（6.3 节）。
+4. **决定 ES 索引归属表是否允许在被交易关联后变更**（6.4 节）。
 
-### 上一轮修改（已由用户提交为 `c1d34d2`）
+### 8.2 允许修改的文件（P1-03 收尾）
 
-- `frontend/src/pages/intranet/transaction/index.tsx`（修改）：修正 `filters` 可选导致的类型错误与空数组 `NaN` 风险。
-- `frontend/src/pages/intranet/transaction/MessageFieldPanel.tsx`（**删除**）：154 行死代码，迁至隐藏路由后已无引用。
-- `backend/src/main/java/org/lbl/intranet/transaction/field/service/TransactionMessageFieldService.java`（修改）：`requireParent` 增加环校验；父节点不存在改为独立报错文案。
-- `backend/src/test/java/org/lbl/intranet/transaction/field/service/TransactionMessageFieldServiceTest.java`（**新增**）：4 个环校验单元测试。
-- `docs/intranet/ARCHITECTURE.md`、`DECISIONS.md`、`HANDOFF.md`、`MIGRATION.md`、`PLAN.md`（修改）：同步事实、状态、环境实测与 D-011。
+- `backend/src/test/java/org/lbl/intranet/dataasset/es/service/EsAssetServiceTest.java`（只修断言重载歧义）
+- `backend/src/main/java/org/lbl/intranet/dataasset/**`（仅在用户确认第 8.1 节事项后按结论调整）
+- `frontend/src/pages/intranet/dataasset/**`、`frontend/src/pages/intranet/transaction/DataResourceDialog.tsx`
+- `backend/src/main/resources/db/intranet/V8__*.sql`、`V9__*.sql`（若未执行过，可直接修正；**若已在任何环境执行过，必须新增 V10 修正脚本，不得改写历史脚本**）
+- 五个 `docs/intranet/*.md` 文档
 
-### 已有（提交 `b638c91`）
+### 8.3 禁止修改（除非先取得用户明确批准，并按 `AGENTS.md` §2 说明影响与替代方案）
 
-- 后端 13 个文件：`org/lbl/intranet/transaction/` 下 Entity / Mapper / Request / VO / Service / Controller，及 `field/` 同构一套。
-- SQL 6 个：`backend/src/main/resources/db/intranet/V1~V6`。
-- 前端 7 个：`frontend/src/pages/intranet/transaction/` 下 `index.tsx`、`TransactionDialog.tsx`、`fields/index.tsx`、`api.ts`、`types.ts`、`index.css`、`fields/index.css`。
+- 根目录 `AGENTS.md`
+- `frontend/src/` 下 `pages/intranet/` 以外的所有基线页面、组件、路由注册表、请求封装、权限组件（如 `components/SmartTable`、`permission/Permission`、`utils/request`、`utils/apiError`）
+- `backend/src/main/java/org/lbl/` 下 `intranet/` 以外的所有基线代码，尤其是：`config/MybatisConfig`（本次复核确认其 `auditHandler` 已满足需求，无需改动）、`system/log/aspect/OperationLog` 及其切面、审批聚合逻辑、`SystemPermissionInitializer`
+- 现有基线数据库脚本（`init_schema.sql`、`init_data.sql`）
+- `backend/src/main/resources/db/intranet/V1__*.sql` ~ `V6__*.sql`（用户已确认在数据库执行过，属既成事实，禁止改写）
+- `docs/intranet/` 以外的任何文档
 
-## 未完成事项
+### 8.4 数据库迁移执行顺序（执行前先备份/确认）
 
-- **数据库未落地**：V1~V6 全部仍为「待执行」。表和菜单权限目前不存在，两个页面即使能构建也打不开。完成标准：在可用 MySQL 上按 V1→V6 顺序执行并记录结果。
-- **P1 无任何运行验证**：没有启动过后端、没有联调过接口、没有打开过页面。完成标准：至少一次「建表 → 启后端 → 登超管 → 交易 CRUD + 字段树维护」的正向与异常路径实测。
-- **P0 未收尾**：`PLAN.md` 中「确认两台设备的运行版本和启动/测试命令」仍为进行中（本机已完成并记入“开发环境实测”，另一台设备与数据库启动项待补）；「演练一次跨设备交接」仍为未开始。「确认内网权限命名、菜单初始化与 SQL 存放位置」已由 D-011 关闭。
-- **P1 剩余切片未开始**：源系统 / HBase / ES 资产模型与建表；Excel 导入；脱敏样例数据策略。
-- **字段设计表格的步骤 2 / 3 未做**（本轮用户明确划出范围）：步骤 2 是搜索 + 节点类型筛选；步骤 3 是把可编辑树形表格抽成 `intranet/shared` 组件。步骤 2 可直接沿用部门管理页 `filterTree` 的 `prune` 思路（见“下一步建议”）。
-- **抽取共享组件前有一个基线约束待决策**：`pages/` 下任何 `.tsx` 都会被动态页面扫描收录为「前端组件」下拉候选，没有 default 导出的组件被选中会渲染失败（现状已影响 `intranet/transaction/TransactionDialog`）。详见 `ARCHITECTURE.md` 的「动态页面扫描对 `shared/` 的约束」。
-- **待确认的表结构项仍在等用户**（见 `DECISIONS.md` T 系列），特别是报文子表同父英文名唯一约束、V6 隐藏菜单是否需要独立权限码。
-- **展开交互只做了静态验证**：类型检查与构建通过，但“默认全展开 / 点箭头收起 / 新建子字段自动展开 / 切 Tab 回到全展开”四个行为都还没有在浏览器里确认过，需要数据库就绪后补。
+1. 执行 V7 的第一段重复数据查询；**仅在无重复结果时**再执行 `ADD UNIQUE KEY`。
+2. 执行 V8（六张 `CREATE TABLE`，无 `IF NOT EXISTS`，先确认目标库无同名表）。
+3. 执行 V9；执行前核查是否已存在同路径 `/intranet/dataasset` 或同权限码 `intranet:dataasset:*` 的软删除菜单。
+4. 校验项见 `MIGRATION.md` 第 3 节；注意无外键，需手写 SQL 检查孤立引用。
 
-## 当前问题和风险
+### 8.5 联调验证清单（全部未执行）
 
-- **未提交改动不会跨设备出现**：本轮 1 个代码文件与 4 份文档改动只在当前工作区，尚未 `commit` / `push`（按用户要求未执行）。切换设备前必须处理，否则另一台设备拉不到。
-- **环校验只是应用层防护**：`intranet_transaction_message_field` 没有数据库约束阻止环，直接写库仍可绕过。当前阶段可接受，若后续引入批量导入需重新评估。
-- **展开集合是"首次交互即固化"语义**：沿用菜单管理页的 `expandedRowKeys ?? 默认集合` 写法，用户点过任意箭头之后默认值不再生效。本轮已在新增子字段时显式并入父节点、切 Tab 时重置，因此本页行为正确；但若将来把这段逻辑抽成通用组件，这个语义必须一起搬走，否则新页面很容易踩到。
-- **菜单种子脚本的幂等边界**：V2/V6 的 `NOT EXISTS` 守卫未排除 `deleted = 1`，而 `sys_menu` 是 `@TableLogic` 逻辑删除且 `route_path` / `permission_code` 上有唯一键。若存在同路径的软删除菜单，脚本会**静默跳过插入**（不报错），菜单永远不会出现。尚未处理，待用户决定。
-- **字段级审计信息不完整**：`TransactionMessageFieldController` 的 3 个 `@OperationLog` 都未填 `targetId`，操作日志无法定位到具体字段；基线其他模块普遍填 `targetId = "#id"`。
-- **报文子表缺少业务唯一约束**：同父节点下英文名可重复，可能导致字段语义歧义。文档已标记为未确认，未擅自添加约束。
-- **环境差异风险**：本机 Maven 不在 PATH，另一台设备是否一致未知；接手时请重新实测本节命令。
-- **审批复用仍是硬边界**：`ApprovalTaskMapper` 直接绑定部门调动表，P2 前必须有方案并获批准（详见 `ARCHITECTURE.md`）。
+- 交易列表 → “数据资源” → 保存后重开是否回显；缺少 `id` 字段的 ES 索引是否被拒绝。
+- 数据资产页 HBase/ES 两个 Tab 的分页、搜索、新增、编辑、删除。
+- 删除保护：被 ES 引用的 HBase 表、被交易关联的 ES 索引、ES 的 `id` 字段，均应给出业务提示而不是 500。
+- 交易物理删除后，`intranet_transaction_hbase_resource`、`intranet_transaction_es_resource`、`intranet_transaction_message_field` 是否都无残留。
+- 权限：用非超管角色验证 `intranet:dataasset:*` 与 `intranet:transaction:*` 的实际拦截效果。
+- 操作日志：`INTRANET_HBASE_TABLE`、`INTRANET_ES_INDEX`、`INTRANET_TRANSACTION` 的 targetType/id 是否正确落库。
 
-## 下一步建议
+## 9. 数据库字段确认状态
 
-1. 用户审阅本轮改动（`git diff`）并决定是否提交；未提交前不要切换设备。
-2. 启动前端 `npm run dev`（配一个可达的后端，或用演示数据）先人工确认四个展开行为；这是本轮唯一未验证的部分。
-3. 准备可用的 MySQL 实例，按 V1→V6 顺序执行脚本并记录每步结果；执行前确认 V2/V6 是否已存在同名软删除菜单。
-4. 端到端实测：交易列表分页/筛选/排序、新增/编辑/删除、字段树增删改与**环拦截提示**、隐藏字段页直达访问、超管菜单可见性。
-5. **步骤 2（搜索 + 节点类型筛选）**：可直接复用部门管理页 `filterTree` 里的 `prune` 写法 —— `matches(item) || children.length ? [...] : []`，它保留命中项的祖先链，正好避免“命中子节点因父节点被过滤而跳到顶层”的层级错乱。筛选放前端（数据已全量在内存），搜索字段建议只取 `fieldNameCn` / `fieldNameEn`（可选 `description`），另加节点类型下拉。
-6. 实测通过后更新 `HANDOFF.md` 与 `PLAN.md`，把 P1-01 / P1-02 标记为已完成并附验证证据。
-7. 再进入 P1 的第三切片（源系统 / HBase / ES 资产模型评审），仍先评审模型、不写业务代码。
-8. 顺手可做的低风险项：补 `TransactionMessageFieldController` 的 `targetId`；决定是否处理 V2/V6 的 `deleted` 边界。
+### 9.1 用户已明确确认（可直接依赖）
 
-## Git 工作区状态和最近提交
-
-- `git status --short --branch` 摘要：`## main...origin/main`，与远程完全同步；工作区含本轮 5 个已跟踪改动（`fields/index.tsx`、`DECISIONS.md`、`ARCHITECTURE.md`、`HANDOFF.md`、`PLAN.md`）。
-- 最近提交：`c1d34d2`，提交说明为 `2026年10月10日 18:18:00`（提交说明即时间戳是本仓库现有习惯）；上一轮的修复批次已包含在此提交中并已同步远程。
-- 未提交改动**尚未推送**，且未执行 `commit` / `push` / `pull` / `merge` / `rebase` / `reset`。
-- 构建产物（`backend/target/`、`frontend/dist/`）已由 `.gitignore` 忽略，未进入改动范围。
-
-## 是否涉及基线公共代码修改
-
-**否。** 本轮只改了 `frontend/src/pages/intranet/transaction/fields/index.tsx` 与 `docs/intranet` 下的文档。展开箭头复用的是基线 `pages/system/shared.css` 里**已存在**的 `tree-expand-arrow` 类，而本页 `index.css` 此前就已 `@import` 该文件，因此没有新增、也没有修改任何基线样式或组件。
-
-逐提交核对：`b7a9212` 只新增 `AGENTS.md` 与 `docs/`；`b638c91` 只新增 intranet 代码与文档；`c1d34d2` 只改 intranet 代码、内网测试与文档。
-
-用户已确认 V2/V6 向 `sys_menu` / `sys_role_menu` 写入种子数据属于复用现有 RBAC（`DECISIONS.md` D-011），不按基线数据库脚本修改处理。
-
----
-
-## 后续交接填写模板
-
-复制以下结构覆盖本文件上方对应章节；不要只追加流水账。
-
-```markdown
-## 交接元信息
-- 更新时间：YYYY-MM-DD HH:mm（Asia/Shanghai）
-- 交接设备/人员：
-- 当前阶段：
-- 当前分支及跟踪分支：
-
-## 当前开发任务
-- 目标、明确范围、用户批准边界：
-
-## 最近完成内容
-- 仅列已完成并能从代码/命令验证的事项。
-
-## 已验证功能和测试结果
-| 命令/场景 | 结果 | 备注 |
+| 项 | 结论 | 依据 |
 | --- | --- | --- |
+| HBase 表锁字段 | `lock_key VARCHAR(255) NULL`，空输入归一为 `NULL` | 用户确认 → D-018；V8 第 8 行一致 |
+| HBase 表业务标识 | 集市名 + 表名 | 用户确认 → D-019；V8 唯一键 `uk_intranet_hbase_table_market_name` |
+| HBase 字段范围 | 列族（默认 `info`）+ 字段名 + 数据类型（可存 `varchar(32)` 文本）+ 说明 + 顺序；无中文名、无长度/精度列 | 用户确认 → D-019；V8 `intranet_hbase_field` 一致 |
+| ES 字段范围 | 单层字段：字段名 + 数据类型 + 可搜索 + 可排序 + 说明 + 顺序；无中文名 | 用户确认 → D-019；V8 `intranet_es_field` 一致 |
+| 资产删除规则 | 被引用禁止删除；删资源时同事务删其字段；ES RowKey 字段禁止单独删除 | 用户确认 → D-019；服务层实现 |
+| 审计列 | `created_by/created_time/updated_by/updated_time`，复用 `MybatisConfig.auditHandler` | 用户确认 → D-021；V8 每表都有 |
+| 迁移脚本已执行范围 | V1~V6 已执行 | 用户 2026-10-11 确认（本次会话未查库复核） |
 
-## 新增或修改的主要文件
-- 路径：用途与关键改动。
+### 9.2 用户明确确认过“不这么做”的范围
 
-## 未完成事项
-- 明确剩余工作和完成标准。
+- P1 不建 RowKey 规则表/组件表，不解析 RowKey 规则文本（D-016）。
+- P1 不建表锁实体或锁关联表，不接入 Redis 实时锁状态（D-018）。
+- P1 不为每个年/月物理 ES 索引分别建记录，不保存 `rowkey_field_id`（D-020）。
+- P1 不在交易资源关联上保存顺序、分支、主/备或合并逻辑（D-017、D-022）。
 
-## 当前问题和风险
-- 阻塞原因、影响、已尝试方案。
+### 9.3 已写入实现但**用户尚未确认**（接手方必须问清楚）
 
-## 下一步建议
-1. 给出可直接执行的小步骤。
+| 未确认项 | 当前实现 | 影响文件 |
+| --- | --- | --- |
+| ES 固定 RowKey 字段名 | 硬编码 `id` | `EsAssetService.ROWKEY_FIELD_NAME`、`EsFieldMapper.countRowkeyField`、`AssetDialogs.tsx` |
+| HBase `data_volume` / `data_depth` 的业务语义与取值格式 | `VARCHAR(64)` 自由文本，前端 `maxLength={64}` | V8、`HbaseTableEntity`、`AssetDialogs.tsx` |
+| 源系统是否需要独立表、是否给 HBase/ES 加归属字段 | 未实现 | 待新增脚本与新表 |
+| ES 索引 `index_pattern` 唯一是否足够表达“一族多物理索引” | `UNIQUE KEY uk_intranet_es_index_pattern` | V8 |
+| V8 的字段长度（如 `table_name VARCHAR(128)`、`description VARCHAR(1000)`）是否满足真实内网最长值 | 已写入 | V8（**未执行，仍可直接调整**） |
 
-## Git 工作区状态和最近提交
-- `git status --short --branch` 摘要：
-- 最近提交 hash/说明：
-- 未提交改动是否已推送：
+## 10. 基线与 Git 说明
 
-## 是否涉及基线公共代码修改
-- 否；或：是，列出文件、原因、用户批准记录、替代方案和回归结果。
-```
+- 本轮除文档外没有修改任何文件；`docs/intranet/` 之外的已跟踪改动都来自本次交付的 P1-02/P1-03 实现，且全部位于 `intranet` 路径（前端 `frontend/src/pages/intranet/**`、后端 `backend/src/main/java/org/lbl/intranet/**` 与对应测试）。
+- 未修改 `AGENTS.md`、基线页面/组件、基线后端公共代码、基线数据库脚本、构建依赖。
+- 没有执行 `commit`、`push`、`pull`、`merge`、`rebase`、`reset`、`clean`，没有改动远程配置。
+- **跨设备提醒**：所有这些改动仍在工作区，未进入远程仓库。另一台设备拉取 `origin/main` 只能得到 `5113b62`，**看不到 P1-02/P1-03 的任何新代码和本轮文档更新**。要跨设备接续，必须先由用户决定如何提交（本 AI 不得代为提交）。
+- 构建产物 `backend/target/`、`frontend/dist/` 均被 `.gitignore` 忽略，未进入改动范围。
+- 仓库中的样例数据均为虚构；本轮没有新增任何真实内网数据、地址、凭据或证书。
+
+## 11. 接手方最短路径
+
+1. 读 `AGENTS.md` → 本文 → `PLAN.md` 的 P1 段 → `ARCHITECTURE.md` 第 5 节“已实现的表结构与代码路径”。
+2. 执行 `git status --short --branch`、`git log --oneline -3`，确认工作区仍是本文描述的状态（若已有人提交，以新提交为准并更新本文）。
+3. 修 `EsAssetServiceTest.java:32` 的编译错误，跑 `mvn.cmd -o -B test -f backend\pom.xml`，把真实结果写回第 3、7 节。
+4. 只在得到用户对第 9.3 节四个问题的答复后，才继续扩展 P1-03；否则优先做第 8.5 节的联调验证与 V7~V9 的执行确认。

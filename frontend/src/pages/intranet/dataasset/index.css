@@ -1,0 +1,4 @@
+@import '../../system/shared.css';
+.dataasset-page .ant-table-wrapper .ant-pagination { margin: 16px 0 0 !important; }
+.dataasset-page .ant-tabs-nav { margin-bottom: 18px; }
+.dataasset-ellipsis { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; cursor: help; }

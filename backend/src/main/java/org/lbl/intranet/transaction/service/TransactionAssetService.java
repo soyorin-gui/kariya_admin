@@ -4,7 +4,10 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.lbl.common.exception.BusinessException;
 import org.lbl.common.result.PageResult;
+import org.lbl.intranet.dataasset.relation.mapper.TransactionEsResourceMapper;
+import org.lbl.intranet.dataasset.relation.mapper.TransactionHbaseResourceMapper;
 import org.lbl.intranet.transaction.entity.TransactionAssetEntity;
+import org.lbl.intranet.transaction.field.mapper.TransactionMessageFieldMapper;
 import org.lbl.intranet.transaction.mapper.TransactionAssetMapper;
 import org.lbl.intranet.transaction.request.TransactionRequest;
 import org.lbl.intranet.transaction.vo.*;
@@ -15,7 +18,17 @@ import static org.lbl.common.util.TextValues.trimToNull;
 @Service
 public class TransactionAssetService {
     private final TransactionAssetMapper mapper;
-    public TransactionAssetService(TransactionAssetMapper mapper) { this.mapper = mapper; }
+    private final TransactionMessageFieldMapper messageFields;
+    private final TransactionHbaseResourceMapper hbaseResources;
+    private final TransactionEsResourceMapper esResources;
+    public TransactionAssetService(TransactionAssetMapper mapper, TransactionMessageFieldMapper messageFields,
+                                   TransactionHbaseResourceMapper hbaseResources,
+                                   TransactionEsResourceMapper esResources) {
+        this.mapper = mapper;
+        this.messageFields = messageFields;
+        this.hbaseResources = hbaseResources;
+        this.esResources = esResources;
+    }
     public PageResult<TransactionListVO> page(long page, long size, String keyword, Integer status, String sortField, String sortOrder) {
         if (page < 1 || size < 1 || size > 100) throw new BusinessException("分页参数无效，每页最多 100 条");
         if (status != null && (status < 0 || status > 3)) throw new BusinessException("交易状态无效");
@@ -30,7 +43,13 @@ public class TransactionAssetService {
     public TransactionVO detail(Long id) { return toView(require(id)); }
     @Transactional public TransactionVO create(TransactionRequest r) { String code = r.transactionCode().trim(); requireUnique(code, 0); TransactionAssetEntity e = new TransactionAssetEntity(); apply(e, r, code); mapper.insert(e); return toView(e); }
     @Transactional public TransactionVO update(Long id, TransactionRequest r) { TransactionAssetEntity e = require(id); String code = r.transactionCode().trim(); requireUnique(code, id); apply(e, r, code); mapper.updateById(e); return toView(e); }
-    @Transactional public void remove(Long id) { mapper.deleteById(require(id).getId()); }
+    @Transactional public void remove(Long id) {
+        Long transactionId = require(id).getId();
+        hbaseResources.deleteByTransactionId(transactionId);
+        esResources.deleteByTransactionId(transactionId);
+        messageFields.deleteByTransactionId(transactionId);
+        mapper.deleteById(transactionId);
+    }
     private TransactionAssetEntity require(Long id) { TransactionAssetEntity e = mapper.selectById(id); if (e == null) throw new BusinessException("交易不存在或已删除"); return e; }
     private void requireUnique(String code, long id) { if (mapper.countByTransactionCode(code, id) > 0) throw new BusinessException("交易编码已被占用"); }
     private void apply(TransactionAssetEntity e, TransactionRequest r, String code) {

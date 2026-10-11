@@ -8,7 +8,7 @@
   white-space: nowrap;
   text-overflow: ellipsis;
 }
-.transaction-detail-drawer .ant-drawer-body { display: flex; }
-.transaction-detail-descriptions { flex: 1; }
-.transaction-detail-descriptions .ant-descriptions-view,
-.transaction-detail-descriptions table { height: 100%; }
+.transaction-detail-descriptions { width: 100%; }
+.transaction-detail-descriptions .ant-descriptions-item-label { width: 150px; white-space: nowrap; }
+.transaction-detail-descriptions .ant-descriptions-item-content { min-width: 0; overflow-wrap: anywhere; }
+.transaction-list-ellipsis { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; cursor: help; }

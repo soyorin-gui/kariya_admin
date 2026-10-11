@@ -9,17 +9,6 @@ final class AuditToolSchemas {
     private AuditToolSchemas() {
     }
 
-    static Map<String, Object> analyze() {
-        Map<String, Object> properties = rangeProperties();
-        properties.put("topN", integer("排行榜返回数量，默认 10，范围 1-50", 1, 50));
-        return objectSchema(properties, List.of("range"));
-    }
-
-    /** Risk scans only need a range, not ranking parameters. */
-    static Map<String, Object> riskScan() {
-        return objectSchema(rangeProperties(), List.of("range"));
-    }
-
     static Map<String, Object> report() {
         Map<String, Object> properties = rangeProperties();
         properties.put("mode", Map.of(

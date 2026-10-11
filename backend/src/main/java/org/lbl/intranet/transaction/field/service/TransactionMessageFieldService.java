@@ -28,10 +28,13 @@ public class TransactionMessageFieldService {
     }
     @Transactional public TransactionMessageFieldVO create(Long transactionId, String side, TransactionMessageFieldRequest r) {
         requireSide(side); requireTransaction(transactionId); requireParent(transactionId, side, r.parentId(), null);
-        TransactionMessageFieldEntity e = new TransactionMessageFieldEntity(); e.setTransactionId(transactionId); e.setMessageSide(side); apply(e, r); mapper.insert(e); return toView(e);
+        String fieldNameEn = r.fieldNameEn().trim(); requireUnique(transactionId, side, r.parentId(), fieldNameEn, 0);
+        TransactionMessageFieldEntity e = new TransactionMessageFieldEntity(); e.setTransactionId(transactionId); e.setMessageSide(side); apply(e, r, fieldNameEn); mapper.insert(e); return toView(e);
     }
     @Transactional public TransactionMessageFieldVO update(Long transactionId, String side, Long id, TransactionMessageFieldRequest r) {
-        requireSide(side); requireTransaction(transactionId); TransactionMessageFieldEntity e = require(transactionId, side, id); requireParent(transactionId, side, r.parentId(), id); apply(e, r); mapper.updateById(e); return toView(e);
+        requireSide(side); requireTransaction(transactionId); TransactionMessageFieldEntity e = require(transactionId, side, id); requireParent(transactionId, side, r.parentId(), id);
+        String fieldNameEn = r.fieldNameEn().trim(); requireUnique(transactionId, side, r.parentId(), fieldNameEn, id);
+        apply(e, r, fieldNameEn); mapper.updateById(e); return toView(e);
     }
     @Transactional public void remove(Long transactionId, String side, Long id) {
         requireTransaction(transactionId); TransactionMessageFieldEntity e = require(transactionId, side, id);
@@ -55,6 +58,7 @@ public class TransactionMessageFieldService {
     private TransactionMessageFieldEntity require(Long transactionId, String side, Long id) { TransactionMessageFieldEntity e = mapper.selectOne(new LambdaQueryWrapper<TransactionMessageFieldEntity>().eq(TransactionMessageFieldEntity::getId, id).eq(TransactionMessageFieldEntity::getTransactionId, transactionId).eq(TransactionMessageFieldEntity::getMessageSide, side)); if (e == null) throw new BusinessException("报文字段不存在"); return e; }
     private static void requireSide(String side) { if (!"REQUEST".equals(side) && !"RESPONSE".equals(side)) throw new BusinessException("报文方向无效"); }
     private void requireTransaction(Long transactionId) { if (transactions.selectById(transactionId) == null) throw new BusinessException("交易不存在或已删除"); }
-    private void apply(TransactionMessageFieldEntity e, TransactionMessageFieldRequest r) { e.setParentId(r.parentId()); e.setNodeType(r.nodeType()); e.setFieldNameCn(r.fieldNameCn().trim()); e.setFieldNameEn(r.fieldNameEn().trim()); e.setDataType(trimToNull(r.dataType())); e.setDataLength(trimToNull(r.dataLength())); e.setRequiredFlag(r.requiredFlag()); e.setDescription(trimToNull(r.description())); e.setSortOrder(r.sortOrder()); }
+    private void requireUnique(Long transactionId, String side, Long parentId, String fieldNameEn, long excludeId) { if (mapper.countBySiblingFieldName(transactionId, side, parentId, fieldNameEn, excludeId) > 0) throw new BusinessException("同一父节点下字段英文名不能重复"); }
+    private void apply(TransactionMessageFieldEntity e, TransactionMessageFieldRequest r, String fieldNameEn) { e.setParentId(r.parentId()); e.setNodeType(r.nodeType()); e.setFieldNameCn(r.fieldNameCn().trim()); e.setFieldNameEn(fieldNameEn); e.setDataType(trimToNull(r.dataType())); e.setDataLength(trimToNull(r.dataLength())); e.setRequiredFlag(r.requiredFlag()); e.setDescription(trimToNull(r.description())); e.setSortOrder(r.sortOrder()); }
     private TransactionMessageFieldVO toView(TransactionMessageFieldEntity e) { return new TransactionMessageFieldVO(e.getId(), e.getTransactionId(), e.getMessageSide(), e.getParentId(), e.getNodeType(), e.getFieldNameCn(), e.getFieldNameEn(), e.getDataType(), e.getDataLength(), e.getRequiredFlag(), e.getDescription(), e.getSortOrder()); }
 }

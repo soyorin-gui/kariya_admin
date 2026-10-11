@@ -5,3 +5,4 @@ export type MessageSide = 'REQUEST' | 'RESPONSE';
 export type MessageNodeType = 'FIELD' | 'OBJECT' | 'ARRAY';
 export interface TransactionMessageField { id: number; transactionId: number; messageSide: MessageSide; parentId: number; nodeType: MessageNodeType; fieldNameCn: string; fieldNameEn: string; dataType?: string; dataLength?: string; requiredFlag: number; description?: string; sortOrder: number; }
 export interface TransactionMessageFieldRequest { parentId: number; nodeType: MessageNodeType; fieldNameCn: string; fieldNameEn: string; dataType?: string; dataLength?: string; requiredFlag: number; description?: string; sortOrder: number; }
+export interface TransactionDataResources { hbaseTableIds: number[]; esIndexIds: number[]; }

@@ -1,7 +1,7 @@
 # Intranet 总体架构
 
 > 状态：初始架构基线  
-> 更新日期：2026-10-10  
+> 更新日期：2026-10-11
 > 原则：本文区分“仓库已确认能力”“已确认方向”和“待确认细节”，不把规划写成现状。
 
 ## 1. 当前工程基线（已从代码确认）
@@ -54,7 +54,7 @@ frontend/src/pages/intranet/
 1. `pages/` 下**任何** `.tsx` 都会进入 `availableComponents()`，也就是「菜单管理 → 前端组件」下拉的候选列表；
 2. 只有命名导出、没有 default 导出的组件（例如 `intranet/transaction/TransactionDialog`）同样会出现在该下拉里，一旦被选为菜单组件，`React.lazy` 取不到 `default`，页面渲染失败。
 
-因此 `frontend/src/pages/intranet/shared/` **不能无脑放共享 `.tsx` 组件**。在步骤 P1 之后抽取内网共享组件前，必须先解决这个约束，可选方向：
+因此 `frontend/src/pages/intranet/shared/` 下的共享 `.tsx` 组件也会成为菜单候选。2026-10-11 用户决定暂不修改扫描规则，由菜单配置操作规范避免误选非页面组件；该风险当前接受，不作为 P1 开发阻塞。若未来需要从技术上消除，可选方向：
 
 - 把页面注册表收敛为只收录 `**/index.tsx`——全仓库 9 个菜单 `component` 值全部以 `/index` 结尾（已核对 `init_data.sql` 与 V2/V6），所以该约定是安全的。这属于**基线修改**，需按 D-003 批准；
 - 或把内网共享组件放到 `pages/` 之外（需要先修改本节的目录约定）；
@@ -76,6 +76,10 @@ frontend/src/pages/intranet/
 ### 报文节点树的结构约束（2026-10-10 确认）
 
 交易的请求/响应报文字段以单表 `intranet_transaction_message_field` 按 `(transaction_id, message_side)` 构成一棵树，根节点用 `parent_id = 0` 表示。结构上必须保持**无环**：前端按 `parent_id` 建树，环上的节点找不到根，会让整棵子树从界面静默消失而不是报错。因此服务层在写入前沿目标父节点向上回溯，回到自身即拒绝；数据库层当前没有对应约束，直接写库仍可绕开，若后续引入批量导入需重新评估。
+
+同一交易、同一报文方向、同一父节点下，`field_name_en` 必须唯一。服务层在新增和修改前预检，V7 迁移脚本增加数据库唯一索引；执行 V7 前必须先检查存量重复记录，不允许脚本自动删除或改名。
+
+交易采用物理删除。删除交易时，服务层在同一事务内先删除该交易现有的全部报文字段，再删除交易主记录，避免孤立字段。后续新增交易关联表时，必须把它们纳入同一删除契约并补回归测试，不得仅依赖当前两张表的实现。
 
 ## 4. 需求、审批与交易版本
 
@@ -108,27 +112,126 @@ frontend/src/pages/intranet/
 
 ## 5. ES 检索与 HBase RowKey 回表
 
-### 总体关系（已确认方向）
+### 总体关系（2026-10-11 用户确认）
 
 ```text
-查询条件
-  -> ES 索引：承担可检索字段、筛选、排序及定位信息
-  -> 命中结果携带 HBase 表标识 + RowKey（或可构造 RowKey 的稳定字段）
-  -> HBase 回表：读取完整/权威明细
-  -> 服务层按权限裁剪后返回
+路径 A：条件不能直接定位 RowKey
+查询入参
+  -> ES 按条件检索
+  -> 读取 ES 文档中专门存储的 HBase RowKey 字段
+  -> 使用 RowKey 回表查询 HBase
+  -> 获取真实全量数据
+
+路径 B：入参已满足 RowKey 构造条件
+查询入参
+  -> 根据已知规则定位/构造 RowKey
+  -> 跳过 ES，直接查询 HBase
+  -> 获取真实全量数据
 ```
 
-- ES 面向检索，不默认作为完整业务事实的唯一来源。
-- HBase RowKey 是 ES 命中结果与 HBase 记录之间的定位契约；需要可追溯、可版本化并避免暴露敏感构造信息。
-- 资产模型需记录 ES 索引/字段与 HBase 表/列之间的映射，供血缘和影响分析使用。
+- HBase 是真实全量数据的权威存储；ES 承担条件检索和 HBase RowKey 定位，不作为完整业务事实的权威源。
+- 通过 ES 查询时，ES 文档中必然存在一个明确字段保存 HBase RowKey；不需要用 ES `_id` 充当 RowKey，也不在 ES 命中后再用多字段构造 RowKey。
+- 当交易入参已能满足对应 HBase 表的 RowKey 规则时，可直接查询 HBase，无需访问 ES。
+- RowKey 规则仅作为 HBase 表的展示型元数据，不额外拆分 RowKey 组件实体，也不由 P1 对规则文本做解析或执行。
+- 一个交易可关联多个查询资源，也可访问多张 HBase 表。交易实现中可能存在条件分支、先查表 A 再查表 B、同时查询多表后合并结果等编排逻辑。
+- 一个 ES 索引在业务上只对应一个 HBase 表，且只有一个 ES 字段保存该表的完整 RowKey；一张 HBase 表可被多个 ES 索引定位。
+- 系统同时管理多个 HBase 数据集市，例如 `HDS:TABLE` 和 `PBM:TABLE`；HBase 表资产必须显式保存集市名，表的稳定业务标识由“集市名 + 表名”构成。
 
 ### 待确认
 
-- 哪一层是各类数据的权威源，以及关系型库、HBase、ES 的数据边界。
-- RowKey 的组成、编码、盐值/散列、版本和历史兼容规则。
-- ES 文档 `_id` 是否等同 RowKey，或仅保存独立回表字段。
+- 直连 HBase 路径中，“交易入参已满足 RowKey 条件”是否只做人工元数据说明，还是未来需要系统可执行的入参映射。
+- 交易内部的条件分支、执行顺序、并行查询和结果合并是否需要在 P3 建模为可视化的查询处理图。
 - 索引刷新机制、延迟目标、失败补偿、重建与一致性校验方案。
 - HBase/ES 集群版本、Java 客户端、认证方式、网络边界和本地开发替身。
+
+### ES 逻辑索引族与物理分片索引（2026-10-11 用户确认）
+
+- 同一套 ES 数据可因数据量按年或按月拆成多个物理索引，例如 `index_2016`、`index_2017` 或按年月后缀拆分；这些物理索引共享相同字段 mapping、HBase 回表目标和 RowKey 字段。
+- P1 把这组索引建模为一个“逻辑索引族”，字段定义、HBase 表关联和交易资源关联只保存一份。
+- 逻辑索引族保存可展示的索引命名模式和拆分规则；例如模式 `index_{yyyy}`、规则“按年”。它们不被当前系统解析或用于动态计算索引名。
+- P1 不为 `index_2016`、`index_2017` 等物理实例分别建资产记录；如后续需要监控物理索引容量、健康状态或生命周期，再从 ES 动态发现，不与当前元数据混存。
+- ES 中保存完整 HBase RowKey 的字段名由业务统一约定，不再为每个逻辑索引族保存 `rowkey_field_id`。**实现现状**：服务层已按固定字段名 `id` 校验（`EsAssetService.ROWKEY_FIELD_NAME`），该名称尚未经用户确认，见 D-020 与下文待确认项。
+
+### HBase 表锁元数据（设计边界与数据字典均已确认）
+
+- 数据组的 ETL 作业在跑批期间会设置表锁，应用读取 HBase 数据时依据同一锁契约执行其他协调逻辑。
+- 该锁契约附着于 HBase 表，不是 ES 字段映射或血缘关系，因此应在 P1 HBase 表资产中设计，不推迟到 P3。
+- 同一张 HBase 表只有一个固定锁标识。P1 只在 HBase 表资产上保存该展示值，允许为空；不建锁实体或锁关联表。
+- 锁的真实运行状态存储在 Redis，但当前应用不会读取资产页保存的锁标识；P1 不接入 Redis 锁状态，不保存当前是否已加锁、持有者、加锁时间或过期时间。
+- P3 血缘可展示 HBase 表的锁元数据，但不把表锁建模为血缘节点或关系。
+- 已确认数据字典：HBase 表使用 `lock_key VARCHAR(255) NULL`；前端空输入在后端归一为 `NULL`，页面展示为 `-`，不保留 `NULL` 和空字符串两种无锁语义。
+
+### P1-03 数据资产模型（框架已实现，数据字典部分待确认）
+
+> 2026-10-11 复核：本节的概念关系已由 V8 脚本和 `org.lbl.intranet.dataasset` 包实现，见下方“已实现的表结构与代码路径”。表名、字段名、类型和长度是**当前实现事实**，其中三处业务语义仍待用户确认（见本节末尾“仍待确认”），不得据此认为数据字典全部定稿。
+
+```text
+源系统
+  ├─ HBase 表
+  │    ├─ 集市名 + 表名
+  │    ├─ HBase 字段（默认 `info` 列族 + Qualifier/逻辑字段）
+  │    └─ RowKey 规则（表级展示型元数据）
+  └─ ES 逻辑索引族
+       ├─ 索引命名模式/拆分规则
+       └─ ES 字段（当前实现为单层字段，无嵌套层级）
+
+交易
+  └─ 交易关联查询资源
+       ├─ ES 检索回表资源：ES 索引（由索引确定 RowKey 字段和 HBase 表）
+       └─ HBase 直查资源：HBase 表
+
+交易内部逻辑（P1 不建模）
+  ├─ 条件分支
+  ├─ 先 A 后 B
+  └─ 多表查询后整合
+```
+
+评审建议：
+
+- HBase 和 ES 按各自物理结构建模，不用一张多态资产表混存两类专属属性。
+- HBase 字段和 ES 字段都保留稳定数据库 ID，P3 的字段映射、血缘和影响分析直接引用该 ID。
+- HBase 表除集市名、表名、RowKey 规则和锁标识外，再保存“数据量”和“数据深度”两个静态展示值，不影响实际查询逻辑。
+- HBase 字段保留列族且默认为 `info`，同时保留字段名、数据类型（允许直接写 `varchar(32)` 等完整表达）、说明和展示顺序；不保存中文名，不单独建长度/精度字段。
+- ES 只有单层字段，字段类型范围为 `keyword`、数值类型、`date`、`text`，不建父子树。ES 字段保留字段名、数据类型、是否可搜索、是否可排序、说明和展示顺序；不保存中文名。
+- P1-03 新表统一包含 `created_by`、`created_time`、`updated_by`、`updated_time`，实体使用 MyBatis-Plus `FieldFill.INSERT/INSERT_UPDATE` 复用已有 `MybatisConfig.auditHandler`，无需修改基线配置。
+- RowKey 规则按用户确认收敛为 HBase 表的展示型元数据，不建 RowKey 规则表或组件表。
+- 交易关联应能区分“ES 检索后回表”和“HBase 直查”两类资源访问；P1 只记录可能被访问的资源集合，不用顺序号或主/备标记猜测真实代码分支。交易报文字段与数据资产字段的映射仍属于 P3。
+- P1 先实现 MySQL 中的元数据管理；真实 ES/HBase 连接、认证和数据读取等待集群版本与网络边界确认后另行实施。
+
+首轮必须确认的业务分歧（2026-10-11 状态：第 2 项由代码按 `id` 实现但用户仍未确认，第 3 项字段名已落地、业务语义待确认，第 1、4 项仍未答复；详见下文“仍待确认”）：
+
+1. 直查 HBase 所需的“入参到 RowKey”关系是否仅做文档展示；如果未来要由本系统执行构造，将需要另行设计可执行映射，不能仅依赖 RowKey 说明文本。
+2. ES 固定 RowKey 字段的准确名称，以及是否需要禁止修改/删除该字段。
+3. HBase 表“数据量”和“数据深度”的字段名、长度和样例值。
+4. 源系统是业务归属元数据，还是需要区分业务系统、HBase 集群和 ES 集群三类独立的管理对象。
+
+### 已实现的表结构与代码路径（2026-10-11 代码复核）
+
+脚本 `backend/src/main/resources/db/intranet/V8__create_intranet_data_asset_tables.sql`（六张表，均含 `created_by/created_time/updated_by/updated_time`）：
+
+| 表 | 关键字段 | 唯一约束 |
+| --- | --- | --- |
+| `intranet_hbase_table` | `market_name`、`table_name`、`description`、`rowkey_rule`、`lock_key`、`data_volume`、`data_depth` | `(market_name, table_name)` |
+| `intranet_hbase_field` | `hbase_table_id`、`column_family`（默认 `info`）、`field_name`、`data_type`、`description`、`sort_order` | `(hbase_table_id, column_family, field_name)` |
+| `intranet_es_index` | `index_name`、`index_pattern`、`partition_rule`、`hbase_table_id`、`description` | `(index_pattern)` |
+| `intranet_es_field` | `es_index_id`、`field_name`、`data_type`、`searchable_flag`、`sortable_flag`、`description`、`sort_order` | `(es_index_id, field_name)` |
+| `intranet_transaction_hbase_resource` | `transaction_id`、`hbase_table_id` | `(transaction_id, hbase_table_id)` |
+| `intranet_transaction_es_resource` | `transaction_id`、`es_index_id` | `(transaction_id, es_index_id)` |
+
+- 后端：`org.lbl.intranet.dataasset.hbase`（表与字段）、`.es`（索引与字段）、`.relation`（交易关联），均为 `Controller` + `Service` + `Mapper` + `entity/request/vo` 分层；查询侧统一按“更新时间倒序 + id 倒序”分页，编号重复在服务层预检。
+- 删除与引用保护：HBase 表被 ES 索引或交易关联时拒绝删除；ES 索引被交易关联时拒绝删除；删除资源时在同一事务内先删字段；ES 固定 RowKey 字段禁止删除。V8 **未建数据库外键**，绕过应用直写库仍可产生孤立引用。
+- 权限码：`intranet:dataasset:list/add/update/delete`，由 V9 种子脚本写入 `sys_menu` / `sys_role_menu`；资产选项接口额外允许 `intranet:transaction:list` 与 `intranet:transaction:update`。
+- 前端：`frontend/src/pages/intranet/dataasset/{index,AssetDialogs,api,types}.tsx|ts` 提供 HBase/ES 两个 Tab 的资产分页、对话框和字段抽屉；交易列表通过 `frontend/src/pages/intranet/transaction/DataResourceDialog.tsx` 配置该交易的数据资源集合（整体替换，见 D-022）。
+- 交易删除契约已扩展到关联表：`TransactionAssetService.remove` 在同一事务内先删 HBase 关联、ES 关联、报文字段，再删交易（见 D-015、D-024）。
+- 定向测试位于 `backend/src/test/java/org/lbl/intranet/dataasset/**`：`HbaseAssetServiceTest`、`EsAssetServiceTest`、`TransactionDataResourceServiceTest`、`TransactionAssetServiceTest`。
+- **验证状态**：`mvn -o -B test` 当前**失败于测试编译阶段**——`EsAssetServiceTest.java:32` 的 `verify(fields, never()).updateById(any())` 因 `BaseMapper.updateById` 的实体/集合重载产生歧义（`参考: updateById(T) 与 updateById(Collection<T>)`），主代码已编译通过。测试运行结果因此**未取得**，不能记为本轮已验证。
+
+### 仍待确认（代码已落地，但必须在 P1-03 定稿前答复）
+
+1. ES 固定 RowKey 字段名是否为 `id`（当前实现按 `id` 硬编码，见 D-020）。
+2. HBase 表“数据量”“数据深度”的业务语义与样例取值（当前为 `VARCHAR(64)` 自由展示文本，字段名已落地为 `data_volume`、`data_depth`）。
+3. 源系统是否需要独立建模对象，以及是否区分业务系统、HBase 集群和 ES 集群（当前无源系统表）。
+4. 直查 HBase 的“入参到 RowKey”关系是否仅作展示（当前只保存 `rowkey_rule` 文本，不解析、不执行）。
 
 ## 6. 统一血缘模型
 
