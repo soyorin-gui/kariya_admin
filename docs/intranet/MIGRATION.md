@@ -1,7 +1,7 @@
 # Intranet 内网迁移清单
 
 > 更新日期：2026-10-11
-> 当前状态：P1-01（交易基础信息）、P1-02（请求/响应报文字段）与 P1-03（HBase/ES 数据资产与交易资源关联）的代码与 SQL 均已实现；用户确认 V1~V6 已在数据库执行，但当前会话未通过数据库查询复核；V7、V8、V9 全部**待执行**。2026-10-11 复核：前端 `npm run build` 通过，后端 `mvn -o -B test` 失败于测试编译阶段（`EsAssetServiceTest.java:32` 的 `updateById` 重载歧义），因此 P1-03 尚未取得任何编译期或运行期验证证据。本清单随各阶段实现持续补充。
+> 当前状态：P1-01/P1-02/P1-03 代码与 SQL 已实现；用户确认 V1~V6 已执行。用户已在页面看到 P1-03 演示数据，但本会话没有数据库查询证据，无法准确区分 V7~V10 的执行范围；新增 V11 隐藏字段设计路由明确待执行。前端构建通过，P1-03 定向测试仍缺失。
 
 ## 1. 迁移原则
 
@@ -17,9 +17,9 @@
 | 路径 | 内容 | 当前状态 |
 | --- | --- | --- |
 | `backend/src/main/java/org/lbl/intranet/` | 后端内网领域、接口、服务、持久层与专属公共代码 | 已创建 P1-01 交易、P1-02 报文字段、P1-03 `dataasset`（`hbase`/`es`/`relation` 三个子包） |
-| `frontend/src/pages/intranet/` | 前端内网页面、专属组件/API/类型 | 已创建 P1-01 交易列表/详情、P1-02 隐藏字段设计页、P1-03 `dataasset` 资产页与交易 `DataResourceDialog` |
-| `backend/src/main/resources/db/intranet/` | 内网表结构与菜单权限迁移脚本 | 已创建 P1-01 / P1-02 / P1-03 共 9 个脚本，V7~V9 未执行 |
-| `backend/src/test/java/org/lbl/intranet/` | 内网专属单元测试 | 已创建报文字段、交易删除契约、HBase/ES 资产、交易资源关联测试；当前测试套件编译失败（见 `HANDOFF.md`） |
+| `frontend/src/pages/intranet/` | 前端内网页面、专属组件/API/类型 | 已创建交易及数据资产页面、两类隐藏字段设计页、交易资源对话框和 intranet 行内编辑共享组件 |
+| `backend/src/main/resources/db/intranet/` | 内网表结构、菜单权限和虚构演示数据脚本 | 已创建 P1-01 / P1-02 / P1-03 共 11 个脚本；V11 待执行 |
+| `backend/src/test/java/org/lbl/intranet/` | 内网专属单元测试 | 当前 HEAD 中不存在；P1-03 定向测试需恢复 |
 | `docs/intranet/` | 架构、决策、实施与迁移说明 | 已创建文档框架 |
 
 ### 可能需要同步或在目标工程中适配的公共契约
@@ -47,8 +47,10 @@
 | V5 | `db/intranet/V5__insert_intranet_transaction_message_field_demo_data.sql` | 虚构交易报文字段演示数据 | 按需执行；不用于生产数据 | V1、V3、V4 | 已执行（用户确认，当前会话未查库复核） |
 | V6 | `db/intranet/V6__seed_intranet_transaction_field_design_menu.sql` | 隐藏交易字段设计页及超管初始授权 | 独立执行；幂等插入 | V2 | 已执行（用户确认，当前会话未查库复核） |
 | V7 | `db/intranet/V7__add_intranet_message_field_sibling_unique_key.sql` | 同一交易/方向/父节点下字段英文名唯一 | 先查询重复数据；存在重复时唯一索引创建失败且不自动清理 | V4 | 待执行 |
-| V8 | `db/intranet/V8__create_intranet_data_asset_tables.sql` | HBase 表/字段、ES 索引/字段、交易 HBase/ES 资源关联共六张表 | 直接 `CREATE TABLE`，无 `IF NOT EXISTS`；重复执行报错，需先确认目标库无同名表 | V1 | 待执行 |
-| V9 | `db/intranet/V9__seed_intranet_data_asset_menu.sql` | 内网数据资产菜单、四个按钮权限与超管初始授权 | 幂等插入；守卫未排除逻辑删除（见下方幂等边界） | V8、V2、既有 RBAC 表 | 待执行 |
+| V8 | `db/intranet/V8__create_intranet_data_asset_tables.sql` | HBase 表/字段、ES 索引/字段、交易 HBase/ES 资源关联共六张表 | 直接 `CREATE TABLE`，无 `IF NOT EXISTS`；重复执行报错，需先确认目标库无同名表 | V1 | 目标环境状态待查询复核（用户已看到资产数据） |
+| V9 | `db/intranet/V9__seed_intranet_data_asset_menu.sql` | 内网数据资产菜单、四个按钮权限与超管初始授权 | 幂等插入；守卫未排除逻辑删除（见下方幂等边界） | V8、V2、既有 RBAC 表 | 目标环境状态待查询复核（用户已进入资产页面） |
+| V10 | `db/intranet/V10__insert_intranet_data_asset_demo_data.sql` | 3 张虚构 HBase 表、字段、3 个逻辑 ES 索引及字段；存在 V3 演示交易时补充资源关联 | 按业务唯一键守卫，可重复执行；仅用于本地/测试展示 | V8；关联演示可选依赖 V3 | 目标环境状态待查询复核（用户已看到演示效果） |
+| V11 | `db/intranet/V11__seed_intranet_data_asset_field_design_menu.sql` | 数据资产字段设计隐藏路由及超管初始授权 | 幂等插入；沿用既有软删除菜单边界 | V9 | 待执行 |
 | 待定 | 待创建 | 源系统资产（是否独立建模待确认） | 待确认 | P1 模型 | 未开始 |
 | 待定 | 待创建 | 需求、审批关联、交易调用 | 待确认 | P2 方案 | 未开始 |
 | 待定 | 待创建 | 血缘节点、关系、证据和有效期 | 待确认 | P3 模型 | 未开始 |
@@ -59,6 +61,8 @@
 已知幂等边界（执行前须确认）：V2/V6/V9 的 `NOT EXISTS` 守卫未排除 `sys_menu.deleted = 1`，而该表为逻辑删除且 `route_path` / `permission_code` 上有唯一键。若目标库存在同路径或同权限码的软删除菜单，脚本会静默跳过插入而不报错，导致菜单不出现。执行前请先核查，或先决定守卫的修正方式。
 
 V8 相关执行注意：六张表用直接 `CREATE TABLE`（与 V1/V4 一致），重复执行会因表已存在而报错；V8 未建数据库外键，`hbase_table_id` / `es_index_id` / `transaction_id` 的引用完整性完全由服务层校验，迁移校验阶段无法用外键工具核对孤立引用，需要写 SQL 自查。V9 的菜单 `component` 值为 `intranet/dataasset/index`，对应的 `frontend/src/pages/intranet/dataasset/index.tsx` 必须存在于目标构建产物中。
+
+V10 仅包含虚构数据，覆盖 HDS/PBM 两个集市、按年/按月逻辑索引族、可空锁标识、`id` RowKey 字段及四类 ES 数据类型。执行 V10 前必须先执行 V8；如 V3 演示交易不存在，末尾三条资源关联语句会安全地插入 0 行。
 
 ## 4. 构建和运行依赖
 
@@ -75,7 +79,7 @@ V8 相关执行注意：六张表用直接 `CREATE TABLE`（与 V1/V4 一致）�
 | Java | `17.0.12`（2026-10-11 Maven 测试日志确认） |
 | Maven | `D:\software\apache-maven\bin\mvn.cmd`（当前 PATH 可直接调用 `mvn.cmd`） |
 | Maven 本地仓库 | 当前会话未单独核对 |
-| 构建验证 | 2026-10-11：`npm.cmd run build` 通过；`mvn.cmd -o -B test -f backend\pom.xml` **失败于测试编译阶段**（`EsAssetServiceTest.java:32` 的 `updateById` 重载歧义），主代码编译通过，测试结果未取得 |
+| 构建验证 | 2026-10-11：样式调整后 `npm run build` 通过；`mvn test` 编译 277 个主源码并运行当前仓库现存测试 2/2 通过；P1-03 定向测试当前缺失，不能据此认定领域行为已覆盖 |
 | 本地服务 | MySQL 3306 / Redis 6379 / ES 9200 / 应用 8080 均未监听 |
 | 执行环境限制 | 2026-10-11 会话的 shell 受 Windows 沙箱限制无法写入工作区（含 `backend\target`、`frontend\dist`），Maven 构建因此在 `maven-resources-plugin` 阶段报 `application-dev.yml (拒绝访问)`；需要放宽该次命令权限后才能构建 |
 

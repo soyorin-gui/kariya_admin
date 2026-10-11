@@ -1,0 +1,10 @@
+@import '../../../system/shared.css';
+.dataasset-field-page .table-card { min-height: calc(100vh - 240px); }
+.dataasset-field-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
+.dataasset-field-toolbar > .ant-input-affix-wrapper { width: 320px; }
+.dataasset-field-page .ant-table .ant-input,
+.dataasset-field-page .ant-table .ant-select-selector { min-height: 32px !important; }
+@media (max-width: 600px) {
+  .dataasset-field-toolbar { align-items: stretch; flex-direction: column; }
+  .dataasset-field-toolbar > .ant-input-affix-wrapper { width: 100%; }
+}

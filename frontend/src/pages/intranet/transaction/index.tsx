@@ -1,8 +1,8 @@
 import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { App, Button, Descriptions, Drawer, Input, Popconfirm, Space, Tag, Tooltip } from 'antd';
+import { App, Button, Descriptions, Drawer, Popconfirm, Space, Tag, Tooltip } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { DatabaseOutlined, DeleteOutlined, EditOutlined, EyeOutlined, PlusOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
+import { DatabaseOutlined, DeleteOutlined, EditOutlined, EyeOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 import { deleteTransaction, getTransaction, getTransactions } from './api';
 import type { Transaction, TransactionListItem } from './types';
 import { TransactionDialog } from './TransactionDialog';
@@ -12,7 +12,7 @@ import { SmartTable, type SmartTableRef } from '../../../components/SmartTable';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import './index.css';
 
-type Search = { keyword: string; status?: number };
+type Search = { keyword: string; esfKeyword: string; resourceKeyword: string; status?: number };
 const statuses: Record<number, { label: string; color: string }> = {
   0: { label: '评估中', color: 'default' },
   1: { label: '开发中', color: 'processing' },
@@ -106,7 +106,7 @@ export default function TransactionPage() {
           ref={tableRef}
           rowKey='id'
           columns={columns}
-          initialSearch={{ keyword: '' }}
+          initialSearch={{ keyword: '', esfKeyword: '', resourceKeyword: '' }}
           request={async ({ page, pageSize, search, filters, sorter }) => {
             // filters 在 TableRequestParams 里是可选的，且清空筛选时可能是空数组；
             // 空数组是真值，直接取 [0] 会得到 NaN 并发出 status=NaN 的请求，所以先收敛为数组再判长度。
@@ -116,17 +116,11 @@ export default function TransactionPage() {
           }}
           onRequestError={(e) => message.error(getApiErrorMessage(e, '无法获取交易列表'))}
           toolbarClassName='table-toolbar'
-          searchRender={({ search, setSearch, submit }) => (
-            <Space wrap>
-              <Input
-                value={search.keyword}
-                onChange={(e) => setSearch({ ...search, keyword: e.target.value })}
-                onPressEnter={() => submit()}
-                prefix={<SearchOutlined />}
-                placeholder='搜索交易名称、编码或 ESF 服务名'
-              />
-            </Space>
-          )}
+          searchConfig={[
+            { name: 'keyword', label: '交易名称 / 编码', type: 'input', width: 220, placeholder: '请输入交易名称或编码' },
+            { name: 'esfKeyword', label: 'ESF 服务名 / 操作名', type: 'input', width: 220, placeholder: '请输入 ESF 服务名或操作名' },
+            { name: 'resourceKeyword', label: '关联索引 / HBase 表', type: 'input', width: 240, placeholder: '请输入索引名或 HBase 表名' },
+          ]}
           toolbarRender={({ submit }) => (
             <Space wrap>
               <Button icon={<ReloadOutlined />} onClick={() => submit()}>

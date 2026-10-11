@@ -3,7 +3,7 @@
  * 只依赖 :root 上的主题变量，不引用业务页面的类名。
  */
 .page-unavailable {
-  max-width: 720px;
+  max-width: 100%;
   padding: 28px 32px;
   background: var(--surface);
   border: 1px solid var(--line);

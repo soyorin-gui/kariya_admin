@@ -150,7 +150,7 @@ frontend/src/pages/intranet/
 - P1 把这组索引建模为一个“逻辑索引族”，字段定义、HBase 表关联和交易资源关联只保存一份。
 - 逻辑索引族保存可展示的索引命名模式和拆分规则；例如模式 `index_{yyyy}`、规则“按年”。它们不被当前系统解析或用于动态计算索引名。
 - P1 不为 `index_2016`、`index_2017` 等物理实例分别建资产记录；如后续需要监控物理索引容量、健康状态或生命周期，再从 ES 动态发现，不与当前元数据混存。
-- ES 中保存完整 HBase RowKey 的字段名由业务统一约定，不再为每个逻辑索引族保存 `rowkey_field_id`。**实现现状**：服务层已按固定字段名 `id` 校验（`EsAssetService.ROWKEY_FIELD_NAME`），该名称尚未经用户确认，见 D-020 与下文待确认项。
+- ES 中保存完整 HBase RowKey 的字段名由业务统一约定为 `id`，不再为每个逻辑索引族保存 `rowkey_field_id`。服务层按 `id` 校验并禁止改名或删除。
 
 ### HBase 表锁元数据（设计边界与数据字典均已确认）
 
@@ -161,7 +161,7 @@ frontend/src/pages/intranet/
 - P3 血缘可展示 HBase 表的锁元数据，但不把表锁建模为血缘节点或关系。
 - 已确认数据字典：HBase 表使用 `lock_key VARCHAR(255) NULL`；前端空输入在后端归一为 `NULL`，页面展示为 `-`，不保留 `NULL` 和空字符串两种无锁语义。
 
-### P1-03 数据资产模型（框架已实现，数据字典部分待确认）
+### P1-03 数据资产模型（已按确认数据字典实现）
 
 > 2026-10-11 复核：本节的概念关系已由 V8 脚本和 `org.lbl.intranet.dataasset` 包实现，见下方“已实现的表结构与代码路径”。表名、字段名、类型和长度是**当前实现事实**，其中三处业务语义仍待用户确认（见本节末尾“仍待确认”），不得据此认为数据字典全部定稿。
 
@@ -221,17 +221,17 @@ frontend/src/pages/intranet/
 - 后端：`org.lbl.intranet.dataasset.hbase`（表与字段）、`.es`（索引与字段）、`.relation`（交易关联），均为 `Controller` + `Service` + `Mapper` + `entity/request/vo` 分层；查询侧统一按“更新时间倒序 + id 倒序”分页，编号重复在服务层预检。
 - 删除与引用保护：HBase 表被 ES 索引或交易关联时拒绝删除；ES 索引被交易关联时拒绝删除；删除资源时在同一事务内先删字段；ES 固定 RowKey 字段禁止删除。V8 **未建数据库外键**，绕过应用直写库仍可产生孤立引用。
 - 权限码：`intranet:dataasset:list/add/update/delete`，由 V9 种子脚本写入 `sys_menu` / `sys_role_menu`；资产选项接口额外允许 `intranet:transaction:list` 与 `intranet:transaction:update`。
-- 前端：`frontend/src/pages/intranet/dataasset/{index,AssetDialogs,api,types}.tsx|ts` 提供 HBase/ES 两个 Tab 的资产分页、对话框和字段抽屉；交易列表通过 `frontend/src/pages/intranet/transaction/DataResourceDialog.tsx` 配置该交易的数据资源集合（整体替换，见 D-022）。
+- 前端：`frontend/src/pages/intranet/dataasset/{index,AssetDialogs,api,types}.tsx|ts` 提供 HBase/ES 两个 Tab 的资产分页和资产对话框；字段入口跳转隐藏页 `frontend/src/pages/intranet/dataasset/fields/index.tsx`，使用行内可编辑表格，不再保留字段抽屉或字段 Modal。交易列表通过 `frontend/src/pages/intranet/transaction/DataResourceDialog.tsx` 配置资源集合。
+- intranet 共享：`frontend/src/pages/intranet/components/InlineEditableTable.tsx` 和 `FieldText.tsx` 被交易、HBase、ES 字段设计页复用；业务规则留在页面内。
+- 基线 SmartTable：`searchConfig` 支持多条件查询、显式查询/重置、高级条件展开和自定义控件，见 D-025；既有 `searchRender` 页面保持兼容。
 - 交易删除契约已扩展到关联表：`TransactionAssetService.remove` 在同一事务内先删 HBase 关联、ES 关联、报文字段，再删交易（见 D-015、D-024）。
-- 定向测试位于 `backend/src/test/java/org/lbl/intranet/dataasset/**`：`HbaseAssetServiceTest`、`EsAssetServiceTest`、`TransactionDataResourceServiceTest`、`TransactionAssetServiceTest`。
-- **验证状态**：`mvn -o -B test` 当前**失败于测试编译阶段**——`EsAssetServiceTest.java:32` 的 `verify(fields, never()).updateById(any())` 因 `BaseMapper.updateById` 的实体/集合重载产生歧义（`参考: updateById(T) 与 updateById(Collection<T>)`），主代码已编译通过。测试运行结果因此**未取得**，不能记为本轮已验证。
+- 当前 HEAD 的 `backend/src/test` 仅保留 `JasyptEncryptorTest.java`，原 P1-03 定向测试不在仓库中。
+- **验证状态**：2026-10-11 执行 `mvn test` 已完成主代码编译并运行现存测试 2/2；因缺少 HBase/ES/交易资源领域测试，删除保护、固定 `id` 约束和整体替换仍需补充自动化验证。
 
 ### 仍待确认（代码已落地，但必须在 P1-03 定稿前答复）
 
-1. ES 固定 RowKey 字段名是否为 `id`（当前实现按 `id` 硬编码，见 D-020）。
-2. HBase 表“数据量”“数据深度”的业务语义与样例取值（当前为 `VARCHAR(64)` 自由展示文本，字段名已落地为 `data_volume`、`data_depth`）。
-3. 源系统是否需要独立建模对象，以及是否区分业务系统、HBase 集群和 ES 集群（当前无源系统表）。
-4. 直查 HBase 的“入参到 RowKey”关系是否仅作展示（当前只保存 `rowkey_rule` 文本，不解析、不执行）。
+1. 源系统是否需要在后续阶段独立建模，以及是否区分业务系统、HBase 集群和 ES 集群（P1 当前无源系统表）。
+2. 直查 HBase 的“入参到 RowKey”关系未来是否需要升级为可执行映射；P1 已确认仅保存 `rowkey_rule` 自由文本，不解析、不执行。
 
 ## 6. 统一血缘模型
 

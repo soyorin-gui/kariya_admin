@@ -1,0 +1,27 @@
+.smart-table-search-form,
+.smart-table-search-fields,
+.smart-table-search-actions {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.smart-table-search-form,
+.smart-table-search-fields {
+  flex-wrap: wrap;
+}
+
+.smart-table-search-field {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+@media (max-width: 800px) {
+  .smart-table-search-form {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

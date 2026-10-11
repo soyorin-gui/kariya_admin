@@ -2,8 +2,9 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRe
 import { Button, DatePicker, Input, Select, Space, Table } from 'antd';
 import type { TablePaginationConfig, TableProps } from 'antd';
 import type { FilterValue, SorterResult, TableCurrentDataSource } from 'antd/es/table/interface';
-import { ReloadOutlined, SearchOutlined } from '@ant-design/icons';
+import { DownOutlined, ReloadOutlined, SearchOutlined, UpOutlined } from '@ant-design/icons';
 import type { SmartTableRef, TableRequest, TableRequestParams, TableSorter } from '../../types/table';
+import './SmartTable.css';
 
 export interface SmartTableActions<Search extends Record<string, unknown>> {
   search: Search;
@@ -23,6 +24,18 @@ export interface SearchField<Search extends Record<string, unknown>> {
   type: SearchFieldType;
   placeholder?: string;
   options?: Array<{ label: string; value: string | number }>;
+  width?: number | string;
+  advanced?: boolean;
+  render?: (props: { value: unknown; onChange: (value: unknown) => void; submit: () => void }) => ReactNode;
+}
+
+export interface SmartTableSearchActions {
+  submitText?: string;
+  resetText?: string;
+  showReset?: boolean;
+  submitOnEnter?: boolean;
+  collapsible?: boolean;
+  defaultExpanded?: boolean;
 }
 
 type AntTableChange<T> = (pagination: TablePaginationConfig, filters: Record<string, FilterValue | null>, sorter: SorterResult<T> | SorterResult<T>[], extra: TableCurrentDataSource<T>) => void;
@@ -32,6 +45,7 @@ export interface SmartTableProps<T extends object, Search extends Record<string,
   initialSearch?: Search;
   pagination?: false | Omit<TablePaginationConfig, 'current' | 'total' | 'onChange'>;
   searchConfig?: Array<SearchField<Search>>;
+  searchActions?: SmartTableSearchActions;
   searchRender?: (actions: SmartTableActions<Search>) => ReactNode;
   toolbarRender?: (actions: SmartTableActions<Search>) => ReactNode;
   onExport?: (params: TableRequestParams<Search>) => void | Promise<void>;
@@ -58,6 +72,7 @@ function SmartTableInner<T extends object, Search extends Record<string, unknown
     initialSearch,
     pagination = {},
     searchConfig,
+    searchActions,
     searchRender,
     toolbarRender,
     onExport,
@@ -92,6 +107,7 @@ function SmartTableInner<T extends object, Search extends Record<string, unknown
   const [filters, setFilters] = useState<Record<string, unknown>>({});
   const [reloadToken, setReloadToken] = useState(0);
   const [tableStateVersion, setTableStateVersion] = useState(0);
+  const [searchExpanded, setSearchExpanded] = useState(searchActions?.defaultExpanded ?? false);
   const requestSequence = useRef(0);
 
   const queryParams = useMemo<TableRequestParams<Search>>(() => ({ page, pageSize, sorter, filters, search: submittedSearch }), [filters, page, pageSize, sorter, submittedSearch]);
@@ -159,38 +175,30 @@ function SmartTableInner<T extends object, Search extends Record<string, unknown
 
   const actions = useMemo<SmartTableActions<Search>>(() => ({ search, setSearch, submit, reset, reload, exportData, getQueryParams }), [exportData, getQueryParams, reload, reset, search, submit]);
 
+  const hasAdvancedSearch = searchConfig?.some((field) => field.advanced) ?? false;
+  const allowCollapse = hasAdvancedSearch && searchActions?.collapsible !== false;
   const configuredSearch = searchConfig?.length ? (
-    <Space wrap>
-      {searchConfig.map((field) => {
-        const value = search[field.name];
-        const update = (next: unknown) => setSearch((current) => ({ ...current, [field.name]: next }));
-        if (field.type === 'select') {
-          return <Select key={field.name} value={value as string | number | undefined} options={field.options} allowClear placeholder={field.placeholder ?? field.label} onChange={update} />;
-        }
-        if (field.type === 'date') {
-          return <DatePicker key={field.name} value={value as never} placeholder={field.placeholder ?? field.label} onChange={update} />;
-        }
-        if (field.type === 'dateRange') {
-          return <DatePicker.RangePicker key={field.name} value={value as never} onChange={update} />;
-        }
-        return (
-          <Input
-            key={field.name}
-            value={value as string | number | undefined}
-            allowClear
-            placeholder={field.placeholder ?? field.label}
-            onChange={(event) => update(event.target.value)}
-            onPressEnter={() => submit()}
-          />
-        );
-      })}
-      <Button type='primary' icon={<SearchOutlined />} onClick={() => submit()}>
-        查询
-      </Button>
-      <Button icon={<ReloadOutlined />} onClick={reset}>
-        重置
-      </Button>
-    </Space>
+    <div className='smart-table-search-form'>
+      <div className='smart-table-search-fields'>
+        {searchConfig.filter((field) => !field.advanced || !allowCollapse || searchExpanded).map((field) => {
+          const value = search[field.name];
+          const update = (next: unknown) => setSearch((current) => ({ ...current, [field.name]: next }));
+          const style = { width: field.width ?? 200 };
+          let control: ReactNode;
+          if (field.render) control = field.render({ value, onChange: update, submit: () => submit() });
+          else if (field.type === 'select') control = <Select value={value as string | number | undefined} style={style} options={field.options} allowClear placeholder={field.placeholder ?? field.label} onChange={update} />;
+          else if (field.type === 'date') control = <DatePicker value={value as never} style={style} placeholder={field.placeholder ?? field.label} onChange={update} />;
+          else if (field.type === 'dateRange') control = <DatePicker.RangePicker value={value as never} style={style} onChange={update} />;
+          else control = <Input value={value as string | number | undefined} style={style} allowClear placeholder={field.placeholder ?? field.label} onChange={(event) => update(event.target.value)} onPressEnter={() => searchActions?.submitOnEnter !== false && submit()} />;
+          return <label className='smart-table-search-field' key={field.name}>{field.label && <span>{field.label}</span>}{control}</label>;
+        })}
+      </div>
+      <Space className='smart-table-search-actions' wrap>
+        <Button type='primary' icon={<SearchOutlined />} onClick={() => submit()}>{searchActions?.submitText ?? '查询'}</Button>
+        {searchActions?.showReset !== false && <Button icon={<ReloadOutlined />} onClick={reset}>{searchActions?.resetText ?? '重置'}</Button>}
+        {allowCollapse && <Button type='link' icon={searchExpanded ? <UpOutlined /> : <DownOutlined />} onClick={() => setSearchExpanded((value) => !value)}>{searchExpanded ? '收起' : '展开'}</Button>}
+      </Space>
+    </div>
   ) : null;
 
   const handleChange: AntTableChange<T> = (nextPagination, nextFilters, nextSorter, extra) => {

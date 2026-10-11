@@ -1,12 +1,13 @@
-import { useEffect, useMemo, useState, type Key, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type Key } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { App, Button, Form, Input, Popconfirm, Popover, Select, Space, Table, Tabs, Tag, Tooltip } from 'antd';
-import { ArrowLeftOutlined, DeleteOutlined, EditOutlined, ExpandOutlined, PlusOutlined, SaveOutlined, CloseOutlined, SearchOutlined } from '@ant-design/icons';
-import type { ColumnsType } from 'antd/es/table';
+import { App, Button, Form, Input, Popconfirm, Select, Space, Tabs, Tag } from 'antd';
+import { ArrowLeftOutlined, DeleteOutlined, EditOutlined, PlusOutlined, SaveOutlined, CloseOutlined, SearchOutlined } from '@ant-design/icons';
 import { createTransactionMessageField, deleteTransactionMessageField, getTransaction, getTransactionMessageFields, updateTransactionMessageField } from '../api';
 import type { MessageSide, Transaction, TransactionMessageField, TransactionMessageFieldRequest } from '../types';
 import { Permission } from '../../../../permission/Permission';
 import { getApiErrorMessage } from '../../../../utils/apiError';
+import { InlineEditableTable, type InlineEditableColumn } from '../../components/InlineEditableTable';
+import { EllipsisDescription, ExpandableTextInput } from '../../components/FieldText';
 import '../index.css';
 import './index.css';
 
@@ -41,39 +42,6 @@ function filterTree(nodes: TreeField[], keyword: string, editingId?: number): Tr
 function countNodes(nodes: TreeField[]): number {
   return nodes.reduce((total, node) => total + 1 + countNodes(node.children ?? []), 0);
 }
-function ExpandableTextInput({ value, onChange, maxLength = 1000, placeholder }: { value?: string; onChange?: (value: string) => void; maxLength?: number; placeholder?: string }) {
-  const current = value ?? '';
-  const expandedEditor = (
-    <div className='transaction-field-description-editor'>
-      <Input.TextArea value={current} onChange={(event) => onChange?.(event.target.value)} autoSize={{ minRows: 5, maxRows: 10 }} maxLength={maxLength} showCount placeholder={placeholder} />
-    </div>
-  );
-  return (
-    <Input
-      size='small'
-      value={current}
-      onChange={(event) => onChange?.(event.target.value)}
-      maxLength={maxLength}
-      placeholder={placeholder}
-      suffix={
-        <Popover trigger='click' placement='topRight' content={expandedEditor}>
-          <button type='button' className='transaction-field-description-expand' aria-label='展开编辑字段说明' onMouseDown={(event) => event.preventDefault()}>
-            <ExpandOutlined />
-          </button>
-        </Popover>
-      }
-    />
-  );
-}
-function DescriptionText({ value }: { value?: string }) {
-  if (!value) return '-';
-  return (
-    <Tooltip placement='topLeft' styles={{ root: { maxWidth: 520 } }} title={<div className='transaction-field-description-tooltip'>{value}</div>}>
-      <span className='transaction-field-description-text'>{value}</span>
-    </Tooltip>
-  );
-}
-
 export default function TransactionFieldDesignPage() {
   const { message } = App.useApp();
   const navigate = useNavigate();
@@ -156,55 +124,41 @@ export default function TransactionFieldDesignPage() {
     if (name === 'fieldNameEn') return [{ required: true, message: '请输入字段英文名' }];
     return [];
   };
-  const cell = (row: TreeField, name: keyof TransactionMessageFieldRequest, normal: ReactNode, editor: ReactNode) =>
-    row.id === editingId ? (
-      <Form.Item name={name} style={{ margin: 0 }} rules={fieldRules(name)}>
-        {editor}
-      </Form.Item>
-    ) : (
-      normal
-    );
-  const columns: ColumnsType<TreeField> = [
-    { title: '字段中文名', dataIndex: 'fieldNameCn', width: 170, render: (v, row) => cell(row, 'fieldNameCn', v, <Input size='small' maxLength={64} placeholder='字段中文名' />) },
-    { title: '字段英文名', dataIndex: 'fieldNameEn', width: 180, render: (v, row) => cell(row, 'fieldNameEn', <code>{v}</code>, <Input size='small' maxLength={64} placeholder='字段英文名' />) },
+  const columns: Array<InlineEditableColumn<TreeField, TransactionMessageFieldRequest>> = [
+    { title: '字段中文名', dataIndex: 'fieldNameCn', field: 'fieldNameCn', rules: fieldRules('fieldNameCn'), width: 170, editor: () => <Input size='small' maxLength={64} placeholder='字段中文名' /> },
+    { title: '字段英文名', dataIndex: 'fieldNameEn', field: 'fieldNameEn', rules: fieldRules('fieldNameEn'), width: 180, view: (v) => <code>{String(v)}</code>, editor: () => <Input size='small' maxLength={64} placeholder='字段英文名' /> },
     {
       title: '节点类型',
       dataIndex: 'nodeType',
       width: 110,
-      render: (v, row) => cell(row, 'nodeType', <Tag>{v}</Tag>, <Select size='small' options={['FIELD', 'OBJECT', 'ARRAY'].map((value) => ({ value, label: value }))} />),
+      field: 'nodeType', view: (v) => <Tag>{String(v)}</Tag>, editor: () => <Select size='small' options={['FIELD', 'OBJECT', 'ARRAY'].map((value) => ({ value, label: value }))} />,
     },
-    { title: '数据类型', dataIndex: 'dataType', width: 120, render: (v, row) => cell(row, 'dataType', v || '-', <Input size='small' maxLength={64} placeholder='String' />) },
-    { title: '长度/精度', dataIndex: 'dataLength', width: 105, render: (v, row) => cell(row, 'dataLength', v || '-', <Input size='small' maxLength={64} placeholder='32 / 18,2' />) },
+    { title: '数据类型', dataIndex: 'dataType', field: 'dataType', width: 120, view: (v) => String(v || '-'), editor: () => <Input size='small' maxLength={64} placeholder='String' /> },
+    { title: '长度/精度', dataIndex: 'dataLength', field: 'dataLength', width: 105, view: (v) => String(v || '-'), editor: () => <Input size='small' maxLength={64} placeholder='32 / 18,2' /> },
     {
       title: '必填',
       dataIndex: 'requiredFlag',
       width: 85,
-      render: (v, row) =>
-        cell(
-          row,
-          'requiredFlag',
-          v === 1 ? '是' : '否',
-          <Select
+      field: 'requiredFlag', view: (v) => v === 1 ? '是' : '否', editor: () => <Select
             size='small'
             options={[
               { value: 0, label: '否' },
               { value: 1, label: '是' },
             ]}
           />,
-        ),
     },
-    { title: '顺序', dataIndex: 'sortOrder', width: 75, render: (v, row) => cell(row, 'sortOrder', v, <Input size='small' type='number' min={0} />) },
+    { title: '顺序', dataIndex: 'sortOrder', field: 'sortOrder', width: 75, editor: () => <Input size='small' type='number' min={0} /> },
     {
       title: '说明',
       dataIndex: 'description',
       width: 300,
-      render: (v, row) => cell(row, 'description', <DescriptionText value={v} />, <ExpandableTextInput maxLength={1000} placeholder='字段说明' />),
+      field: 'description', view: (v) => <EllipsisDescription value={v as string | undefined} />, editor: () => <ExpandableTextInput maxLength={1000} placeholder='字段说明' />,
     },
     {
       title: '操作',
       fixed: 'right',
       width: 210,
-      render: (_, row) =>
+      view: (_, row) =>
         row.id === editingId ? (
           <Space>
             <a onClick={() => void save()}>
@@ -297,9 +251,10 @@ export default function TransactionFieldDesignPage() {
             {filtering && <span className='transaction-field-filter-count'>显示 {visibleCount} / {tableRows.length} 个节点</span>}
           </Space>
         </div>
-        <Form form={form} component={false}>
-          <Table<TreeField>
-            rowKey='id'
+          <InlineEditableTable<TreeField, TransactionMessageFieldRequest>
+            form={form}
+            editingKey={editingId}
+            getRowKey={(row) => row.id}
             columns={columns}
             dataSource={filteredTree}
             loading={{ spinning: loading, tip: '正在加载字段数据…' }}
@@ -318,7 +273,6 @@ export default function TransactionFieldDesignPage() {
                 ) : null,
             }}
           />
-        </Form>
       </div>
     </div>
   );
