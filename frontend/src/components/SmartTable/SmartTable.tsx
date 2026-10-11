@@ -180,23 +180,51 @@ function SmartTableInner<T extends object, Search extends Record<string, unknown
   const configuredSearch = searchConfig?.length ? (
     <div className='smart-table-search-form'>
       <div className='smart-table-search-fields'>
-        {searchConfig.filter((field) => !field.advanced || !allowCollapse || searchExpanded).map((field) => {
-          const value = search[field.name];
-          const update = (next: unknown) => setSearch((current) => ({ ...current, [field.name]: next }));
-          const style = { width: field.width ?? 200 };
-          let control: ReactNode;
-          if (field.render) control = field.render({ value, onChange: update, submit: () => submit() });
-          else if (field.type === 'select') control = <Select value={value as string | number | undefined} style={style} options={field.options} allowClear placeholder={field.placeholder ?? field.label} onChange={update} />;
-          else if (field.type === 'date') control = <DatePicker value={value as never} style={style} placeholder={field.placeholder ?? field.label} onChange={update} />;
-          else if (field.type === 'dateRange') control = <DatePicker.RangePicker value={value as never} style={style} onChange={update} />;
-          else control = <Input value={value as string | number | undefined} style={style} allowClear placeholder={field.placeholder ?? field.label} onChange={(event) => update(event.target.value)} onPressEnter={() => searchActions?.submitOnEnter !== false && submit()} />;
-          return <label className='smart-table-search-field' key={field.name}>{field.label && <span>{field.label}</span>}{control}</label>;
-        })}
+        {searchConfig
+          .filter((field) => !field.advanced || !allowCollapse || searchExpanded)
+          .map((field) => {
+            const value = search[field.name];
+            const update = (next: unknown) => setSearch((current) => ({ ...current, [field.name]: next }));
+            const style = { width: field.width ?? 200 };
+            let control: ReactNode;
+            if (field.render) control = field.render({ value, onChange: update, submit: () => submit() });
+            else if (field.type === 'select')
+              control = <Select value={value as string | number | undefined} style={style} options={field.options} allowClear placeholder={field.placeholder ?? field.label} onChange={update} />;
+            else if (field.type === 'date') control = <DatePicker value={value as never} style={style} placeholder={field.placeholder ?? field.label} onChange={update} />;
+            else if (field.type === 'dateRange') control = <DatePicker.RangePicker value={value as never} style={style} onChange={update} />;
+            else
+              control = (
+                <Input
+                  value={value as string | number | undefined}
+                  style={style}
+                  allowClear
+                  placeholder={field.placeholder ?? field.label}
+                  onChange={(event) => update(event.target.value)}
+                  onPressEnter={() => searchActions?.submitOnEnter !== false && submit()}
+                />
+              );
+            return (
+              <label className='smart-table-search-field' key={field.name}>
+                {field.label && <span>{field.label}</span>}
+                {control}
+              </label>
+            );
+          })}
       </div>
       <Space className='smart-table-search-actions' wrap>
-        <Button type='primary' icon={<SearchOutlined />} onClick={() => submit()}>{searchActions?.submitText ?? '查询'}</Button>
-        {searchActions?.showReset !== false && <Button icon={<ReloadOutlined />} onClick={reset}>{searchActions?.resetText ?? '重置'}</Button>}
-        {allowCollapse && <Button type='link' icon={searchExpanded ? <UpOutlined /> : <DownOutlined />} onClick={() => setSearchExpanded((value) => !value)}>{searchExpanded ? '收起' : '展开'}</Button>}
+        <Button type='primary' icon={<SearchOutlined />} onClick={() => submit()}>
+          {searchActions?.submitText ?? '查询'}
+        </Button>
+        {searchActions?.showReset !== false && (
+          <Button icon={<ReloadOutlined />} onClick={reset}>
+            {searchActions?.resetText ?? '重置'}
+          </Button>
+        )}
+        {allowCollapse && (
+          <Button type='link' icon={searchExpanded ? <UpOutlined /> : <DownOutlined />} onClick={() => setSearchExpanded((value) => !value)}>
+            {searchExpanded ? '收起' : '展开'}
+          </Button>
+        )}
       </Space>
     </div>
   ) : null;

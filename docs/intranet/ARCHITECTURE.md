@@ -42,7 +42,7 @@ frontend/src/pages/intranet/
   dataasset/
   lineage/
   impact/
-  shared/            仅供 intranet 页面复用
+  shared/            仅供 intranet 页面复用（原规划名；实际落地为 `components/`，见 D-012）
 ```
 
 前端选择 `src/pages/intranet/` 是为了同时满足目录隔离与现有动态页面扫描机制，不需要修改路由基础设施。API、类型和专属组件是否全部内聚在该目录，待 P1 首个页面落地时按现有代码风格确认。
@@ -222,11 +222,14 @@ frontend/src/pages/intranet/
 - 删除与引用保护：HBase 表被 ES 索引或交易关联时拒绝删除；ES 索引被交易关联时拒绝删除；删除资源时在同一事务内先删字段；ES 固定 RowKey 字段禁止删除。V8 **未建数据库外键**，绕过应用直写库仍可产生孤立引用。
 - 权限码：`intranet:dataasset:list/add/update/delete`，由 V9 种子脚本写入 `sys_menu` / `sys_role_menu`；资产选项接口额外允许 `intranet:transaction:list` 与 `intranet:transaction:update`。
 - 前端：`frontend/src/pages/intranet/dataasset/{index,AssetDialogs,api,types}.tsx|ts` 提供 HBase/ES 两个 Tab 的资产分页和资产对话框；字段入口跳转隐藏页 `frontend/src/pages/intranet/dataasset/fields/index.tsx`，使用行内可编辑表格，不再保留字段抽屉或字段 Modal。交易列表通过 `frontend/src/pages/intranet/transaction/DataResourceDialog.tsx` 配置资源集合。
-- intranet 共享：`frontend/src/pages/intranet/components/InlineEditableTable.tsx` 和 `FieldText.tsx` 被交易、HBase、ES 字段设计页复用；业务规则留在页面内。
-- 基线 SmartTable：`searchConfig` 支持多条件查询、显式查询/重置、高级条件展开和自定义控件，见 D-025；既有 `searchRender` 页面保持兼容。
+- intranet 共享：`frontend/src/pages/intranet/components/InlineEditableTable.tsx`（行内编辑骨架 + `.card-scroll` 滚动容器 + `sticky` 固定表头 + 进入编辑自动滚到该行）和 `FieldText.tsx`（长文本行内编辑 + Popover 展开）被交易、HBase、ES 页面复用；业务规则留在页面内。
+- 长文本截断展示：统一使用基线通用组件 `frontend/src/components/EllipsisText/`（见 D-029），intranet 不再保留自己的实现；与 antd Table 搭配时写 `ellipsis: { showTitle: false }`。
+- 基线 SmartTable：`searchConfig` 支持多条件查询、显式查询/重置、高级条件展开和自定义控件，见 D-025；既有 `searchRender` 页面保持兼容。交易列表用三组条件演示该能力，其中“ESF 服务名/操作名”和“关联索引/HBase 表”**刻意不接后端**，属于 D-026 确认的前端样式验证用途；`keyword` 仍按交易名称、交易编码和 ESF 服务名三列模糊匹配。
 - 交易删除契约已扩展到关联表：`TransactionAssetService.remove` 在同一事务内先删 HBase 关联、ES 关联、报文字段，再删交易（见 D-015、D-024）。
-- 当前 HEAD 的 `backend/src/test` 仅保留 `JasyptEncryptorTest.java`，原 P1-03 定向测试不在仓库中。
-- **验证状态**：2026-10-11 执行 `mvn test` 已完成主代码编译并运行现存测试 2/2；因缺少 HBase/ES/交易资源领域测试，删除保护、固定 `id` 约束和整体替换仍需补充自动化验证。
+- 当前 HEAD 的 `backend/src/test` 仅保留 `JasyptEncryptorTest.java`；P1-02 与 P1-03 的领域定向测试均不在仓库中（随 `a3b8d0b` 删除，用户确认为有意清理）。
+- **验证状态**：2026-10-11 复核复现 `mvn test` BUILD SUCCESS、现存测试 2/2 通过，`npm run build` 通过。删除保护、固定 `id` 约束、资源整体替换和交易删除顺序**没有自动化断言**；用户已决定本期不补 P1 领域定向测试（见 D-030），因此这些约束目前没有回归保护。
+- **迁移状态**：V7~V11 已由用户实际执行并验证（2026-10-11 用户确认，本会话未查库复核）。
+- **字段类型约束（已确认的设计）**：`EsFieldRequest.dataType` 只有 `@NotBlank` + `@Size(64)`，类型范围只由前端下拉限定为 `keyword/numeric/date/text`；后端与数据库都**不做**枚举校验，这是 D-027 确认的设计而非缺陷。HBase `data_type` 为自由文本同属 D-019 的既有设计，也不校验。
 
 ### 仍待确认（代码已落地，但必须在 P1-03 定稿前答复）
 

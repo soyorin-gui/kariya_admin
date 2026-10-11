@@ -1,12 +1,13 @@
 import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { App, Button, Descriptions, Drawer, Popconfirm, Space, Tag, Tooltip } from 'antd';
+import { App, Button, Descriptions, Drawer, Popconfirm, Space, Tag } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { DatabaseOutlined, DeleteOutlined, EditOutlined, EyeOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
+import { DatabaseOutlined, DeleteOutlined, EditOutlined, EyeOutlined, PlusOutlined } from '@ant-design/icons';
 import { deleteTransaction, getTransaction, getTransactions } from './api';
 import type { Transaction, TransactionListItem } from './types';
 import { TransactionDialog } from './TransactionDialog';
 import { DataResourceDialog } from './DataResourceDialog';
+import { EllipsisText } from '../../../components/EllipsisText';
 import { Permission } from '../../../permission/Permission';
 import { SmartTable, type SmartTableRef } from '../../../components/SmartTable';
 import { getApiErrorMessage } from '../../../utils/apiError';
@@ -20,15 +21,6 @@ const statuses: Record<number, { label: string; color: string }> = {
   3: { label: '已下线', color: 'error' },
 };
 const printMode: Record<number, string> = { 0: '无', 1: '异步', 2: '同步' };
-
-function EllipsisText({ value }: { value?: string }) {
-  if (!value) return <>-</>;
-  return (
-    <Tooltip placement='topLeft' title={value}>
-      <span className='transaction-list-ellipsis'>{value}</span>
-    </Tooltip>
-  );
-}
 
 export default function TransactionPage() {
   const { message } = App.useApp();
@@ -49,7 +41,13 @@ export default function TransactionPage() {
   const columns: ColumnsType<TransactionListItem> = [
     { title: '交易名称', dataIndex: 'transactionName', width: 180 },
     { title: '交易编码', dataIndex: 'transactionCode', width: 150, render: (v) => <code>{v}</code> },
-    { title: '状态', dataIndex: 'status', width: 100, filters: Object.entries(statuses).map(([value, item]) => ({ text: item.label, value })), render: (v) => <Tag color={statuses[v]?.color}>{statuses[v]?.label || v}</Tag> },
+    {
+      title: '状态',
+      dataIndex: 'status',
+      width: 100,
+      filters: Object.entries(statuses).map(([value, item]) => ({ text: item.label, value })),
+      render: (v) => <Tag color={statuses[v]?.color}>{statuses[v]?.label || v}</Tag>,
+    },
     { title: 'ESF 服务名', dataIndex: 'esfServiceName', width: 150, ellipsis: { showTitle: false }, render: (v) => <EllipsisText value={v} /> },
     { title: '操作名称', dataIndex: 'esfServiceOperationName', width: 170, ellipsis: { showTitle: false }, render: (v) => <EllipsisText value={v} /> },
     { title: '标签', dataIndex: 'label', width: 100, render: (v) => (v ? <Tag>{v}</Tag> : '-') },
@@ -66,7 +64,9 @@ export default function TransactionPage() {
           </a>
           <a onClick={() => void navigate({ pathname: '/intranet/transaction/fields', search: `?transactionId=${row.id}` })}>字段设计</a>
           <Permission code='intranet:transaction:update'>
-            <a onClick={() => setResourceTransactionId(row.id)}><DatabaseOutlined /> 数据资源</a>
+            <a onClick={() => setResourceTransactionId(row.id)}>
+              <DatabaseOutlined /> 数据资源
+            </a>
             <a onClick={() => setEditingId(row.id)}>
               <EditOutlined /> 编辑
             </a>
@@ -111,7 +111,14 @@ export default function TransactionPage() {
             // filters 在 TableRequestParams 里是可选的，且清空筛选时可能是空数组；
             // 空数组是真值，直接取 [0] 会得到 NaN 并发出 status=NaN 的请求，所以先收敛为数组再判长度。
             const selectedStatus = Array.isArray(filters?.status) ? filters.status : [];
-            const data = await getTransactions({ pageNum: page, pageSize, keyword: search.keyword, status: selectedStatus.length ? Number(selectedStatus[0]) : undefined, sortField: sorter?.field, sortOrder: sorter?.order });
+            const data = await getTransactions({
+              pageNum: page,
+              pageSize,
+              keyword: search.keyword,
+              status: selectedStatus.length ? Number(selectedStatus[0]) : undefined,
+              sortField: sorter?.field,
+              sortOrder: sorter?.order,
+            });
             return { list: data.records, total: data.total };
           }}
           onRequestError={(e) => message.error(getApiErrorMessage(e, '无法获取交易列表'))}
@@ -121,11 +128,8 @@ export default function TransactionPage() {
             { name: 'esfKeyword', label: 'ESF 服务名 / 操作名', type: 'input', width: 220, placeholder: '请输入 ESF 服务名或操作名' },
             { name: 'resourceKeyword', label: '关联索引 / HBase 表', type: 'input', width: 240, placeholder: '请输入索引名或 HBase 表名' },
           ]}
-          toolbarRender={({ submit }) => (
+          toolbarRender={() => (
             <Space wrap>
-              <Button icon={<ReloadOutlined />} onClick={() => submit()}>
-                刷新
-              </Button>
               <Permission code='intranet:transaction:add'>
                 <Button type='primary' icon={<PlusOutlined />} onClick={() => setEditingId(null)}>
                   新增交易

@@ -297,22 +297,21 @@ system/log/adapter/agent/
 │   ├── LoginUserTimelineTool      "某用户登录时间线"
 │   ├── OperationAuditReportTool   "操作审计报告"
 │   └── OperationUserTimelineTool  "某用户操作时间线"
-├── 4 个 @Deprecated 工具（无 @Component，零装配）  ← 死代码，见下
-│   ├── LoginAuditOverviewTool / LoginAuditRiskScanTool
-│   └── OperationAuditOverviewTool / OperationAuditRiskScanTool
 ├── 支撑服务
-│   ├── AuditAgentReportAssembler  (224行) 把查询结果组装成 AgentReport
-│   ├── ChunkedAuditRiskScanService(121行) 确定性分片，防模型逐日调用
-│   ├── AuditTimeRangeResolver     (59行)  "今天/昨天/最近N小时"的服务端解释
-│   ├── AuditTimelineService       (86行)  时间线组装
-│   ├── AuditToolSchemas           (77行)  4 个工具的 JSON Schema
-│   └── config/AuditAgentPolicy    (23行)  审计侧策略常量
+│   ├── AuditAgentReportAssembler  (253行) 把查询结果组装成 AgentReport
+│   ├── ChunkedAuditRiskScanService(136行) 确定性分片，防模型逐日调用
+│   ├── AuditTimeRangeResolver     (65行)  "今天/昨天/最近N小时"的服务端解释
+│   ├── AuditTimelineService       (99行)  时间线组装
+│   ├── AuditToolSchemas           (66行)  4 个工具的 JSON Schema
+│   └── config/AuditAgentPolicy    (26行)  审计侧策略常量
 └── model/ (10 个 record)          工具的输入/输出类型
 ```
 
+> 2026-10-11 更新：本节原先列出的 4 个 `@Deprecated` 死代码工具（`LoginAuditOverviewTool`、`LoginAuditRiskScanTool`、`OperationAuditOverviewTool`、`OperationAuditRiskScanTool`）已删除，`AuditToolSchemas` 同步收敛为上面 4 个活工具的 Schema；括号内的 `.java` 行数为本次核对后的实际值。
+
 **为什么要"一次调用生成整份报告"而不是给模型一堆细粒度工具**：这是这个模块最重要的设计决策。如果给模型 `query_login_count`、`query_login_ranking`、`query_risk_rule_1`……模型会自由组合，**每次运行的 SQL 次数不可预测**，还可能逐日循环查询。所以设计成 4 个"意图级"工具，每次调用固定跑一批确定性查询。`LoginAuditReportTool:22` 的描述原文就是"禁止自行逐日调用"。
 
-**`AuditToolSchemas` 有一个真实维护风险（详见下）**：JSON Schema 和 Java 校验**写了两遍**——`AuditToolSchemas:29` 写 `topN` 范围 1-50，`AuditReportInput:16` 也写 `@Min(1) @Max(50)`；`AuditToolSchemas:52` 写 `recentHours` 1-24，`AuditReportInput:12` 也写 `@Min(1) @Max(24)`。**两处如果改一处忘另一处，会出现"Schema 允许但服务端拒绝"或反之**。当前没有任何测试断言两者一致。这是你后续自己加工具时要特别注意的模式。
+**`AuditToolSchemas` 有一个真实维护风险（详见下）**：JSON Schema 和 Java 校验**写了两遍**——`AuditToolSchemas:18` 写 `topN` 范围 1-50，`AuditReportInput:16` 也写 `@Min(1) @Max(50)`；`AuditToolSchemas:41` 写 `recentHours` 1-24，`AuditReportInput:12` 也写 `@Min(1) @Max(24)`。**两处如果改一处忘另一处，会出现"Schema 允许但服务端拒绝"或反之**。当前没有任何测试断言两者一致。这是你后续自己加工具时要特别注意的模式。
 
 ## 6. 你要加新业务工具时怎么做（实操步骤）
 

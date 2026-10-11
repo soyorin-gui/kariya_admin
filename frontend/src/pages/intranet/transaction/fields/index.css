@@ -1,5 +1,6 @@
 @import '../../../system/shared.css';
-.transaction-field-page .table-card { min-height: calc(100vh - 240px); }
+/* 高度与滚动由 global.css 的 page-fill 约定负责，本页不再手算 calc(100vh - N)：
+   见 .transaction-field-page 根节点上的 page-fill 类和卡片内的 .card-scroll。 */
 .transaction-field-subtitle { margin-top: 4px; color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 .transaction-field-page .ant-table .ant-input,
 .transaction-field-page .ant-table .ant-select-selector { min-height: 32px !important; }

@@ -7,7 +7,8 @@ import type { EsFieldRequest, EsIndex, HbaseFieldRequest, HbaseTable } from '../
 import { Permission } from '../../../../permission/Permission';
 import { getApiErrorMessage } from '../../../../utils/apiError';
 import { InlineEditableTable, type InlineEditableColumn } from '../../components/InlineEditableTable';
-import { EllipsisDescription, ExpandableTextInput } from '../../components/FieldText';
+import { ExpandableTextInput } from '../../components/FieldText';
+import { EllipsisText } from '../../../../components/EllipsisText';
 import './index.css';
 
 type AssetType = 'HBASE' | 'ES';
@@ -68,17 +69,17 @@ export default function DataAssetFieldDesignPage() {
   const columns: Array<InlineEditableColumn<FieldRow, FieldFormValues>> = assetType === 'HBASE' ? [
     { title: '列族', dataIndex: 'columnFamily', field: 'columnFamily', rules: [{ required: true, message: '请输入列族' }], width: 140, editor: () => <Input size='small' maxLength={64} /> }, ...common,
     { title: '顺序', dataIndex: 'sortOrder', field: 'sortOrder', rules: [{ required: true, message: '请输入顺序' }], width: 90, editor: () => <Input size='small' type='number' /> },
-    { title: '说明', dataIndex: 'description', field: 'description', width: 360, view: (value) => <EllipsisDescription value={value as string | undefined} />, editor: () => <ExpandableTextInput maxLength={1000} placeholder='字段说明' /> }, operation,
+    { title: '说明', dataIndex: 'description', field: 'description', width: 360, view: (value) => <EllipsisText value={value as string | undefined} />, editor: () => <ExpandableTextInput maxLength={1000} placeholder='字段说明' /> }, operation,
   ] : [
     ...common,
     { title: '可搜索', dataIndex: 'searchableFlag', field: 'searchableFlag', rules: [{ required: true, message: '请选择是否可搜索' }], width: 110, view: (value) => <Tag color={value ? 'success' : 'default'}>{value ? '是' : '否'}</Tag>, editor: () => <Select size='small' options={[{ value: 1, label: '是' }, { value: 0, label: '否' }]} /> },
     { title: '可排序', dataIndex: 'sortableFlag', field: 'sortableFlag', rules: [{ required: true, message: '请选择是否可排序' }], width: 110, view: (value) => <Tag color={value ? 'success' : 'default'}>{value ? '是' : '否'}</Tag>, editor: () => <Select size='small' options={[{ value: 1, label: '是' }, { value: 0, label: '否' }]} /> },
     { title: '顺序', dataIndex: 'sortOrder', field: 'sortOrder', rules: [{ required: true, message: '请输入顺序' }], width: 90, editor: () => <Input size='small' type='number' /> },
-    { title: '说明', dataIndex: 'description', field: 'description', width: 360, view: (value) => <EllipsisDescription value={value as string | undefined} />, editor: () => <ExpandableTextInput maxLength={1000} placeholder='字段说明' /> }, operation,
+    { title: '说明', dataIndex: 'description', field: 'description', width: 360, view: (value) => <EllipsisText value={value as string | undefined} />, editor: () => <ExpandableTextInput maxLength={1000} placeholder='字段说明' /> }, operation,
   ];
 
   if (!valid) return <div className='dataasset-field-page'><p>缺少有效的数据资产类型或编号。</p></div>;
-  return <div className='dataasset-field-page'>
+  return <div className='page-fill dataasset-field-page'>
     <div className='page-head'><div><div className='page-kicker'>INTRANET DATA ASSETS</div><h1 className='page-title'>{assetType === 'HBASE' ? 'HBase 字段设计' : 'ES 字段设计'} · {title}</h1></div><Button icon={<ArrowLeftOutlined />} onClick={() => navigate(`/intranet/dataasset?tab=${returnTab}`)}>返回数据资产</Button></div>
     <div className='table-card'>
       <div className='dataasset-field-toolbar'><Input value={keyword} onChange={(event) => setKeyword(event.target.value)} prefix={<SearchOutlined />} allowClear disabled={editing} placeholder='搜索字段名' /><Permission code='intranet:dataasset:add'><Button type='primary' icon={<PlusOutlined />} disabled={editing} onClick={startCreate}>新增字段</Button></Permission></div>

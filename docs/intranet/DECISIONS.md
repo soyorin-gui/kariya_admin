@@ -24,6 +24,7 @@
 - 状态：已确认
 - 决策：不得擅自修改既有前后端业务和公共基础设施。确需修改时，先说明原因、范围、替代方案和验证计划，并获得用户批准。
 - 结果：默认在 intranet 内通过适配或组合完成需求。
+- 事实边界（2026-10-11 用户确认）：`a3b8d0b` 中删除 `backend/src/main/java/org/lbl/file/` 暂存文件上传模块及其前端组件、把 4 个审计 Agent 工具整合为 2 个、删除 5 个测试，以及 `frontend/src/pages/error/pageUnavailable.css` 的样式调整，均由用户本人有意完成，**不需要恢复**。后续会话不得再把这些改动当作误删或待修复项。
 
 ### D-004 复用现有审批与实时通知
 
@@ -116,7 +117,8 @@
 - 决策：交易物理删除时必须同步删除对应交易字段等关联数据，不保留孤立记录。
 - 当前实现：`TransactionAssetService` 在同一事务内先按 `transaction_id` 删除报文字段，再删除交易主记录；任一步骤失败则事务回滚。
 - 扩展约束：后续新增交易关联表时，必须同步扩展删除逻辑和测试。
-- 2026-10-11 扩展实现：`intranet_transaction_hbase_resource` 与 `intranet_transaction_es_resource` 已创建，`TransactionAssetService.remove` 已把两者纳入同一事务的删除顺序（HBase 关联 → ES 关联 → 报文字段 → 交易主记录），`TransactionAssetServiceTest` 用 Mockito `InOrder` 断言该顺序。
+- 2026-10-11 扩展实现：`intranet_transaction_hbase_resource` 与 `intranet_transaction_es_resource` 已创建，`TransactionAssetService.remove` 已把两者纳入同一事务的删除顺序（HBase 关联 → ES 关联 → 报文字段 → 交易主记录）。
+- 更正（2026-10-11 接手复核）：原记录称 `TransactionAssetServiceTest` 用 Mockito `InOrder` 断言该顺序，该测试已不在当前仓库（随 `a3b8d0b` 删除，用户确认为有意清理）。**删除顺序目前没有任何自动化断言**；用户已决定本期不补 P1 领域定向测试（D-030），该缺失作为已知风险保留。
 
 ### D-016 ES 检索回表与 HBase 直查双路径
 
@@ -183,6 +185,70 @@
 - 与 D-015 的关系：交易物理删除时，`TransactionAssetService.remove` 在同一事务内先删除该交易的全部 HBase 资源关联、ES 资源关联和报文字段，再删除交易主记录。
 - 未包含：V8 未建数据库外键，绕过应用直接写库仍可制造孤立引用；P1 接受该边界，若后续引入批量导入或运维直写需重新评估。
 
+### D-026 交易列表的 ESF/关联资源查询条件为前端样式验证用途
+
+- 状态：已确认（2026-10-11，用户确认）
+- 决策：交易列表页上的“ESF 服务名 / 操作名”和“关联索引 / HBase 表”两个输入框**不接后端**，这是有意的设计，用途是验证基线 SmartTable `searchConfig` 的前端样式与多条件布局。
+- 边界：`keyword` 目前仍会同时模糊匹配交易名称、交易编码和 ESF 服务名；该行为保持现状。
+- 明确不做：不新增后端查询参数、不为这两个条件补跨表 `EXISTS` 过滤、不把它们当作待修复缺陷。后续会话（含 Codex）不得以“输入框静默失效”为由自行补齐。
+- 将来若要真正支持按 ESF 或数据资源筛选，需用户重新提出并确认查询语义，另立决策。
+
+### D-027 ES 字段 `data_type` 不做服务端强校验
+
+- 状态：已确认（2026-10-11，用户确认）
+- 决策：`intranet_es_field.data_type` 继续只由前端下拉约束为 `keyword`、`numeric`、`date`、`text`；后端与数据库都不增加枚举或检查约束。
+- 原因：本系统是内网自用项目，不存在外部恶意写入场景，服务端枚举校验被视为过度设计。
+- 边界：HBase `data_type` 为自由文本是 D-019 的既有设计，同样不做校验；两者都不属于缺陷，不需要“修复”。
+- 遗留：若后续 Excel 导入或批量写入引入非受控数据来源，需重新评估是否补校验。
+
+### D-028 长文本截断展示收敛到 intranet 共享组件，不放进 SmartTable
+
+- 状态：**已被 D-029 取代**（2026-10-11 当天用户改选方案 B：提升为基线通用展示组件）。本节保留历史论证，当前实施以 D-029 为准。
+- 事实：intranet 内原有三份等价实现——交易列表的 `EllipsisText`、数据资产列表的 `Text`、字段设计页的 `EllipsisDescription`，各带一份重复 CSS。基线页面（审批列表、登录日志、操作日志、Agent `ArtifactTable`）使用的是 Ant Design 原生 `ellipsis: true` 或 `ellipsis: { showTitle: true }`，对“Tooltip 悬浮看全文”这一变体**没有复用需求**。
+- 决策：统一为 `frontend/src/pages/intranet/components/EllipsisText.tsx`，删除上述三份实现与其重复 CSS；**不**把它做成基线 `SmartTable` 的列配置。
+- 原因：
+  1. SmartTable 的职责是请求、分页、查询与排序状态，`columns` 目前原样透传给 antd `Table`；让它解析并改写列渲染属于职责越界。
+  2. 该能力必须按列显式选用，无法自动套用——`Tag`、`code`、操作列等包 Tooltip 是错的。因此做成“配置”并不能省掉逐列改动，反而要引入 SmartTable 专属列类型，迫使各页面替换列类型声明。
+  3. 提升为全局公共能力的门槛是“多个基线业务存在明确复用需求”（AGENTS.md §4）；实测基线需求为 0，门槛不满足。
+- 备选方案（未采纳，供将来参考）：若确实要让基线页面也用上悬浮全文，应在 `frontend/src/components/` 增加一个纯展示组件（附加式的基线改动），而不是修改 `SmartTable` 的列处理语义。
+
+### D-029 长文本截断展示提升为基线通用展示组件（取代 D-028）
+
+- 状态：已确认（2026-10-11，用户明确选择方案 B）
+- 决策：在 `frontend/src/components/EllipsisText/`（`EllipsisText.tsx` + `ellipsisText.css` + `index.ts`）提供通用展示组件 `EllipsisText`，并把仓库内所有长文本截断展示统一到它；`pages/intranet/components/` 下的临时同名实现已删除，最终只保留一份实现与一份 CSS。
+- 配套约定：与 antd Table 搭配时写成 `ellipsis: { showTitle: false }`，即关掉单元格原生 `title`，避免与 Tooltip 重复弹出。
+- 与 D-028 的关系：D-028“基线没有复用需求、不应改动基线列处理语义”的判断仍然成立；用户基于**统一 UI 体验**的产品考虑改选方案 B。方案 B 是**附加式**基线改动（新增一个纯展示组件 + 迁移各列的展示写法），**没有**修改 `SmartTable` 的列处理或任何表格语义。
+- 影响范围（2026-10-11 实施）：新增 `frontend/src/components/EllipsisText/`；迁移 `pages/account/approvals/index.tsx`、`pages/system/loginlog/index.tsx`、`pages/system/operatelog/index.tsx`、`components/ai/artifacts/common/ArtifactTable.tsx` 以及 4 个 intranet 页面。
+- 已知取舍：`ArtifactTable` 的 `status` 列渲染 `Tag`，因此只对纯文本结果套用 `EllipsisText`，非文本原样返回；`approvals` 的“申请说明”列空值由空白改为 `-`，与日志页现有约定一致。
+- 验证：`tsc --noEmit` 通过；`npm run build` 通过（2026-10-11）。
+
+### D-030 P1 领域定向测试不在本期交付范围
+
+- 状态：已确认（2026-10-11，用户明确决定“直接忽略”）
+- 决策：本期不为 P1-01/P1-02/P1-03 补写领域自动化测试；P1 的行为正确性以人工联调与构建验证为准。
+- 事实边界：当前 `backend/src/test` 仅剩 `JasyptEncryptorTest`，**不存在任何 P1 业务断言**；`mvn test` 的 2/2 通过不代表 P1 行为已被覆盖。该事实不因本决策改变，文档不得据此宣称领域行为已验证。
+- 风险：删除保护、固定 `id`、资源集合整体替换、交易删除顺序、字段树环与同父英文名唯一等约束**没有回归保护**，后续改动可能静默破坏而不被发现。风险由用户接受。
+- 边界：本决策**不**把 P1 标记为已完成；P1 仍受人工联调与 Excel 导入等待办约束。
+- 触发重新评估的条件：接手人更换、进入真实环境联调、或为 P2 引入审批/版本改造时。
+
+### D-031 新增全局「面板填满内容区」opt-in 布局约定 `page-fill` / `card-scroll`
+
+- 状态：已确认（2026-10-11，用户批准基线修改，明确选择"抽成全站约定"方案）
+- 背景：HBase/ES/交易三个字段设计页原先各自写 `.table-card { min-height: calc(100vh - 240px) }`，导致数据只有两三行时卡片仍被撑满整屏；同时全站唯一的纵向滚动容器是 `.app-content`，内容超高时整个内容区滚动、页面标题跟着滚走。
+- 决策：在基线 `frontend/src/styles/global.css` 增加**主动 opt-in** 的布局约定：
+  - 页面根节点加 `page-fill`：根节点占满 `.app-content`（`height: 100%`），`.page-head` 固定不伸缩，`.table-card` 默认按内容高度渲染、仅在内容超高时收缩；
+  - 卡片内需要滚动的区域加 `card-scroll`：吃掉剩余高度并在内部滚动，其它同级内容（工具栏、Tabs）固定不动；
+  - 表头固定：由 `InlineEditableTable` 统一给 antd Table 传 `sticky`；antd 在设了 `sticky` 后会把表头拆成独立的 `.ant-table-sticky-holder`（`position: sticky`）放在滚动区内，因此表头不随表体滚动。
+- 一段必须记下来的排查结论：**给 `th` 写 `position: sticky` 在本项目里是无效的**。`scroll.x` 会让 antd 把整张表包进 `.ant-table-content`（rc-table 给它内联 `overflow-y: scroll` + `overflow-x: auto`），`th` 的 sticky 会被困在那个自身不滚动的容器里，表现就是"表头和表体一起滚"。必须用 antd 的 `sticky` 靠它拆表头。
+- 明确不采用：`.app-content > *` 这类全局强制选择器。全仓库有 13 处 `.table-card`，其中 `account/security`、`account/notifications` 是多卡片/非表格布局，一刀切会改坏它们；因此必须由页面显式声明。
+- 关键实现约束：`page-fill > .table-card` 必须写 `min-height: 0`。flex 项的默认最小高度是内容高度，不置 0 卡片永远不肯收缩，结果是页面继续整体滚动、滚动条落不到卡片里。
+- 影响范围：新增基线 CSS 规则；`frontend/src/pages/intranet/{transaction,dataasset}/fields/index.{tsx,css}` 改为使用该约定并删除各自的 `calc(100vh - 240px)`；`frontend/src/pages/intranet/components/InlineEditableTable.tsx` 现在自带 `.card-scroll` 容器并统一设置 `sticky`。**未修改其它任何页面**。
+- 顺带修复的体验问题（用户 2026-10-11 提出）：新增字段会把草稿行追加到表格末尾，原先不滚动导致"点了新增看不到反应"。现在 `InlineEditableTable` 在 `editingKey` 变化时用 `scrollIntoView({ block: 'nearest' })` 把目标行滚进视野，新增行与被编辑的屏幕外行都能正确滚动。
+- 已知风险（必须浏览器实测确认）：
+  1. 表头层级由 antd 自己保证（`zIndexTableSticky = zIndexTableFixed + 1`），理论上不会再被 `fixed: 'right'` 的操作列盖住；但两个字段页都用了固定列，仍需目视确认一次。
+  2. 视口极矮（可用高度小于工具栏 + Tabs + 表头高度）时卡片会溢出，退化为整区滚动。
+- 验证：`tsc --noEmit` 与 `npm run build` 通过；**布局效果无法由构建验证**，必须按 `HANDOFF.md` §4 的清单在浏览器实测。
+
 ## 待确认决策
 
 | 编号 | 主题 | 需要确认的核心问题 | 最晚阶段 |
@@ -196,3 +262,5 @@
 | T-007 | 血缘表达式 | ETL 表达式的格式、解析粒度、证据与人工维护方式 | P3 开发前 |
 | T-008 | 影响规则矩阵 | 扩位、下线、逻辑变更的确定/潜在影响判定 | P4 开发前 |
 | T-009 | 数据权限与脱敏 | 资产级/字段级范围、负责人来源、审计要求 | 首次接入真实环境前 |
+| T-010 | ES 字段数据类型校验 | ~~后端是否强校验 `intranet_es_field.data_type`，数值类型如何取值~~ → 见 D-027：不做服务端强校验，仅前端下拉约束 | 已确认 |
+| T-011 | 交易列表查询条件语义 | ~~两个条件是否接入后端过滤~~ → 见 D-026：前端样式验证用途，不接后端是用户要求 | 已确认 |

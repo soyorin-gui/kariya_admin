@@ -1,6 +1,7 @@
 import { Table, Tag } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import type { AgentTableColumn } from '../../../../types/agent';
+import { EllipsisText } from '../../../EllipsisText';
 
 interface ArtifactTableProps {
   columns: AgentTableColumn[];
@@ -19,8 +20,12 @@ export function ArtifactTable({ columns, rows }: ArtifactTableProps) {
     key: column.key,
     dataIndex: column.key,
     title: column.title,
-    ellipsis: true,
-    render: (value: unknown) => displayValue(value, column.format),
+    ellipsis: { showTitle: false },
+    render: (value: unknown) => {
+      const display = displayValue(value, column.format);
+      // status 列渲染的是 Tag，不能塞进截断容器；只有纯文本才交给 EllipsisText。
+      return typeof display === 'string' ? <EllipsisText value={display} /> : display;
+    },
   }));
   const data = rows.map((row, index) => ({ ...row, __rowKey: index }));
   return (

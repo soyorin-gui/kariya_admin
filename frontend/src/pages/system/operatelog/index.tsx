@@ -8,6 +8,7 @@ import { Permission } from '../../../permission/Permission';
 import type { LogResult, OperationLog } from '../../../types/log';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { SmartTable, type SmartTableRef } from '../../../components/SmartTable';
+import { EllipsisText } from '../../../components/EllipsisText';
 import './index.css';
 
 const RESULT_META: Record<string, { text: string; color: string }> = {
@@ -56,7 +57,7 @@ export default function OperationLogPage() {
       </div>,
     },
     { title: '结果', dataIndex: 'result', width: 95, render: (value: string) => <Tag color={RESULT_META[value]?.color}>{RESULT_META[value]?.text ?? value}</Tag> },
-    { title: '失败原因', dataIndex: 'errorMessage', width: 220, ellipsis: { showTitle: true }, render: (value) => value || '-' },
+    { title: '失败原因', dataIndex: 'errorMessage', width: 220, ellipsis: { showTitle: false }, render: (value) => <EllipsisText value={value} /> },
     { title: '请求', width: 250, render: (_, row) => <div><span className='log-mono'>{row.requestMethod || '-'} {row.requestUri || '-'}</span>{row.requestId && <div><small className='log-mono'>RID: {row.requestId}</small></div>}</div> },
     { title: '请求 IP', dataIndex: 'requestIp', width: 150, render: (value) => <span className='log-mono'>{value || '-'}</span> },
     { title: '耗时', dataIndex: 'durationMs', width: 100, render: (value: number | null) => <span className='log-mono'>{value === null || value === undefined ? '-' : `${value} ms`}</span> },

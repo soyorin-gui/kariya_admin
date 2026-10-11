@@ -8,6 +8,7 @@ import { Permission } from '../../../permission/Permission';
 import type { LoginLog, LogResult } from '../../../types/log';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { SmartTable, type SmartTableRef } from '../../../components/SmartTable';
+import { EllipsisText } from '../../../components/EllipsisText';
 import './index.css';
 
 const RESULT_META: Record<LogResult, { text: string; color: string }> = {
@@ -50,9 +51,9 @@ export default function LoginLogPage() {
   const columns: ColumnsType<LoginLog> = [
     { title: '用户名', dataIndex: 'username', width: 140, render: (value) => <span className='log-strong'>{value}</span> },
     { title: '结果', dataIndex: 'result', width: 100, render: (value: LogResult) => <Tag color={RESULT_META[value]?.color}>{RESULT_META[value]?.text ?? value}</Tag> },
-    { title: '说明', dataIndex: 'message', width: 230, ellipsis: true, render: (value) => value || '-' },
+    { title: '说明', dataIndex: 'message', width: 230, ellipsis: { showTitle: false }, render: (value) => <EllipsisText value={value} /> },
     { title: '登录 IP', dataIndex: 'loginIp', width: 150, render: (value) => <span className='log-mono'>{value || '-'}</span> },
-    { title: '客户端', dataIndex: 'userAgent', width: 260, ellipsis: true, render: (value) => value || '-' },
+    { title: '客户端', dataIndex: 'userAgent', width: 260, ellipsis: { showTitle: false }, render: (value) => <EllipsisText value={value} /> },
     { title: '登录时间', dataIndex: 'loginTime', width: 180, render: (value) => <span className='log-time'>{value?.replace('T', ' ') || '-'}</span> },
   ];
 

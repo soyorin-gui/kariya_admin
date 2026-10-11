@@ -1,0 +1,15 @@
+.ellipsis-text {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  cursor: help;
+}
+
+.ellipsis-text-tooltip {
+  max-height: 280px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}

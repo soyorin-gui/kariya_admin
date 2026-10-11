@@ -1,5 +1,3 @@
-.intranet-field-text-ellipsis { display: block; width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; cursor: help; }
-.intranet-field-text-tooltip { max-height: 280px; overflow-y: auto; white-space: pre-wrap; word-break: break-word; }
 .intranet-field-text-editor { width: min(460px, calc(100vw - 64px)); padding-bottom: 20px; }
 .intranet-field-text-expand { display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 0; color: var(--muted); background: transparent; cursor: pointer; }
 .intranet-field-text-expand:hover { color: var(--brand); }

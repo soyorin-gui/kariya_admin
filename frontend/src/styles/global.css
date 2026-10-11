@@ -37,6 +37,58 @@
   padding: 18px;
 }
 
+/* --------------------------- 面板填满内容区（可选约定） ---------------------------
+ * 目的：让「标题固定不动 + 只有卡片内的表格滚动」的页面，不必再手算 calc(100vh - N) 这类
+ * 魔法数字（那个数字会在改顶栏高度、页面间距后失准）。
+ *
+ * 默认不生效，页面根节点显式加 page-fill 才启用；多卡片或非表格布局的页面不要加。
+ * 结构与类名约定（.page-head / .table-card 必须是 page-fill 的直接子元素）：
+ *
+ *   <div className='page-fill xxx-page'>
+ *     <div className='page-head'>…标题…</div>
+ *     <div className='table-card'>
+ *       <div>…固定不动的工具栏 / Tabs…</div>
+ *       <div className='card-scroll'>…需要滚动的表格…</div>
+ *     </div>
+ *   </div>
+ *
+ * 高度链条：html/body/#root 是 height:100%（reset.css），.app-content 由 flex 得到确定高度
+ * 且是全站唯一的纵向滚动容器（layouts/layout.css）。所以这里的 height:100% 表示
+ * 「正好占满内容区」——页面自身不再溢出，.app-content 也就不会滚动，标题因此不会被滚走。
+ */
+.page-fill {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+/* 标题行保持自然高度、不参与伸缩，所以永远留在视野里。 */
+.page-fill > .page-head {
+  flex: 0 0 auto;
+}
+/* 卡片：默认按内容高度渲染（数据少时不撑满整屏）；内容超高时才收缩，把滚动交给 .card-scroll。
+   min-height: 0 不能省——flex 项的默认最小高度是内容高度，不置 0 卡片就永远不肯收缩，
+   结果是页面继续整体滚动、滚动条落不到卡片里。 */
+.page-fill > .table-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+/* 卡片内除滚动区以外的内容（工具栏、Tabs、按钮行等）一律固定，不伸缩也不滚动。 */
+.page-fill > .table-card > * {
+  flex: 0 0 auto;
+}
+/* 滚动区：吃掉卡片剩余高度，超出时在其中滚动。
+   表头吸顶不在这里做——antd 只在设了 Table 的 `sticky` 时才会把表头拆成独立的
+   `.ant-table-sticky-holder`。给 `th` 写 position: sticky 是无效的：`scroll.x` 会让 antd
+   把表包进 `.ant-table-content`（overflow-y: scroll），th 会被困在那个不滚动的容器里。
+   详见 frontend/src/pages/intranet/components/InlineEditableTable.tsx。 */
+.page-fill > .table-card > .card-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
 :root[data-theme='dark'] * {
   scrollbar-color: rgba(174, 194, 225, 0.25) transparent;
 }

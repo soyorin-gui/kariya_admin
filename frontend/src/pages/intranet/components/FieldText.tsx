@@ -1,4 +1,4 @@
-import { Input, Popover, Tooltip } from 'antd';
+import { Input, Popover } from 'antd';
 import { ExpandOutlined } from '@ant-design/icons';
 import './field-text.css';
 
@@ -9,9 +9,4 @@ export function ExpandableTextInput({ value, onChange, maxLength = 1000, placeho
       <button type='button' className='intranet-field-text-expand' aria-label='展开编辑说明' onMouseDown={(event) => event.preventDefault()}><ExpandOutlined /></button>
     </Popover>
   } />;
-}
-
-export function EllipsisDescription({ value }: { value?: string }) {
-  if (!value) return <>-</>;
-  return <Tooltip placement='topLeft' styles={{ root: { maxWidth: 520 } }} title={<div className='intranet-field-text-tooltip'>{value}</div>}><span className='intranet-field-text-ellipsis'>{value}</span></Tooltip>;
 }

@@ -5,6 +5,7 @@ import { CheckOutlined, EyeOutlined, ReloadOutlined, StopOutlined } from '@ant-d
 import { getApprovalTasks, type ApprovalScope, type ApprovalTask } from '../../../api/approvals';
 import { approveDepartmentChange, getDepartmentChange, rejectDepartmentChange, type DepartmentChangeDetail } from '../../../api/departmentChange';
 import { getApiErrorMessage } from '../../../utils/apiError';
+import { EllipsisText } from '../../../components/EllipsisText';
 import '../../system/shared.css';
 
 const requestStatus: Record<string, { text: string; color: string }> = {
@@ -95,7 +96,7 @@ export default function ApprovalCenterPage() {
         </Space>
       ),
     },
-    { title: '申请说明', dataIndex: 'reason', ellipsis: true },
+    { title: '申请说明', dataIndex: 'reason', ellipsis: { showTitle: false }, render: (value) => <EllipsisText value={value} /> },
     {
       title: scope === 'processed' ? '处理结果' : '状态',
       width: 140,

@@ -1,18 +1,18 @@
 import { useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { App, Button, Input, Popconfirm, Space, Tabs, Tooltip } from 'antd';
+import { App, Button, Input, Popconfirm, Space, Tabs } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
 import { SmartTable, type SmartTableRef } from '../../../components/SmartTable';
 import { Permission } from '../../../permission/Permission';
 import { getApiErrorMessage } from '../../../utils/apiError';
+import { EllipsisText } from '../../../components/EllipsisText';
 import { deleteEsIndex, deleteHbaseTable, getEsIndexes, getHbaseTables } from './api';
 import type { EsIndex, HbaseTable } from './types';
 import { EsIndexDialog, HbaseTableDialog } from './AssetDialogs';
 import './index.css';
 
 type Search = { keyword: string };
-function Text({ value }: { value?: string }) { return value ? <Tooltip title={value}><span className='dataasset-ellipsis'>{value}</span></Tooltip> : <>-</>; }
 
 export default function DataAssetPage() {
   const { message } = App.useApp();
@@ -24,15 +24,15 @@ export default function DataAssetPage() {
 
   const hbaseColumns: ColumnsType<HbaseTable> = [
     { title: '集市名', dataIndex: 'marketName', width: 110 }, { title: 'HBase 表名', dataIndex: 'tableName', width: 200 },
-    { title: '数据量', dataIndex: 'dataVolume', width: 120, render: v => <Text value={v} /> }, { title: '数据深度', dataIndex: 'dataDepth', width: 120, render: v => <Text value={v} /> },
-    { title: '锁标识', dataIndex: 'lockKey', width: 150, render: v => <Text value={v} /> }, { title: 'RowKey 规则', dataIndex: 'rowkeyRule', width: 220, render: v => <Text value={v} /> },
+    { title: '数据量', dataIndex: 'dataVolume', width: 120, render: v => <EllipsisText value={v} /> }, { title: '数据深度', dataIndex: 'dataDepth', width: 120, render: v => <EllipsisText value={v} /> },
+    { title: '锁标识', dataIndex: 'lockKey', width: 150, render: v => <EllipsisText value={v} /> }, { title: 'RowKey 规则', dataIndex: 'rowkeyRule', width: 220, render: v => <EllipsisText value={v} /> },
     { title: '更新时间', dataIndex: 'updatedTime', width: 170, render: v => v?.replace('T', ' ') },
     { title: '操作', fixed: 'right', width: 230, render: (_, row) => <Space><a onClick={() => openFields('HBASE', row.id)}>字段设计</a><Permission code='intranet:dataasset:update'><a onClick={() => setHbaseEditing(row.id)}><EditOutlined /> 编辑</a></Permission><Permission code='intranet:dataasset:delete'><Popconfirm title='确定删除此 HBase 表？' description='存在 ES 或交易引用时不能删除。' onConfirm={() => void deleteHbaseTable(row.id).then(() => { message.success('删除成功'); hbaseRef.current?.reload(); }).catch(e => message.error(getApiErrorMessage(e)))}><a className='danger'><DeleteOutlined /> 删除</a></Popconfirm></Permission></Space> },
   ];
   const esColumns: ColumnsType<EsIndex> = [
-    { title: '索引名称', dataIndex: 'indexName', width: 180 }, { title: '索引命名模式', dataIndex: 'indexPattern', width: 220, render: v => <Text value={v} /> },
-    { title: '分片规则', dataIndex: 'partitionRule', width: 130, render: v => <Text value={v} /> }, { title: '对应 HBase 表', width: 200, render: (_, row) => `${row.hbaseMarketName}:${row.hbaseTableName}` },
-    { title: '说明', dataIndex: 'description', width: 220, render: v => <Text value={v} /> }, { title: '更新时间', dataIndex: 'updatedTime', width: 170, render: v => v?.replace('T', ' ') },
+    { title: '索引名称', dataIndex: 'indexName', width: 180 }, { title: '索引命名模式', dataIndex: 'indexPattern', width: 220, render: v => <EllipsisText value={v} /> },
+    { title: '分片规则', dataIndex: 'partitionRule', width: 130, render: v => <EllipsisText value={v} /> }, { title: '对应 HBase 表', width: 200, render: (_, row) => `${row.hbaseMarketName}:${row.hbaseTableName}` },
+    { title: '说明', dataIndex: 'description', width: 220, render: v => <EllipsisText value={v} /> }, { title: '更新时间', dataIndex: 'updatedTime', width: 170, render: v => v?.replace('T', ' ') },
     { title: '操作', fixed: 'right', width: 230, render: (_, row) => <Space><a onClick={() => openFields('ES', row.id)}>字段设计</a><Permission code='intranet:dataasset:update'><a onClick={() => setEsEditing(row.id)}><EditOutlined /> 编辑</a></Permission><Permission code='intranet:dataasset:delete'><Popconfirm title='确定删除此 ES 索引？' description='存在交易引用时不能删除。' onConfirm={() => void deleteEsIndex(row.id).then(() => { message.success('删除成功'); esRef.current?.reload(); }).catch(e => message.error(getApiErrorMessage(e)))}><a className='danger'><DeleteOutlined /> 删除</a></Popconfirm></Permission></Space> },
   ];
   const table = <T extends HbaseTable | EsIndex>(ref: React.RefObject<SmartTableRef<Search>>, columns: ColumnsType<T>, request: (p: { pageNum: number; pageSize: number; keyword?: string }) => Promise<{ records: T[]; total: number }>, add: () => void, label: string) => <SmartTable<T, Search>

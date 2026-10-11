@@ -7,7 +7,8 @@ import type { MessageSide, Transaction, TransactionMessageField, TransactionMess
 import { Permission } from '../../../../permission/Permission';
 import { getApiErrorMessage } from '../../../../utils/apiError';
 import { InlineEditableTable, type InlineEditableColumn } from '../../components/InlineEditableTable';
-import { EllipsisDescription, ExpandableTextInput } from '../../components/FieldText';
+import { ExpandableTextInput } from '../../components/FieldText';
+import { EllipsisText } from '../../../../components/EllipsisText';
 import '../index.css';
 import './index.css';
 
@@ -152,7 +153,7 @@ export default function TransactionFieldDesignPage() {
       title: '说明',
       dataIndex: 'description',
       width: 300,
-      field: 'description', view: (v) => <EllipsisDescription value={v as string | undefined} />, editor: () => <ExpandableTextInput maxLength={1000} placeholder='字段说明' />,
+      field: 'description', view: (v) => <EllipsisText value={v as string | undefined} />, editor: () => <ExpandableTextInput maxLength={1000} placeholder='字段说明' />,
     },
     {
       title: '操作',
@@ -204,7 +205,7 @@ export default function TransactionFieldDesignPage() {
       </div>
     );
   return (
-    <div className='transaction-field-page'>
+    <div className='page-fill transaction-field-page'>
       <div className='page-head'>
         <div>
           <div className='page-kicker'>INTRANET ASSETS</div>

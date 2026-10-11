@@ -153,8 +153,8 @@ facts                额外事实（失败次数、涉及 IP 数等）
 | 类 | 行数 | 问题 |
 | --- | --- | --- |
 | `AuditRiskPolicy` | 38 | 一个有 8 个组件的 record，其中 4 个是 `WindowRiskPolicy`。**它存在的理由是"集中管理阈值"**——这个理由本身成立，但代价是：4 条规则都要靠 `policy.xxxBurst()` 取自己的阈值 |
-| `WindowRiskPolicy` | 16 | 包含 `enabled` 字段，但**4 条规则全部 `true`**（`AuditRiskPolicyConfig:24-27`），所以 4 处 `if (!rule.enabled()) return List.of()` 是**死分支** |
-| `AuditRiskPolicyConfig` | 29 | 类注释自己说"需要修改时走代码评审和发布"——**也就是说它不是运行时配置**，那它就等价于"把这些常量写在规则类里" |
+| `WindowRiskPolicy` | 16 | 包含 `enabled` 字段，但**4 条规则全部 `true`**（`AuditRiskPolicyConfig:23-26`），所以 4 处 `if (!rule.enabled()) return List.of()` 是**死分支** |
+| `AuditRiskPolicyConfig` | 28 | 类注释自己说"需要修改时走代码评审和发布"——**也就是说它不是运行时配置**，那它就等价于"把这些常量写在规则类里" |
 | `AuditRiskSeverity` | 16 | 4 个枚举值，但 `CRITICAL` 和 `LOW` **从未被赋值**（4 条规则只用 HIGH/MEDIUM）→ `AuditAgentReportAssembler:233,236` 两个分支不可达 |
 | `RiskRuleSupport` | 27 | 4 个静态小方法（拼 actorKey、证据裁剪）。**合并进服务类完全可行** |
 | `AuditRiskContext` | 20 | 一个只读快照 record。**但它是共享查询的关键**，删了就得把 4 个 List 参数传给每个规则 |
@@ -190,8 +190,8 @@ return ToolResult.artifact(summary, artifact);              // 4. 包装两个�
 
 | 类 | 行数 | 为什么存在 | 必要性 |
 | --- | --- | --- | --- |
-| `AuditTimeRangeResolver` | 59 | 把"今天/昨天/最近N小时/CUSTOM"**在服务端**按 Asia/Shanghai 解析成确定的起止时间 | **必要**。若让模型自己算日期，会因时区、跨月、闰年出错；system 指令第 10 条明确禁止模型自行换算 |
-| `ChunkedAuditRiskScanService` | 137 | 把"31 天"确定性拆成 24 小时分片，每片向前回看最大规则窗口，再按 `lastSeen` 归属分片并合并重叠命中 | **必要**，但实现可优化（见下） |
+| `AuditTimeRangeResolver` | 65 | 把"今天/昨天/最近N小时/CUSTOM"**在服务端**按 Asia/Shanghai 解析成确定的起止时间 | **必要**。若让模型自己算日期，会因时区、跨月、闰年出错；system 指令第 10 条明确禁止模型自行换算 |
+| `ChunkedAuditRiskScanService` | 136 | 把"31 天"确定性拆成 24 小时分片，每片向前回看最大规则窗口，再按 `lastSeen` 归属分片并合并重叠命中 | **必要**，但实现可优化（见下） |
 | `AuditAgentReportAssembler` | 253 | 把 `LoginAuditOverview` / `AuditRiskReport` 组装成通用的 `AgentReport`（指标/表格/发现/时间线四种区块） | **必要**。它是"审计领域对象"与"通用 UI 报告"之间的唯一转换点。**行数最多，但都是直白的字段映射** |
 
 **最值得你读懂的是两个"出口"的区别**（在 `AuditAgentReportAssembler` 里体现得最清楚）：
@@ -212,7 +212,7 @@ login(...)              → AgentReport → 给【前端】渲染的完整结构
 ...
 ```
 
-`queryBegin = segmentStart.minus(riskPolicy.maxRuleWindow())`（`:57`），而 `maxRuleWindow()` 当前 = `PasswordChangeBurstRule` 的 **24 小时**。所以 31 天的报告实际扫描约 **1464 小时的数据，是区间本身的 2 倍**。
+`queryBegin = segmentStart.minus(riskPolicy.maxRuleWindow())`（`:54-56`），而 `maxRuleWindow()` 当前 = `PasswordChangeBurstRule` 的 **24 小时**。所以 31 天的报告实际扫描约 **1464 小时的数据，是区间本身的 2 倍**。
 
 **回看本身是必要的**——因为一个"24 小时窗口内 3 次改密"的模式可能跨午夜，只查当天会漏判。**但回看整个 24 小时窗口是过度的**：只需要回看"上一个分片的尾部"（即窗口大小减去分片长度）就能覆盖跨边界情况，当前实现等于把整段重查一遍。
 
@@ -220,7 +220,7 @@ login(...)              → AgentReport → 给【前端】渲染的完整结构
 
 这些是工具的输入/输出类型。值得注意的两个设计：
 
-- **`AuditToolSchemas` 与 model 的校验重复**：`AuditToolSchemas:29` 写 `topN` 范围 1-50，`AuditReportInput:16` 也写 `@Min(1) @Max(50)`。**Schema 约束模型（它"看到"的规则），注解约束服务端（真实执行的规则）**，两者都必须存在，但**当前没有测试断言它们一致**。你以后加工具时会重复这个模式，**改一处忘另一处的 bug 很难查**。
+- **`AuditToolSchemas` 与 model 的校验重复**：`AuditToolSchemas:18` 写 `topN` 范围 1-50，`AuditReportInput:16` 也写 `@Min(1) @Max(50)`。**Schema 约束模型（它"看到"的规则），注解约束服务端（真实执行的规则）**，两者都必须存在，但**当前没有测试断言它们一致**。你以后加工具时会重复这个模式，**改一处忘另一处的 bug 很难查**。
 - **`AuditAgentPolicy` / `AuditRiskPolicy` 都是纯 Java 配置**（不写 YAML）。这是有意的选择，注释写明"走代码评审，不占用 YAML"。**对单人项目这是对的**（少一层配置管理），但要知道代价：改阈值必须重新发布。
 
 ## 5. 一页速查：每个类在流水线的哪一环
