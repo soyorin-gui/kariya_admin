@@ -10,8 +10,10 @@ import org.lbl.notification.NotificationService;
 import org.lbl.security.context.AccessPolicy;
 import org.lbl.system.dept.entity.DeptEntity;
 import org.lbl.system.dept.mapper.DeptMapper;
+import org.lbl.system.role.mapper.RoleMapper;
 import org.lbl.system.user.entity.UserEntity;
 import org.lbl.system.user.mapper.UserMapper;
+import org.lbl.system.user.mapper.UserRoleMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,6 +22,7 @@ import java.util.*;
 @Service
 public class DepartmentTransferApprovalService {
     private static final String BUSINESS_TYPE = "DEPARTMENT_CHANGE";
+    private static final String DEPARTMENT_APPROVER_ROLE = "department_approver";
 
     private final DepartmentTransferRequestMapper requests;
     private final UserMapper users;
@@ -27,16 +30,21 @@ public class DepartmentTransferApprovalService {
     private final AccessPolicy access;
     private final NotificationService notifications;
     private final ApprovalWorkflowService approvals;
+    private final RoleMapper roles;
+    private final UserRoleMapper userRoles;
 
     public DepartmentTransferApprovalService(DepartmentTransferRequestMapper requests, UserMapper users,
                                              DeptMapper depts, AccessPolicy access,
-                                             NotificationService notifications, ApprovalWorkflowService approvals) {
+                                             NotificationService notifications, ApprovalWorkflowService approvals,
+                                             RoleMapper roles, UserRoleMapper userRoles) {
         this.requests = requests;
         this.users = users;
         this.depts = depts;
         this.access = access;
         this.notifications = notifications;
         this.approvals = approvals;
+        this.roles = roles;
+        this.userRoles = userRoles;
     }
 
     public List<DeptOption> options() {
@@ -71,11 +79,9 @@ public class DepartmentTransferApprovalService {
         request.setReason(form.reason().trim());
         requests.insert(request);
 
-        Long sourceAssignee = needsSource ? reviewer(requester.getDeptId(), requester.getId()) : null;
-        Long targetAssignee = needsSource ? null : targetReviewer(actor, requester, target.getId());
-        ApprovalTaskEntity source = task(1, "SOURCE", "原部门审批", sourceAssignee,
+        ApprovalTaskEntity source = task(1, "SOURCE", "原部门审批", requester.getDeptId() == null ? null : depts.selectById(requester.getDeptId()),
                 needsSource ? "PENDING" : "SKIPPED");
-        ApprovalTaskEntity targetTask = task(2, "TARGET", "目标部门审批", targetAssignee,
+        ApprovalTaskEntity targetTask = task(2, "TARGET", "目标部门审批", target,
                 needsSource ? "WAITING" : "PENDING");
 
         DeptEntity from = requester.getDeptId() == null ? null : depts.selectById(requester.getDeptId());
@@ -96,8 +102,7 @@ public class DepartmentTransferApprovalService {
                 "申请已提交，" + reviewerPhrase(current, currentDeptLabel), BUSINESS_TYPE, request.getId());
         notifyCurrentReviewer(request, current, requester);
         notifySuperAdmins(request, "新的部门变更申请", requester.getRealName() + "提交了部门变更申请"
-                + (current.getAssignedUserId() == null
-                ? "（" + currentDeptLabel + "步骤需由超级管理员处理）" : ""));
+                + "（" + currentDeptLabel + "审批组或超级管理员可处理）");
         return detail(request, actor);
     }
 
@@ -137,7 +142,7 @@ public class DepartmentTransferApprovalService {
         DepartmentTransferRequestEntity request = require(id);
         ApprovalTaskEntity current = approvals.currentTask(instance);
         if (current == null || !"PENDING".equals(current.getStatus())) throw new BusinessException("当前审批步骤状态异常");
-        if (!actor.superAdmin() && !actor.user().getId().equals(current.getAssignedUserId())) {
+        if (!candidate(actor, current)) {
             throw new BusinessException("当前步骤不属于你审批");
         }
         if (instance.getRequesterId().equals(actor.user().getId())) throw new BusinessException("不能审批自己的部门变更申请");
@@ -158,9 +163,8 @@ public class DepartmentTransferApprovalService {
         }
 
         if (instance.getCurrentStep() == 1) {
-            Long targetReviewerId = targetReviewer(actor, requester, request.getTargetDeptId());
             approvals.approveCurrent(instance, current, actor.user().getId(), actor.user().getRealName(),
-                    targetReviewerId, userName(targetReviewerId));
+                    null, null);
             ApprovalTaskEntity targetTask = approvals.currentTask(instance);
             notifications.create(request.getRequesterId(), "DEPARTMENT_REQUEST_PROGRESS", "原部门审批已通过",
                     "申请已进入目标部门审批阶段，" + reviewerPhrase(targetTask, "目标部门"),
@@ -170,9 +174,8 @@ public class DepartmentTransferApprovalService {
             return detail(request, actor, instance);
         }
 
-        if (!actor.superAdmin() && access.requiresPlatformTransferReview(actor, requester)) {
-            throw new BusinessException("该用户的部门角色范围会随调动改变，请由超级管理员审批");
-        }
+        var boundRoles = roles.selectDepartmentBoundByUserId(requester.getId());
+        if (!boundRoles.isEmpty()) userRoles.deleteByUserIdAndRoleIds(requester.getId(), boundRoles.stream().map(value -> value.getId()).toList());
         requester.setDeptId(request.getTargetDeptId());
         users.updateById(requester);
         approvals.approveCurrent(instance, current, actor.user().getId(), actor.user().getRealName(), null, null);
@@ -180,45 +183,27 @@ public class DepartmentTransferApprovalService {
         return detail(request, actor, instance);
     }
 
-    private ApprovalTaskEntity task(int order, String type, String name, Long assigned, String status) {
+    private ApprovalTaskEntity task(int order, String type, String name, DeptEntity dept, String status) {
         ApprovalTaskEntity value = new ApprovalTaskEntity();
         value.setStepOrder(order);
         value.setStepType(type);
         value.setStepName(name);
-        value.setAssignedUserId(assigned);
-        value.setAssignedUserName(userName(assigned));
+        if (dept != null) {
+            value.setCandidateDeptId(dept.getId());
+            value.setCandidateDeptName(dept.getDeptName());
+            value.setCandidateRoleCode(DEPARTMENT_APPROVER_ROLE);
+            value.setCandidateRoleName("部门审批人");
+        }
         value.setStatus(status);
         return value;
     }
 
-    private Long targetReviewer(AccessPolicy.Actor actor, UserEntity requester, Long deptId) {
-        return access.requiresPlatformTransferReview(actor, requester) ? null : reviewer(deptId, requester.getId());
-    }
-
-    private Long reviewer(Long deptId, Long requesterId) {
-        DeptEntity dept = deptId == null ? null : depts.selectById(deptId);
-        if (dept == null || dept.getLeaderUserId() == null || dept.getLeaderUserId().equals(requesterId)) return null;
-        UserEntity leader = users.selectById(dept.getLeaderUserId());
-        return leader != null && leader.getStatus() == 1 ? leader.getId() : null;
-    }
-
-    private String userName(Long userId) {
-        if (userId == null) return null;
-        UserEntity user = users.selectById(userId);
-        return user == null ? null : user.getRealName();
-    }
-
     private String reviewerPhrase(ApprovalTaskEntity task, String deptLabel) {
-        return task.getAssignedUserId() == null
-                ? deptLabel + "步骤需由超级管理员审批（无有效负责人或调动涉及角色数据范围变更）"
-                : "等待" + deptLabel + "负责人审批";
+        return "等待" + deptLabel + "部门审批人或超级管理员审批";
     }
 
     private void notifyCurrentReviewer(DepartmentTransferRequestEntity request, ApprovalTaskEntity task, UserEntity requester) {
-        if (task.getAssignedUserId() != null) {
-            notifications.create(task.getAssignedUserId(), "DEPARTMENT_APPROVAL_REQUIRED", "待审批的部门变更申请",
-                    requester.getRealName() + "提交了部门变更申请，请处理当前步骤", BUSINESS_TYPE, request.getId());
-        }
+        // 候选组成员通过审批中心待办获取任务；超级管理员另有观察通知。
     }
 
     private void notifySuperAdmins(DepartmentTransferRequestEntity request, String title, String content) {
@@ -250,8 +235,14 @@ public class DepartmentTransferApprovalService {
     }
 
     private void requireVisible(ApprovalInstanceEntity instance, AccessPolicy.Actor actor) {
-        if (actor.superAdmin() || participants(instance).contains(actor.user().getId())) return;
+        if (actor.superAdmin() || participants(instance).contains(actor.user().getId())
+                || approvals.tasks(instance).stream().anyMatch(task -> candidate(actor, task))) return;
         throw new BusinessException("无权查看该申请");
+    }
+
+    private boolean candidate(AccessPolicy.Actor actor, ApprovalTaskEntity task) {
+        return actor.superAdmin() || task.getCandidateDeptId() != null
+                && users.hasActiveRoleInDepartment(actor.user().getId(), task.getCandidateDeptId(), DEPARTMENT_APPROVER_ROLE);
     }
 
     private DepartmentTransferRequestEntity require(Long id) {
@@ -279,10 +270,8 @@ public class DepartmentTransferApprovalService {
         }).toList();
         ApprovalTaskEntity current = ApprovalWorkflowService.PENDING.equals(instance.getStatus())
                 ? approvals.currentTask(instance) : null;
-        boolean requiresPlatform = current != null && current.getStepOrder() == 2 && requester != null
-                && access.requiresPlatformTransferReview(actor, requester);
         boolean canApprove = current != null && !instance.getRequesterId().equals(actor.user().getId())
-                && (actor.superAdmin() || !requiresPlatform && actor.user().getId().equals(current.getAssignedUserId()));
+                && (actor.superAdmin() || users.hasActiveRoleInDepartment(actor.user().getId(), current.getCandidateDeptId(), DEPARTMENT_APPROVER_ROLE));
         String status = ApprovalWorkflowService.PENDING.equals(instance.getStatus())
                 ? (instance.getCurrentStep() == 1 ? "PENDING_SOURCE" : "PENDING_TARGET")
                 : instance.getStatus();

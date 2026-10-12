@@ -1,0 +1,8 @@
+import { Descriptions, Drawer, Tag } from 'antd';
+import type { Requirement } from './types';
+
+const typeText: Record<number, string> = { 1: '新增交易', 2: '交易变更', 3: '交易调用' };
+const statusText: Record<number, { label: string; color: string }> = { 0: { label: '草稿', color: 'default' }, 1: { label: '审批中', color: 'processing' }, 2: { label: '已通过', color: 'success' }, 3: { label: '已拒绝', color: 'error' }, 4: { label: '已撤销', color: 'default' } };
+export function RequirementDetailDrawer({ value, onClose }: { value?: Requirement; onClose: () => void }) {
+  return <Drawer rootClassName='transaction-detail-drawer' title={value ? `需求详情 · ${value.title}` : '需求详情'} width={680} open={Boolean(value)} onClose={onClose}><Descriptions className='transaction-detail-descriptions' bordered column={1} size='small'>{value && <><Descriptions.Item label='OA编号'>{value.oaNo}</Descriptions.Item><Descriptions.Item label='需求名称'>{value.title}</Descriptions.Item><Descriptions.Item label='需求类型'><Tag color='blue'>{typeText[value.requirementType]}</Tag></Descriptions.Item><Descriptions.Item label='审批状态'><Tag color={statusText[value.status]?.color}>{statusText[value.status]?.label}</Tag></Descriptions.Item><Descriptions.Item label='期望上线时间'>{value.expectedOnlineDate || '-'}</Descriptions.Item><Descriptions.Item label='需求描述'>{value.description || '-'}</Descriptions.Item><Descriptions.Item label='交易资产'>{value.transactionId ? `交易 ID：${value.transactionId}` : '-'}</Descriptions.Item><Descriptions.Item label='开发负责人'>{value.developerName || '-'}</Descriptions.Item><Descriptions.Item label='创建时间'>{value.createdTime?.replace('T', ' ')}</Descriptions.Item><Descriptions.Item label='更新时间'>{value.updatedTime?.replace('T', ' ')}</Descriptions.Item></>}</Descriptions></Drawer>;
+}

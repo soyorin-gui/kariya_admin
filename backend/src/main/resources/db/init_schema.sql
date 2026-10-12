@@ -185,6 +185,10 @@ CREATE TABLE sys_approval_task
     step_name            VARCHAR(64)  NOT NULL,
     assigned_user_id     BIGINT       NULL,
     assigned_user_name   VARCHAR(64)  NULL,
+    candidate_dept_id    BIGINT       NULL,
+    candidate_dept_name  VARCHAR(80)  NULL,
+    candidate_role_code  VARCHAR(80)  NULL,
+    candidate_role_name  VARCHAR(80)  NULL,
     status               VARCHAR(16)  NOT NULL,
     decided_by           BIGINT       NULL,
     decided_by_name      VARCHAR(64)  NULL,
@@ -194,6 +198,7 @@ CREATE TABLE sys_approval_task
     updated_time         DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE KEY uk_approval_task_step (approval_instance_id, approval_round, step_order),
     INDEX idx_approval_task_assignee (assigned_user_id, status, created_time),
+    INDEX idx_approval_task_candidate (candidate_dept_id, candidate_role_code, status),
     INDEX idx_approval_task_instance (approval_instance_id, approval_round)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
 

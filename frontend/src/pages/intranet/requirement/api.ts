@@ -1,0 +1,12 @@
+import request from '../../../utils/request';
+import type { PageResult, Result } from '../../../types/common';
+import type { NewTransactionDetail, Requirement, RequirementRequest } from './types';
+export const getRequirements = (params: { pageNum: number; pageSize: number; keyword?: string; status?: number; type?: number; sortField?: string; sortOrder?: 'asc' | 'desc' }) => request.get<Result<PageResult<Requirement>>>('/intranet/requirements', { params }).then(r => r.data.data);
+export const getRequirement = (id: number) => request.get<Result<Requirement>>(`/intranet/requirements/${id}`).then(r => r.data.data);
+export const createRequirement = (data: RequirementRequest) => request.post<Result<Requirement>>('/intranet/requirements', data).then(r => r.data.data);
+export const updateRequirement = (id: number, data: RequirementRequest) => request.put<Result<Requirement>>(`/intranet/requirements/${id}`, data).then(r => r.data.data);
+export const assignRequirementTransaction = (id: number, transactionId: number) => request.put<Result<Requirement>>(`/intranet/requirements/${id}/transaction`, { transactionId }).then(r => r.data.data);
+export const submitRequirement = (id: number) => request.post<Result<Requirement>>(`/intranet/requirements/${id}/submit`).then(r => r.data.data);
+export const cancelRequirement = (id: number) => request.post<Result<Requirement>>(`/intranet/requirements/${id}/cancel`).then(r => r.data.data);
+export const getNewTransactionDetail = (id: number) => request.get<Result<NewTransactionDetail>>(`/intranet/requirements/${id}/new-transaction-detail`).then(r => r.data.data);
+export const saveNewTransactionDetail = (id: number, data: NewTransactionDetail) => request.put<Result<NewTransactionDetail>>(`/intranet/requirements/${id}/new-transaction-detail`, data).then(r => r.data.data);

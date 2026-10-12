@@ -21,6 +21,10 @@ public class ApprovalTaskEntity {
     private String stepName;
     private Long assignedUserId;
     private String assignedUserName;
+    private Long candidateDeptId;
+    private String candidateDeptName;
+    private String candidateRoleCode;
+    private String candidateRoleName;
     private String status;
     private Long decidedBy;
     private String decidedByName;

@@ -1,6 +1,8 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ConfigProvider, theme as antdTheme } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
+import dayjs from 'dayjs';
+import 'dayjs/locale/zh-cn';
 import { DEFAULT_PREFERENCE, FONT_FAMILIES, SEMANTIC_COLORS, fontStackOf, isHexColor, type FontFamilyKey } from './tokens';
 
 export type Appearance = 'system' | 'light' | 'dark';
@@ -42,6 +44,9 @@ const STORAGE_KEY = 'lbl-ui-preference-v1';
 const APPEARANCES: Appearance[] = ['system', 'light', 'dark'];
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
+
+// AntD 的 locale 只覆盖组件文案；日历月份、星期等由 dayjs locale 控制。
+dayjs.locale('zh-cn');
 
 /**
  * 从 localStorage 读取偏好，**逐字段校验**。

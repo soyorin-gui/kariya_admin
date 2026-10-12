@@ -9,7 +9,8 @@ VALUES (1, 0, '0', '根部门', 'ROOT', 1, 0),
 INSERT INTO sys_role (id, role_name, role_code, data_scope, builtin)
 VALUES (1, '超级管理员', 'super_admin', 'ALL', 1),
        (2, '系统管理员', 'system_admin', 'DEPT_AND_CHILDREN', 1),
-       (3, '基础用户', 'basic_role', 'SELF', 1);
+       (3, '基础用户', 'basic_role', 'SELF', 1),
+       (4, '部门审批人', 'department_approver', 'SELF', 0);
 
 -- 初始账号 admin / Admin@123；首次登录必须修改密码。
 -- 生产部署后请立即完成首次登录，不要长期使用公开的初始密码。

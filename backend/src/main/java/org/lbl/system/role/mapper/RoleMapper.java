@@ -55,4 +55,11 @@ public interface RoleMapper extends BaseMapper<RoleEntity> {
             WHERE role_code = #{roleCode} AND id != #{excludeId}
             """)
     long countIncludingDeletedByRoleCode(@Param("roleCode") String roleCode, @Param("excludeId") long excludeId);
+
+    @Select("""
+            SELECT r.* FROM sys_role r JOIN sys_user_role ur ON ur.role_id=r.id
+            WHERE ur.user_id=#{userId} AND r.deleted=0 AND r.status=1
+              AND (r.data_scope IN ('DEPT', 'DEPT_AND_CHILDREN') OR r.role_code='department_approver')
+            """)
+    List<RoleEntity> selectDepartmentBoundByUserId(Long userId);
 }

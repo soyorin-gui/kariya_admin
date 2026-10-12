@@ -58,6 +58,11 @@
 | AP1 | `db/approval/V1__create_public_approval_tables.sql` | 创建公共审批实例、任务表 | 直接建表；重复执行会报表已存在 | 现有用户表 | 已执行（用户确认，本会话未查库复核） |
 | AP2 | `db/approval/V2__backfill_department_change_approval.sql` | 把现有部门调动实例和步骤回填公共表，并输出缺失计数 | `NOT EXISTS` 守卫；仅可在 AP3 前执行 | AP1、旧部门调动表 | 已执行，两个缺失计数均为 0（用户确认，本会话未查库复核） |
 | AP3 | `db/approval/V3__cleanup_legacy_department_change_approval.sql` | 业务表改名为 `sys_department_change`，删除旧步骤表和四个重复审批字段 | 一次性破坏性清理，不可重复执行；执行前备份 | AP1、AP2 完整性计数均为 0 | **待执行** |
+| AP4 | `db/approval/V4__add_approval_candidate_group.sql` | 公共审批任务补充候选部门/角色快照，部门调动改为部门审批人候选组 | 一次性 `ALTER TABLE`；用户已执行并做基础验证 | AP1、现有部门/角色数据 | 已执行（用户确认，本会话未查库复核） |
+| V12 | `db/intranet/V12__create_intranet_requirement.sql` | 需求主表及新增/调用/变更三张固定明细表 | 直接建表；重复执行报错 | P2、MySQL | **待执行** |
+| V13 | `db/intranet/V13__seed_intranet_requirement_approval_config.sql` | 需求审批、研发部门和开发角色种子 | 部门/角色按 code 幂等插入；用户角色须环境手工授权 | V12、现有 RBAC | **待执行** |
+| V14 | `db/intranet/V14__seed_intranet_requirement_menu.sql` | 需求菜单、按钮权限和超管初始授权 | 按 route/权限码幂等插入；沿用软删除菜单边界 | V13、现有 RBAC | **待执行** |
+| V15 | `db/intranet/V15__add_intranet_requirement_description_and_expected_online_date.sql` | 为已建立的需求主表补充需求描述和期望上线时间 | 一次性 `ALTER TABLE`；执行前确认两列不存在 | V12 | **待执行** |
 | 待定 | 待创建 | 源系统资产（是否独立建模待确认） | 待确认 | P1 模型 | 未开始 |
 | 待定 | 待创建 | 需求、审批关联、交易调用 | 待确认 | P2 方案 | 未开始 |
 | 待定 | 待创建 | 血缘节点、关系、证据和有效期 | 待确认 | P3 模型 | 未开始 |

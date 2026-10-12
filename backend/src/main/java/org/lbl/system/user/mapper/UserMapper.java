@@ -33,4 +33,12 @@ public interface UserMapper extends BaseMapper<UserEntity> {
               AND u.status=1 AND u.deleted=0
             """)
     List<Long> selectActiveSuperAdminIds();
+
+    @Select("""
+            SELECT EXISTS(SELECT 1 FROM sys_user u JOIN sys_user_role ur ON ur.user_id=u.id
+            JOIN sys_role r ON r.id=ur.role_id WHERE u.id=#{userId} AND u.dept_id=#{deptId}
+            AND u.status=1 AND u.deleted=0 AND r.role_code=#{roleCode} AND r.status=1 AND r.deleted=0)
+            """)
+    boolean hasActiveRoleInDepartment(@Param("userId") Long userId, @Param("deptId") Long deptId,
+                                      @Param("roleCode") String roleCode);
 }

@@ -10,6 +10,13 @@ public interface UserRoleMapper {
     @Delete("DELETE FROM sys_user_role WHERE user_id = #{userId}")
     void deleteByUserId(Long userId);
 
+    @Delete("""
+            <script>DELETE FROM sys_user_role WHERE user_id=#{userId} AND role_id IN
+            <foreach collection='roleIds' item='id' open='(' separator=',' close=')'>#{id}</foreach>
+            </script>
+            """)
+    void deleteByUserIdAndRoleIds(@Param("userId") Long userId, @Param("roleIds") List<Long> roleIds);
+
     @Insert("INSERT INTO sys_user_role (user_id, role_id) VALUES (#{userId}, #{roleId})")
     void insert(@Param("userId") Long userId, @Param("roleId") Long roleId);
 

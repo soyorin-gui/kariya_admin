@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
-import { App, Button, Empty, Input, Modal, Steps, Table, Tabs, Tag, Typography } from 'antd';
+import { App, Button, Empty, Input, Modal, Popconfirm, Steps, Table, Tabs, Tag, Typography } from 'antd';
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import { CheckOutlined, EyeOutlined, ReloadOutlined, StopOutlined } from '@ant-design/icons';
 import { getApprovalTasks, type ApprovalScope, type ApprovalTask } from '../../../api/approvals';
 import { approveDepartmentChange, getDepartmentChange, rejectDepartmentChange, type DepartmentChangeDetail } from '../../../api/departmentChange';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { EllipsisText } from '../../../components/EllipsisText';
+import { cancelRequirement } from '../../intranet/requirement/api';
 import '../../system/shared.css';
 
 const requestStatus: Record<string, { text: string; color: string }> = {
@@ -120,13 +121,9 @@ export default function ApprovalCenterPage() {
     { title: '提交时间', dataIndex: 'createdTime', width: 180, render: (value: string) => value?.replace('T', ' ') },
     {
       title: '操作',
-      width: 90,
+      width: 180,
       fixed: 'right',
-      render: (_, row) => (
-        <Button type='link' icon={<EyeOutlined />} onClick={() => void openDetail(row)}>
-          详情
-        </Button>
-      ),
+      render: (_, row) => <>{<Button type='link' icon={<EyeOutlined />} onClick={() => void openDetail(row)}>详情</Button>}{scope === 'mine' && row.businessType === 'INTRANET_REQUIREMENT' && row.requestStatus === 'PENDING' && <Popconfirm title='确定撤销该需求申请？' onConfirm={() => void cancelRequirement(row.businessId).then(() => { message.success('需求已撤销'); void load(); }).catch(e => message.error(getApiErrorMessage(e)))}><Button type='link' danger icon={<StopOutlined />}>撤销</Button></Popconfirm>}</>,
     },
   ];
   const pagination: TablePaginationConfig = {
@@ -215,7 +212,9 @@ export default function ApprovalCenterPage() {
                         ? `等待 ${step.assignedUserName || '超级管理员'} 审批`
                         : step.status === 'APPROVED'
                           ? `${step.decidedByName || '管理员'} 已通过`
-                          : `${step.decidedByName || '管理员'} 已拒绝：${step.decisionReason || ''}`,
+                          : step.status === 'REJECTED'
+                            ? `${step.decidedByName || '管理员'} 已拒绝：${step.decisionReason || ''}`
+                            : '申请已撤销',
                 status: step.status === 'APPROVED' || step.status === 'SKIPPED' ? 'finish' : step.status === 'REJECTED' ? 'error' : step.status === 'PENDING' ? 'process' : 'wait',
               }))}
             />

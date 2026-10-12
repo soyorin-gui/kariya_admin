@@ -158,7 +158,9 @@ export default function NotificationsPage() {
                         ? `等待 ${step.assignedUserName || '超级管理员'} 审批`
                         : step.status === 'APPROVED'
                           ? `${step.decidedByName || '管理员'} 已通过`
-                          : `${step.decidedByName || '管理员'} 已拒绝：${step.decisionReason || ''}`,
+                          : step.status === 'REJECTED'
+                            ? `${step.decidedByName || '管理员'} 已拒绝：${step.decisionReason || ''}`
+                            : '申请已撤销',
                 status: step.status === 'APPROVED' || step.status === 'SKIPPED' ? 'finish' : step.status === 'REJECTED' ? 'error' : step.status === 'PENDING' ? 'process' : 'wait',
               }))}
             />
