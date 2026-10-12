@@ -7,6 +7,7 @@ import { approveDepartmentChange, getDepartmentChange, rejectDepartmentChange, t
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { EllipsisText } from '../../../components/EllipsisText';
 import { cancelRequirement } from '../../intranet/requirement/api';
+import { RequirementApprovalDetailModal } from '../../intranet/requirement/RequirementApprovalDetailModal';
 import '../../system/shared.css';
 
 const requestStatus: Record<string, { text: string; color: string }> = {
@@ -25,6 +26,7 @@ export default function ApprovalCenterPage() {
   const [pageSize, setPageSize] = useState(10);
   const [total, setTotal] = useState(0);
   const [detail, setDetail] = useState<DepartmentChangeDetail>();
+  const [requirementApproval, setRequirementApproval] = useState<{ id: number; canApprove: boolean }>();
   const [rejectOpen, setRejectOpen] = useState(false);
   const [reason, setReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -48,6 +50,10 @@ export default function ApprovalCenterPage() {
 
   const openDetail = async (task: ApprovalTask) => {
     try {
+      if (task.businessType === 'INTRANET_REQUIREMENT') {
+        setRequirementApproval({ id: task.businessId, canApprove: scope === 'pending' && task.requestStatus === 'PENDING' });
+        return;
+      }
       if (task.businessType !== 'DEPARTMENT_CHANGE') {
         message.info('该业务类型的详情页面尚未接入');
         return;
@@ -221,6 +227,12 @@ export default function ApprovalCenterPage() {
           </>
         )}
       </Modal>
+      <RequirementApprovalDetailModal
+        id={requirementApproval?.id}
+        canApprove={requirementApproval?.canApprove ?? false}
+        onClose={() => setRequirementApproval(undefined)}
+        onCompleted={() => void load()}
+      />
       <Modal
         title='拒绝部门变更申请'
         open={rejectOpen}

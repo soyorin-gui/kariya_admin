@@ -128,7 +128,7 @@ export function AppLayout() {
     // 标记已读由 store 统一处理：本地这一条变已读、未读数减一，消息中心页同步生效。
     if (!item.readTime) await dispatch(readNotification(item.id));
     setNotificationOpen(false);
-    navigate(`/account/notifications${item.businessId ? `?businessId=${item.businessId}` : ''}`);
+    navigate(`/account/notifications${item.businessId ? `?businessId=${item.businessId}${item.businessType ? `&businessType=${encodeURIComponent(item.businessType)}` : ''}${item.type ? `&notificationType=${encodeURIComponent(item.type)}` : ''}` : ''}`);
   };
   const notificationPanel = (
     <div className='notification-panel'>

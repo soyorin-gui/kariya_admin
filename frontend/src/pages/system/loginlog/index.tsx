@@ -72,22 +72,60 @@ export default function LoginLogPage() {
           columns={columns}
           initialSearch={{ username: '', range: null }}
           request={async ({ page, pageSize, search }) => {
-            const data = await getLoginLogs({ pageNum: page, pageSize, username: search.username.trim() || undefined, result: search.result, beginTime: search.range?.[0]?.format(TIME_FORMAT), endTime: search.range?.[1]?.format(TIME_FORMAT) });
+            const data = await getLoginLogs({
+              pageNum: page,
+              pageSize,
+              username: search.username.trim() || undefined,
+              result: search.result,
+              beginTime: search.range?.[0]?.format(TIME_FORMAT),
+              endTime: search.range?.[1]?.format(TIME_FORMAT),
+            });
             return { list: data.records, total: data.total };
           }}
           onRequestError={(error) => message.error(getApiErrorMessage(error, '无法获取登录日志'))}
-          onDataLoaded={({ list }) => { currentRecordCount.current = list.length; setSelectedIds([]); }}
+          onDataLoaded={({ list }) => {
+            currentRecordCount.current = list.length;
+            setSelectedIds([]);
+          }}
           toolbarClassName='table-toolbar log-toolbar'
-          searchRender={({ search, setSearch, submit }) => <Space wrap>
-            <Input value={search.username} onChange={(event) => setSearch({ ...search, username: event.target.value })} onPressEnter={() => submit()} prefix={<SearchOutlined />} placeholder='搜索用户名' allowClear />
-            <Select value={search.result} onChange={(value) => setSearch({ ...search, result: value })} options={RESULT_OPTIONS} placeholder='登录结果' allowClear style={{ width: 140 }} />
-            <DatePicker.RangePicker showTime value={search.range} onChange={(value) => setSearch({ ...search, range: value as [Dayjs, Dayjs] | null })} placeholder={['开始时间', '结束时间']} />
-            <Button type='primary' icon={<SearchOutlined />} onClick={() => submit()}>查询</Button>
-          </Space>}
-          toolbarRender={({ reload }) => <Space wrap>
-            <Button icon={<ReloadOutlined />} onClick={() => reload()}>刷新</Button>
-            <Permission code='system:loginlog:delete'><Popconfirm title='确定删除选中的登录日志？' description='日志删除后不可恢复，且删除动作本身会被记入操作日志。' okText='删除' cancelText='取消' disabled={!selectedIds.length} onConfirm={() => void remove()}><Button danger icon={<DeleteOutlined />} disabled={!selectedIds.length}>删除{selectedIds.length ? `（${selectedIds.length}）` : ''}</Button></Popconfirm></Permission>
-          </Space>}
+          searchRender={({ search, setSearch, submit }) => (
+            <Space wrap>
+              <Input
+                value={search.username}
+                onChange={(event) => setSearch({ ...search, username: event.target.value })}
+                onPressEnter={() => submit()}
+                prefix={<SearchOutlined />}
+                placeholder='搜索用户名'
+                allowClear
+              />
+              <Select value={search.result} onChange={(value) => setSearch({ ...search, result: value })} options={RESULT_OPTIONS} placeholder='登录结果' allowClear style={{ width: 140 }} />
+              <DatePicker.RangePicker showTime value={search.range} onChange={(value) => setSearch({ ...search, range: value as [Dayjs, Dayjs] | null })} placeholder={['开始时间', '结束时间']} />
+              <Button type='primary' icon={<SearchOutlined />} onClick={() => submit()}>
+                查询
+              </Button>
+            </Space>
+          )}
+          toolbarRender={({ reload }) => (
+            <Space wrap>
+              <Button icon={<ReloadOutlined />} onClick={() => reload()}>
+                刷新
+              </Button>
+              <Permission code='system:loginlog:delete'>
+                <Popconfirm
+                  title='确定删除选中的登录日志？'
+                  description='日志删除后不可恢复，且删除动作本身会被记入操作日志。'
+                  okText='删除'
+                  cancelText='取消'
+                  disabled={!selectedIds.length}
+                  onConfirm={() => void remove()}
+                >
+                  <Button danger icon={<DeleteOutlined />} disabled={!selectedIds.length}>
+                    删除{selectedIds.length ? `（${selectedIds.length}）` : ''}
+                  </Button>
+                </Popconfirm>
+              </Permission>
+            </Space>
+          )}
           rowSelection={{ selectedRowKeys: selectedIds, onChange: (keys) => setSelectedIds(keys.map(Number)) }}
           pagination={{ pageSize: 10, showSizeChanger: false, showTotal: (value) => `共 ${value} 条记录` }}
           scroll={{ x: 1100 }}

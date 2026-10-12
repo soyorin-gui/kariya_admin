@@ -71,6 +71,26 @@ class ApprovalWorkflowServiceTest {
         assertNotNull(instance.getFinishedTime());
     }
 
+    @Test
+    void resubmitRejectedInstanceStartsNextApprovalRound() {
+        ApprovalWorkflowService service = new ApprovalWorkflowService(instances, tasks);
+        ApprovalInstanceEntity instance = instance();
+        instance.setStatus("REJECTED");
+        instance.setFinishedTime(java.time.LocalDateTime.now());
+        ApprovalTaskEntity retry = task(1, "PENDING");
+
+        service.resubmit(instance, "修订后的需求", "修订后的摘要", List.of(retry));
+
+        assertEquals("PENDING", instance.getStatus());
+        assertEquals(2, instance.getApprovalRound());
+        assertEquals(1, instance.getCurrentStep());
+        assertNull(instance.getFinishedTime());
+        assertEquals(10L, retry.getApprovalInstanceId());
+        assertEquals(2, retry.getApprovalRound());
+        verify(instances).updateById(instance);
+        verify(tasks).insert(retry);
+    }
+
     private ApprovalInstanceEntity instance() {
         ApprovalInstanceEntity value = new ApprovalInstanceEntity();
         value.setId(10L);

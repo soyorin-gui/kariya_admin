@@ -7,6 +7,8 @@ import type { Requirement } from './types';
 import { RequirementDialog } from './RequirementDialog';
 import { RequirementDetailDrawer } from './RequirementDetailDrawer';
 import { NewTransactionDetailDialog } from './NewTransactionDetailDialog';
+import { TransactionCallDetailDialog } from './TransactionCallDetailDialog';
+import { TransactionChangeDetailDialog } from './TransactionChangeDetailDialog';
 import { Permission } from '../../../permission/Permission';
 import { SmartTable, type SmartTableRef } from '../../../components/SmartTable';
 import { getApiErrorMessage } from '../../../utils/apiError';
@@ -27,7 +29,7 @@ export default function RequirementPage() {
   const tableRef = useRef<SmartTableRef<Search>>(null);
   const [editingId, setEditingId] = useState<number | null | undefined>(undefined);
   const [detail, setDetail] = useState<Requirement>();
-  const [newDetailId, setNewDetailId] = useState<number>();
+  const [detailEditor, setDetailEditor] = useState<Pick<Requirement, 'id' | 'requirementType'>>();
   const showDetail = async (id: number) => { try { setDetail(await getRequirement(id)); } catch (e) { message.error(getApiErrorMessage(e, '无法加载需求详情')); } };
   const columns: ColumnsType<Requirement> = [
     { title: 'OA编号', dataIndex: 'oaNo', width: 130 },
@@ -48,7 +50,7 @@ export default function RequirementPage() {
       title: '操作',
       fixed: 'right',
       width: 350,
-      render: (_, row) => <Space size='middle'><a onClick={() => void showDetail(row.id)}><EyeOutlined /> 详情</a>{row.requirementType === 1 && (row.status === 0 || row.status === 3) && <Permission code='intranet:requirement:update'><a onClick={() => setNewDetailId(row.id)}>明细</a></Permission>}<Permission code='intranet:requirement:update'><a onClick={() => setEditingId(row.id)}><EditOutlined /> 编辑</a></Permission>{row.status === 0 && <Permission code='intranet:requirement:submit'><a onClick={() => void submitRequirement(row.id).then(() => { message.success('需求已提交审批'); tableRef.current?.reload(); }).catch(e => message.error(getApiErrorMessage(e)))}><SendOutlined /> 提交</a></Permission>}{row.status === 1 && <Permission code='intranet:requirement:submit'><a className='danger' onClick={() => void cancelRequirement(row.id).then(() => { message.success('需求已撤销'); tableRef.current?.reload(); }).catch(e => message.error(getApiErrorMessage(e)))}><StopOutlined /> 撤销</a></Permission>}</Space>,
+      render: (_, row) => <Space size='middle'><a onClick={() => void showDetail(row.id)}><EyeOutlined /> 详情</a>{(row.status === 0 || row.status === 3) && <Permission code='intranet:requirement:update'><a onClick={() => setDetailEditor({ id: row.id, requirementType: row.requirementType })}>明细</a></Permission>}<Permission code='intranet:requirement:update'><a onClick={() => setEditingId(row.id)}><EditOutlined /> 编辑</a></Permission>{(row.status === 0 || row.status === 3) && <Permission code='intranet:requirement:submit'><a onClick={() => void submitRequirement(row.id).then(() => { message.success(row.status === 3 ? '需求已重新提交审批' : '需求已提交审批'); tableRef.current?.reload(); }).catch(e => message.error(getApiErrorMessage(e)))}><SendOutlined /> {row.status === 3 ? '重新提交' : '提交'}</a></Permission>}{row.status === 1 && <Permission code='intranet:requirement:submit'><a className='danger' onClick={() => void cancelRequirement(row.id).then(() => { message.success('需求已撤销'); tableRef.current?.reload(); }).catch(e => message.error(getApiErrorMessage(e)))}><StopOutlined /> 撤销</a></Permission>}</Space>,
     },
   ];
   return (
@@ -97,7 +99,9 @@ export default function RequirementPage() {
       </div>
       {editingId !== undefined && <RequirementDialog open id={editingId} onClose={() => setEditingId(undefined)} onSaved={() => tableRef.current?.reload()} />}
       <RequirementDetailDrawer value={detail} onClose={() => setDetail(undefined)} />
-      <NewTransactionDetailDialog id={newDetailId} onClose={() => setNewDetailId(undefined)} />
+      <NewTransactionDetailDialog id={detailEditor?.requirementType === 1 ? detailEditor.id : undefined} onClose={() => setDetailEditor(undefined)} />
+      <TransactionChangeDetailDialog id={detailEditor?.requirementType === 2 ? detailEditor.id : undefined} onClose={() => setDetailEditor(undefined)} />
+      <TransactionCallDetailDialog id={detailEditor?.requirementType === 3 ? detailEditor.id : undefined} onClose={() => setDetailEditor(undefined)} />
     </div>
   );
 }

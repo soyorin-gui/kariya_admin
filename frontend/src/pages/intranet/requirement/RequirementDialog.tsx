@@ -78,7 +78,7 @@ export function RequirementDialog({ open, id, onClose, onSaved }: { open: boolea
             <Input maxLength={255} placeholder='请输入需求名称' />
           </Form.Item>
           <Form.Item name='requirementType' label='需求类型' rules={[{ required: true }]}>
-            <Select placeholder='请选择需求类型' options={types} />
+            <Select disabled={id !== null} placeholder='请选择需求类型' options={types} />
           </Form.Item>
           <Form.Item name='expectedOnlineDate' label='期望上线时间'>
             <DatePicker style={{ width: '100%' }} placeholder='请选择日期' />

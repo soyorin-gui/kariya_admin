@@ -7,6 +7,7 @@ import { approveDepartmentChange, getDepartmentChange, rejectDepartmentChange, t
 import { useAppDispatch, useAppSelector } from '../../../store/hooks';
 import { loadNotifications, readAllNotifications, readNotification } from '../../../store/notificationSlice';
 import { getApiErrorMessage } from '../../../utils/apiError';
+import { RequirementApprovalDetailModal } from '../../intranet/requirement/RequirementApprovalDetailModal';
 import '../../system/shared.css';
 
 export default function NotificationsPage() {
@@ -20,6 +21,7 @@ export default function NotificationsPage() {
   const items = useAppSelector((state) => state.notifications.items);
   const loading = useAppSelector((state) => state.notifications.loading);
   const [detail, setDetail] = useState<DepartmentChangeDetail>();
+  const [requirementApproval, setRequirementApproval] = useState<{ id: number; canApprove: boolean }>();
   const [rejectOpen, setRejectOpen] = useState(false);
   const [reason, setReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -30,10 +32,12 @@ export default function NotificationsPage() {
   }, [dispatch]);
   useEffect(() => {
     const businessId = Number(searchParams.get('businessId'));
-    if (Number.isFinite(businessId) && businessId > 0)
-      void getDepartmentChange(businessId)
-        .then(setDetail)
-        .catch(() => undefined);
+    const businessType = searchParams.get('businessType');
+    const notificationType = searchParams.get('notificationType');
+    if (Number.isFinite(businessId) && businessId > 0) {
+      if (businessType === 'INTRANET_REQUIREMENT') setRequirementApproval({ id: businessId, canApprove: notificationType === 'INTRANET_REQUIREMENT_APPROVAL_REQUIRED' });
+      else void getDepartmentChange(businessId).then(setDetail).catch(() => undefined);
+    }
   }, [searchParams]);
   const open = async (item: SystemNotification) => {
     try {
@@ -41,6 +45,7 @@ export default function NotificationsPage() {
       // 而 thunk 本身不会抛异常，不 unwrap 就会静默吞掉。
       if (!item.readTime) await dispatch(readNotification(item.id)).unwrap();
       if (item.businessType === 'DEPARTMENT_CHANGE' && item.businessId) setDetail(await getDepartmentChange(item.businessId));
+      if (item.businessType === 'INTRANET_REQUIREMENT' && item.businessId) setRequirementApproval({ id: item.businessId, canApprove: item.type === 'INTRANET_REQUIREMENT_APPROVAL_REQUIRED' });
     } catch (error) {
       message.error(getApiErrorMessage(error, '无法打开消息'));
     }
@@ -167,6 +172,12 @@ export default function NotificationsPage() {
           </>
         )}
       </Modal>
+      <RequirementApprovalDetailModal
+        id={requirementApproval?.id}
+        canApprove={requirementApproval?.canApprove ?? false}
+        onClose={() => setRequirementApproval(undefined)}
+        onCompleted={() => { void load(); }}
+      />
       <Modal
         title='拒绝部门变更申请'
         open={rejectOpen}

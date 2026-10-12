@@ -301,6 +301,70 @@
 - 负责人：仅新增交易与交易变更可在审批通过后分配一名开发负责人；候选来源固定为“内网研发部 + `intranet_developer`”。交易调用不分配此负责人。
 - 实施进展：需求概要页面、固定新增交易明细编辑、申请人撤销审批中需求均已实现；详情/编辑按页面目录拆分为独立组件，不把 Dialog 写在列表页。详情采用现有 `EllipsisText`；日期本地化在全局 `ThemeProvider` 统一设置 dayjs 中文 locale，不在单个页面重复配置。
 
+### D-037 需求重新提交、类型固定与当前校验边界
+
+- 状态：已确认并实现（2026-10-12，用户确认）。
+- 驳回重提：已拒绝需求允许编辑并重新提交；重新提交复用原公共审批实例，通过 `ApprovalWorkflowService.resubmit` 创建下一审批轮次，保留旧轮次记录并刷新公共实例的业务标题、摘要和提交时间。已撤销需求不允许重新提交。
+- 类型固定：需求类型只在新建时选择，创建完成后前后端均禁止修改；需要改变类型时删除原需求后重新新建，不静默删除或迁移原类型明细。
+- 新增交易明细：页面补齐投产数据、文件生成和计算场景字段；文件/计算选择“否”时清空对应附属字段。审批中心在接入内网需求只读详情与审批操作前不进行需求审批流程验收。
+- 审批与通知接入：审批中心和消息中心按 `businessType` 打开内网需求只读详情，新增交易展示全部固定明细；候选审批人可在详情中通过/拒绝。需求提交、重提、撤销、通过和拒绝复用 `NotificationService`，向申请人、候选审批组及超级管理员发送相应通知并触发通用审批刷新事件，不新建通知或 WebSocket 体系。
+- 明确接受的边界：项目组内部使用且并发量可忽略，本阶段不增加需求行锁/乐观锁，不为 `transaction_id` 增加唯一约束；明细允许不完整后提交，由审批驳回纠正，只保证数据库现有必填约束；不新增明细 Request DTO/额外服务端校验；保留明细表中业务允许的冗余字段。
+
+### D-038 SmartTable 统一提供 `.card-scroll` 滚动容器与固定表头
+
+- 状态：已确认（2026-10-11，用户批准修改基线，理由是"整个项目的表格都希望能遵守这个效果"）
+- 背景：D-031 的 `page-fill` 约定要求卡片内有一个直接子元素 `.card-scroll` 承担滚动。字段页由 `InlineEditableTable` 提供，但 `SmartTable` 不提供——因此在日志页等列表页只加 `page-fill`，会出现"卡片被压缩、内容溢出卡片且无法滚动"的现象：`.page-fill > .table-card > *` 把子元素冻结在内容高度，同时没有任何元素带 `overflow: auto`。
+- 决策：`SmartTable` 固定渲染 `<div className='card-scroll' ref>` 包住 `<Table>`，并默认给 Table 传 `sticky={{ getContainer: () => scrollRef.current ?? window }}`。
+  - 搜索区 / 工具栏仍留在 `.card-scroll` 外层，因此在 `page-fill` 页面里保持固定不动，只有表格区域滚动。
+  - `sticky` 写在 `{...tableProps}` 之前，页面若显式传 `sticky` 仍以页面为准。
+- 为什么这次放进 SmartTable（与 D-028 拒绝放入列渲染的区别）：SmartTable 本来就拥有这一块的布局职责（搜索区、工具栏行、分页都由它渲染），滚动容器属于同一职责；而"某个单元格怎么渲染"不属于。判断标准是职责归属，不是"是否通用"。
+- 影响面：
+  - **所有**使用 SmartTable 的页面都会获得 antd 的固定表头（antd 会把表头拆成独立的 `.ant-table-sticky-holder`），并可能出现用于横向滚动的吸附式滚动条（`.ant-table-sticky-scroll`，仅在需要横向滚动时显示）。
+  - 未加 `page-fill` 的页面**不会**启用"卡片内滚动"——`.card-scroll` 的样式选择器限定在 `.page-fill > .table-card > .card-scroll` 之下，此时它等同于一个普通 div。
+- 已知取舍（需人工确认）：分页控件位于 `.card-scroll` 内部，因此在启用 `page-fill` 且行数超出卡片高度时，**分页会随内容滚动**；日志页每页 10 行通常不会触发。若要固定分页，需改走 antd `scroll.y` 或调整内部结构，另行评估。
+- 验证：`tsc --noEmit` 通过、`npm run build` 通过；布局与表头效果必须浏览器目视确认（见 `HANDOFF.md` §4）。
+- 本次启用页面：`pages/system/operatelog`（用户自行添加）、`pages/system/loginlog` 的根节点已加 `page-fill`。其它列表页待用户逐个确认后再启用。
+
+#### D-038 补充（2026-10-11，同轮）：滚动下沉到表体，表头与分页改为布局固定
+
+用户实测后提出两点：分页会跟着滚；以及在"看起来没超过卡片高度"的页面（`loginlog`）会出现一条只能滚一点点、形似"死"的滚动条。经核对，后者是**真实溢出**而非伪滚动条：
+
+- 在 `page-fill` 下 `卡片高度 = min(内容高度, 可用高度)`，所以"内容没超过卡片"在溢出时恒成立，不能作为判据；真正的判据是**内容 vs 可用高度**。
+- `loginlog` 按 10 行、默认表密度估算，纵向需求约 956px（顶栏 66 + 内容区 padding 36 + page-head 82 + 卡片 padding 48 + 工具栏 56 + 表头 55 + 10 行约 550 + 表体横向滚动条 15 + 分页 48）；而 1080p 屏幕的浏览器内视口通常只有 880~950px，因此**必然小幅溢出**（实测约十几像素，正好表现为"能滚动一点点"）。
+
+修正后的机制（`global.css` 的 `.card-scroll` 一组规则）：
+
+- `.card-scroll` 只做 flex 传高度并**不再自己滚动**（保留 `overflow: auto` 作为兜底：宁可出现滚动条，也不要因结构变化静默裁掉数据）。
+- 高度沿 antd 的 DOM 链传导：`.ant-table-wrapper` → `.ant-table` → `.ant-table-container` → **只有 `.ant-table-body` 滚动**。
+- 表头 `.ant-table-sticky-holder` 与分页 `.ant-pagination` 都成为滚动区之外的兄弟节点，**由 flex 布局钉住**（比 `position: sticky` 更可靠）；表头依旧依赖 `sticky` 属性把表头与表体拆开。
+- `.ant-table-body` 需要 `overflow-y: auto !important`：rc-table 在 `sticky` 模式下给它内联了 `overflow-y: hidden`，内联样式只能用 `!important` 覆盖。**升级 antd 大版本时必须复查这一条。**
+
+同轮一并采纳的措施（B2）：给日志页表格加 `size='small'`，10 行高度由约 550px 降到约 390px，使 `loginlog` / `operatelog` 在常见视口下不再出现那条小行程滚动条。该项只改页面 props，不动基线组件。
+
+- 影响面：本次改的是 `.card-scroll` 的**共同规则**，因此同时作用于字段设计页（`InlineEditableTable`）——机制由"整块滚动 + sticky 表头"变为"表体滚动 + 布局钉表头"。字段页没有分页，预期视觉一致，但**必须重新目视确认**。
+- 验证：`tsc --noEmit` 通过、`npm run build` 通过（✓ built in 21.10s）；布局效果必须浏览器目视确认（见 `HANDOFF.md` §4）。
+
+#### D-038 撤回记录（2026-10-11，日志页实验终止）
+
+- 用户实测后决定**只在登录日志页放弃 `page-fill`**（不是放弃整个方案）。已执行的回退：
+  1. 移除 `pages/system/loginlog` 根节点的 `page-fill`——该页出现过"只能滚一点点"的竖滚动条；
+  2. 回退 `loginlog` 与 `operatelog` 两页 SmartTable 上的 `size='small'`（B2 无效）。
+- **明确保留（用户确认"其余内容不用变"）**：
+  - `pages/system/operatelog`（操作日志，即用户口中的"审计页"）的 `page-fill`：用户明确仍需要该效果，并要求保留"分页不参与滚动"的 A 设计；
+  - 字段设计页（`dataasset/fields`、`transaction/fields`）的 `page-fill` 与已验证效果；
+  - 上文的机制修正（A）：滚动下沉到表体、表头与分页由布局固定；
+  - D-038 的 SmartTable 改动（渲染 `.card-scroll` + 默认 `sticky`），供仍使用 `page-fill` 的页面复用。
+- B2 未能解决问题的原因（值得记下，避免以后重复尝试）：它只降低**行高**（10 行约 550→390px），并不改变"固定可见高度 vs 内容高度"的对抗关系；只要视口再矮一点、或页面还存在其它固定开销，就仍会溢出。它能把阈值往下挪，但不是结构性解法。
+- 关键结论：在"页面高度固定为视口高度"的前提下，**只要内容超过可用高度就必然出现滚动条**，这不是缺陷而是该方案固有的代价。判断是否溢出不能用"内容有没有超过卡片高度"——`page-fill` 下卡片高度 = min(内容高度, 可用高度)，两者在溢出时恒等；真正的判据是**内容 vs 可用高度**。
+- **选择器修正（2026-10-11 同日，用户实测反馈"分页仍在跟着滚"）**：A 的第一版用**直接子选择器**写高度链与分页（`.card-scroll > .ant-table-wrapper > .ant-pagination`），实测无效。原因是 antd 的 Table 渲染结构为
+  `.ant-table-wrapper > .ant-spin-nested-loading > .ant-spin-container > [.ant-table, .ant-pagination]`
+  ——**分页并不是 `.ant-table-wrapper` 的直接子元素**（antd 用 `<Spin>` 把表格和分页一起包住），高度链也必须在 `Spin` 的两层上继续传下去；链一断，所有元素都退回内容高度，于是 `.card-scroll` 又成了唯一的滚动者，分页跟着滚。
+  修正：`.ant-table-wrapper`、`.ant-spin-nested-loading`、`.ant-spin-container`、`.ant-table`、`.ant-table-container` 统一 `display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0`；分页改用**后代**选择器并 `flex: 0 0 auto`。
+  教训：**给 antd 内部结构写样式时不要假设直接子关系**，先读 `node_modules/antd/es/table/InternalTable.js` 的渲染结构。升级 antd 后要复查这一组选择器。
+- **两条滚动条的成因与修正（同日，用户实测反馈）**：上一版为了"兜底"在 `.card-scroll` 上加了 `overflow: auto`，而此时 `.ant-table-body` 也是滚动容器，于是**同时出现两条滚动条**。已移除该声明——`.card-scroll` 保持 `overflow: visible`，滚动只由 `.ant-table-body` 承担。链若断掉，表现是内容溢出卡片（肉眼可见、不丢数据），不会静默裁掉数据，也不会多出第二条滚动条。
+- **最终形态**（`global.css`）：`.card-scroll` 只做 flex 传高度且**不设 overflow** → 穿过 `.ant-table-wrapper` / `.ant-spin-nested-loading` / `.ant-spin-container` / `.ant-table` / `.ant-table-container` 的 flex 列链 → `.ant-table-body` 是唯一滚动者（`overflow-y: auto !important`，用于覆盖 rc-table 的内联 `overflow-y: hidden`）；表头 `.ant-table-sticky-holder`、吸附横向条 `.ant-table-sticky-scroll`、分页 `.ant-pagination` 均为 `flex: 0 0 auto`，由布局钉住。
+- 复盘：这一组规则**两次**都因为偏离设计而返工——第一次把分页写成直接子选择器（antd 的 `Spin` 包装使其永不匹配），第二次自行加了 `overflow: auto`（产生第二条滚动条）。后续改动这套规则时请**先读源码确认 DOM**，并逐条对照本节。
+
 ## 待确认决策
 
 | 编号 | 主题 | 需要确认的核心问题 | 最晚阶段 |

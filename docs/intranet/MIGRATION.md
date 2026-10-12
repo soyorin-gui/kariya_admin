@@ -1,7 +1,7 @@
 # Intranet 内网迁移清单
 
 > 更新日期：2026-10-12
-> 当前状态：P1-01/P1-02/P1-03 代码与 SQL 已实现；公共审批纯方案 2的 AP1/AP2 已由用户执行并确认完整性计数均为 0，AP3 清理脚本待执行。前端构建、后端编译与公共审批状态机定向测试已通过。
+> 当前状态：P1-01/P1-02/P1-03 代码与 SQL 已实现；公共审批与 P2 需求代码继续实施。迁移脚本执行状态以用户手工执行结果为准。2026-10-12 已验证前端构建、后端编译与公共审批状态机定向测试通过；审批中心/消息中心已接入新增交易需求详情和操作，浏览器端流程与权限仍待验证。
 
 ## 1. 迁移原则
 
@@ -32,7 +32,7 @@
 - 审批任务页面/API/聚合契约（纯方案 2，见 D-034）。
 - 公共审批基线 `backend/src/main/java/org/lbl/approval/core/`、`approval/task/` 及 `db/approval/`。纯方案 2下所有审批业务都写公共实例/任务表；迁移内网模块时应优先对接目标工程的等价公共审批能力，而不是复制第二套审批中心。
 - 前端请求封装、布局、主题和明确复用的通用组件（含 `frontend/src/components/SmartTable/`、`frontend/src/components/EllipsisText/`）。
-- 全局布局约定：intranet 字段页依赖基线 `frontend/src/styles/global.css` 中的 `page-fill` / `card-scroll` 规则（见 D-031），并由 `pages/intranet/components/InlineEditableTable.tsx` 渲染滚动容器、统一给 Table 传 `sticky`。迁移到目标工程时必须同时带上这组全局规则和该组件的这一版实现，否则"标题固定 + 表头固定 + 表格内滚动"会失效。
+- 全局布局约定：intranet 字段页依赖基线 `frontend/src/styles/global.css` 中的 `page-fill` / `card-scroll` 规则（见 D-031），并由 `pages/intranet/components/InlineEditableTable.tsx` 渲染滚动容器、统一给 Table 传 `sticky`。基线 `frontend/src/components/SmartTable/SmartTable.tsx` 同样固定渲染 `.card-scroll` 并默认启用固定表头（见 D-038），所以任何加 `page-fill` 的列表页都得到同一效果。迁移到目标工程时必须同时带上：这组全局规则 + 这两个组件的对应版本实现，否则"标题固定 + 表头固定 + 表格内滚动"会失效。
 - `G6Graph` 封装与 `@antv/g6` 版本。
 - P5 所需 `AgentTool`、`ToolRegistry`、权限过滤和 Artifact 契约。
 
@@ -93,7 +93,7 @@ V10 仅包含虚构数据，覆盖 HDS/PBM 两个集市、按年/按月逻辑索
 | Java | `17.0.12`（2026-10-11 Maven 测试日志确认） |
 | Maven | `D:\software\apache-maven\bin\mvn.cmd`（当前 PATH 可直接调用 `mvn.cmd`） |
 | Maven 本地仓库 | 当前会话未单独核对 |
-| 构建验证 | 2026-10-11 复核复现：`mvn.cmd -o -B test` BUILD SUCCESS、Tests run 2/2、主源码编译通过；`npm.cmd run build` 通过（`tsc --noEmit` 无错误 + vite 22.10s）。P1-03 定向测试当前缺失，不能据此认定领域行为已覆盖 |
+| 构建验证 | 2026-10-12：`mvn.cmd -o -B -DskipTests compile` BUILD SUCCESS（291 个主源码）；`ApprovalWorkflowServiceTest` 4/4 通过且不启动 Spring/数据库；`npm.cmd run build` 通过（5323 个模块，仅既存 chunk 告警及 D-012 已知页面扫描提示）。P1-03 定向测试仍缺失，不能据此认定 P1 领域行为已覆盖 |
 | 数据库连接 | `local` profile 按 `application-local.yml` 使用**远程** MySQL 与 Redis（地址不记录在本文），ES 未使用。原“本地服务 MySQL 3306 / Redis 6379 / ES 9200 / 应用 8080 均未监听”的记录已不适用：本次 `mvn test` 成功建立了该远程 MySQL 连接 |
 | 执行环境限制 | Windows 沙箱下无法写入工作区（含 `backend\target`、`frontend\dist`）：Maven 在 `maven-resources-plugin` 阶段报 `application-dev.yml (拒绝访问)`，前端 `vite` 因 esbuild 子进程 `spawn EPERM` 失败。**删除工作区内文件同样可能被拒**（`Remove-Item` 报“对路径的访问被拒绝”）。以上均在放宽该次命令权限后通过，属沙箱边界而非代码问题 |
 | `mvn test` 的副作用 | `JasyptEncryptorTest` 为 `@SpringBootTest`，启动完整上下文并执行 `SystemPermissionInitializer`，因此跑测试会连接上述远程库，并可能为超管补写基线 `sys_role_menu` 授权行。它不创建 intranet 表、不执行 `db/intranet` 脚本；执行测试前须知悉该副作用 |

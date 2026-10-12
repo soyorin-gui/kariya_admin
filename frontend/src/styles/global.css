@@ -78,15 +78,52 @@
 .page-fill > .table-card > * {
   flex: 0 0 auto;
 }
-/* 滚动区：吃掉卡片剩余高度，超出时在其中滚动。
-   表头吸顶不在这里做——antd 只在设了 Table 的 `sticky` 时才会把表头拆成独立的
-   `.ant-table-sticky-holder`。给 `th` 写 position: sticky 是无效的：`scroll.x` 会让 antd
-   把表包进 `.ant-table-content`（overflow-y: scroll），th 会被困在那个不滚动的容器里。
-   详见 frontend/src/pages/intranet/components/InlineEditableTable.tsx。 */
+/* 滚动区：**自己不滚动、也不要写 overflow: auto**，只把受限高度沿下面的链传导给 .ant-table-body。
+   ★ 这里一旦写成 overflow: auto，就会与 .ant-table-body 各出一条滚动条（实测出现过两条滚动条），
+     必须保持默认的 visible：链一旦断掉，表现是内容溢出卡片（可见、不丢数据），
+     而不是静默裁掉数据、也不是多出第二条滚动条。
+   这个容器由组件渲染，页面不需要自己写：
+   - 列表页由基线的 SmartTable 渲染（见 D-038）；
+   - 字段设计页由 intranet 的 InlineEditableTable 渲染。
+   `.card-scroll` 的样式只在本作用域（page-fill 之内）生效，所以没加 page-fill 的页面不受影响。 */
 .page-fill > .table-card > .card-scroll {
   flex: 1 1 auto;
   min-height: 0;
-  overflow: auto;
+  display: flex;
+  flex-direction: column;
+}
+/* 沿 antd 的 DOM 逐层把高度传下去。
+   真实结构（见 antd es/table/InternalTable.js 的渲染）是：
+     .card-scroll > .ant-table-wrapper > .ant-spin-nested-loading > .ant-spin-container
+                  > [.ant-table（内含 .ant-table-container）, .ant-pagination]
+   ★ 两个坑：
+   1. antd 用 <Spin> 把表格和分页一起包住，所以 **分页不是 .ant-table-wrapper 的直接子元素**，
+      用 `> .ant-pagination` 之类的直接子选择器永远匹配不到；高度链也必须穿过 spin 的两层。
+   2. antd 只在设了 Table 的 `sticky` 时才会把表头拆成独立的 .ant-table-sticky-holder；
+      拆不开就没法"只滚表体"。给 `th` 写 position: sticky 是无效的（scroll.x 会让 th 被困在
+      不滚动的 .ant-table-content 里），所以 sticky 必须保留。 */
+.page-fill > .table-card > .card-scroll > .ant-table-wrapper,
+.page-fill > .table-card > .card-scroll .ant-spin-nested-loading,
+.page-fill > .table-card > .card-scroll .ant-spin-container,
+.page-fill > .table-card > .card-scroll .ant-table,
+.page-fill > .table-card > .card-scroll .ant-table-container {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+/* 表头、吸附式横向滚动条、分页都不参与滚动，固定在表体上方 / 下方 */
+.page-fill > .table-card > .card-scroll .ant-table-sticky-holder,
+.page-fill > .table-card > .card-scroll .ant-table-sticky-scroll,
+.page-fill > .table-card > .card-scroll .ant-pagination {
+  flex: 0 0 auto;
+}
+/* 只有表体滚动。rc-table 在 sticky 模式下给 .ant-table-body 内联了 overflow-y: hidden，
+   内联样式只能用 !important 覆盖。升级 antd 大版本时必须复查这一条。 */
+.page-fill > .table-card > .card-scroll .ant-table-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto !important;
 }
 
 :root[data-theme='dark'] * {

@@ -9,6 +9,8 @@ import org.lbl.intranet.requirement.request.AssignTransactionRequest;
 import org.lbl.intranet.requirement.service.IntranetRequirementService;
 import org.lbl.intranet.requirement.vo.RequirementListVO;
 import org.lbl.intranet.requirement.entity.NewTransactionRequirementDetailEntity;
+import org.lbl.intranet.requirement.entity.TransactionCallRequirementDetailEntity;
+import org.lbl.intranet.requirement.entity.TransactionChangeRequirementDetailEntity;
 import org.lbl.system.log.aspect.OperationLog;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -21,6 +23,10 @@ public class IntranetRequirementController {
     @GetMapping("/{id}") @PreAuthorize("hasAuthority('intranet:requirement:list')") Result<RequirementListVO> get(@PathVariable Long id) { return Result.ok(service.get(id)); }
     @GetMapping("/{id}/new-transaction-detail") @PreAuthorize("hasAuthority('intranet:requirement:list')") Result<NewTransactionRequirementDetailEntity> newTransactionDetail(@PathVariable Long id) { return Result.ok(service.getNewTransactionDetail(id)); }
     @PutMapping("/{id}/new-transaction-detail") @PreAuthorize("hasAuthority('intranet:requirement:update')") Result<NewTransactionRequirementDetailEntity> saveNewTransactionDetail(@PathVariable Long id, @RequestBody NewTransactionRequirementDetailEntity detail) { return Result.ok(service.saveNewTransactionDetail(id, detail)); }
+    @GetMapping("/{id}/transaction-call-detail") @PreAuthorize("hasAuthority('intranet:requirement:list')") Result<TransactionCallRequirementDetailEntity> transactionCallDetail(@PathVariable Long id) { return Result.ok(service.getTransactionCallDetail(id)); }
+    @PutMapping("/{id}/transaction-call-detail") @PreAuthorize("hasAuthority('intranet:requirement:update')") Result<TransactionCallRequirementDetailEntity> saveTransactionCallDetail(@PathVariable Long id, @RequestBody TransactionCallRequirementDetailEntity detail) { return Result.ok(service.saveTransactionCallDetail(id, detail)); }
+    @GetMapping("/{id}/transaction-change-detail") @PreAuthorize("hasAuthority('intranet:requirement:list')") Result<TransactionChangeRequirementDetailEntity> transactionChangeDetail(@PathVariable Long id) { return Result.ok(service.getTransactionChangeDetail(id)); }
+    @PutMapping("/{id}/transaction-change-detail") @PreAuthorize("hasAuthority('intranet:requirement:update')") Result<TransactionChangeRequirementDetailEntity> saveTransactionChangeDetail(@PathVariable Long id, @RequestBody TransactionChangeRequirementDetailEntity detail) { return Result.ok(service.saveTransactionChangeDetail(id, detail)); }
     @PostMapping @PreAuthorize("hasAuthority('intranet:requirement:add')") @OperationLog(module="内网需求", action="新建需求", targetType="INTRANET_REQUIREMENT") Result<RequirementListVO> create(@Valid @RequestBody RequirementRequest request) { return Result.ok(service.create(request)); }
     @PutMapping("/{id}") @PreAuthorize("hasAuthority('intranet:requirement:update')") @OperationLog(module="内网需求", action="编辑需求", targetType="INTRANET_REQUIREMENT", targetId="#id") Result<RequirementListVO> update(@PathVariable Long id, @Valid @RequestBody RequirementRequest request) { return Result.ok(service.update(id, request)); }
     @PostMapping("/{id}/submit") @PreAuthorize("hasAuthority('intranet:requirement:submit')") Result<RequirementListVO> submit(@PathVariable Long id) { return Result.ok(service.submit(id)); }

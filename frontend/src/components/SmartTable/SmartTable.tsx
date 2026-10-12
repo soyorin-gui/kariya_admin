@@ -94,6 +94,8 @@ function SmartTableInner<T extends object, Search extends Record<string, unknown
   requestRef.current = request;
   onRequestErrorRef.current = onRequestError;
   onDataLoadedRef.current = onDataLoaded;
+  /** page-fill 约定里的滚动容器；同时作为 antd sticky 表头的 getContainer（见 D-038）。 */
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   const initialPageSize = pagination === false ? 10 : Number(pagination.pageSize ?? pagination.defaultPageSize ?? 10);
   const [records, setRecords] = useState<T[]>([]);
@@ -251,7 +253,15 @@ function SmartTableInner<T extends object, Search extends Record<string, unknown
           {actionsClassName && toolbarContent ? <div className={actionsClassName}>{toolbarContent}</div> : toolbarContent}
         </div>
       )}
-      <Table<T> key={tableStateVersion} {...tableProps} className={tableClassName} dataSource={records} loading={loading} pagination={tablePagination} onChange={handleChange} />
+      {/*
+        表格外层固定渲染 .card-scroll：它是 global.css 里 page-fill 约定的滚动容器。
+        页面根节点加 page-fill 后，搜索区/工具栏留在卡片外层保持固定，只有这里随高度滚动（见 D-038）。
+        没有 page-fill 的页面里这个类不匹配任何规则，等同于普通 div，不改变原有布局。
+        sticky 放在 {...tableProps} 之前，页面若显式传 sticky 仍然以页面的为准。
+      */}
+      <div className='card-scroll' ref={scrollRef}>
+        <Table<T> sticky={{ getContainer: () => scrollRef.current ?? window }} key={tableStateVersion} {...tableProps} className={tableClassName} dataSource={records} loading={loading} pagination={tablePagination} onChange={handleChange} />
+      </div>
     </>
   );
 }
