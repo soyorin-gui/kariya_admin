@@ -18,8 +18,11 @@ import org.lbl.intranet.requirement.mapper.TransactionChangeRequirementDetailMap
 import org.lbl.intranet.requirement.request.RequirementRequest;
 import org.lbl.intranet.requirement.request.AssignDeveloperRequest;
 import org.lbl.intranet.requirement.request.AssignTransactionRequest;
+import org.lbl.intranet.requirement.request.ConfigureImplementationRequest;
 import org.lbl.intranet.transaction.entity.TransactionAssetEntity;
 import org.lbl.intranet.transaction.mapper.TransactionAssetMapper;
+import org.lbl.intranet.transaction.version.entity.TransactionVersionEntity;
+import org.lbl.intranet.transaction.version.mapper.TransactionVersionMapper;
 import org.lbl.notification.NotificationService;
 import org.lbl.security.context.AccessPolicy;
 import org.lbl.system.dept.entity.DeptEntity;
@@ -27,9 +30,13 @@ import org.lbl.system.dept.mapper.DeptMapper;
 import org.lbl.system.user.entity.UserEntity;
 import org.lbl.system.user.mapper.UserMapper;
 import org.lbl.intranet.requirement.vo.RequirementListVO;
+import org.lbl.intranet.requirement.vo.RequirementApprovalDetailVO;
+import org.lbl.intranet.requirement.vo.RequirementImplementationOptionsVO;
+import org.lbl.intranet.requirement.vo.SelectionOptionVO;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
 import static org.lbl.common.util.TextValues.trimToNull;
 
@@ -41,8 +48,8 @@ public class IntranetRequirementService {
     private static final String DEVELOPER_ROLE = "intranet_developer";
     private static final String DEVELOPER_DEPT_CODE = "INTRANET_DEVELOPMENT";
     private final IntranetRequirementMapper requirements;
-    private final AccessPolicy access; private final ApprovalWorkflowService approvals; private final DeptMapper depts; private final UserMapper users; private final TransactionAssetMapper transactions; private final NewTransactionRequirementDetailMapper newDetails; private final TransactionCallRequirementDetailMapper callDetails; private final TransactionChangeRequirementDetailMapper changeDetails; private final NotificationService notifications;
-    public IntranetRequirementService(IntranetRequirementMapper requirements, AccessPolicy access, ApprovalWorkflowService approvals, DeptMapper depts, UserMapper users, TransactionAssetMapper transactions, NewTransactionRequirementDetailMapper newDetails, TransactionCallRequirementDetailMapper callDetails, TransactionChangeRequirementDetailMapper changeDetails, NotificationService notifications) { this.requirements = requirements; this.access = access; this.approvals = approvals; this.depts = depts; this.users = users; this.transactions = transactions; this.newDetails = newDetails; this.callDetails = callDetails; this.changeDetails = changeDetails; this.notifications = notifications; }
+    private final AccessPolicy access; private final ApprovalWorkflowService approvals; private final DeptMapper depts; private final UserMapper users; private final TransactionAssetMapper transactions; private final NewTransactionRequirementDetailMapper newDetails; private final TransactionCallRequirementDetailMapper callDetails; private final TransactionChangeRequirementDetailMapper changeDetails; private final TransactionVersionMapper versions; private final NotificationService notifications;
+    public IntranetRequirementService(IntranetRequirementMapper requirements, AccessPolicy access, ApprovalWorkflowService approvals, DeptMapper depts, UserMapper users, TransactionAssetMapper transactions, NewTransactionRequirementDetailMapper newDetails, TransactionCallRequirementDetailMapper callDetails, TransactionChangeRequirementDetailMapper changeDetails, TransactionVersionMapper versions, NotificationService notifications) { this.requirements = requirements; this.access = access; this.approvals = approvals; this.depts = depts; this.users = users; this.transactions = transactions; this.newDetails = newDetails; this.callDetails = callDetails; this.changeDetails = changeDetails; this.versions = versions; this.notifications = notifications; }
 
     public PageResult<RequirementListVO> page(long pageNum, long pageSize, String keyword, Integer status, Integer type, String sortField, String sortOrder) {
         if (pageNum < 1 || pageSize < 1 || pageSize > 100) throw new BusinessException("分页参数无效，每页最多 100 条");
@@ -61,6 +68,17 @@ public class IntranetRequirementService {
     }
 
     public RequirementListVO get(Long id) { return view(require(id)); }
+    public RequirementApprovalDetailVO getApprovalDetail(Long id) {
+        IntranetRequirementEntity requirement = require(id);
+        ApprovalInstanceEntity instance = approvals.get(BUSINESS_TYPE, id);
+        requireApprovalVisible(instance);
+        return new RequirementApprovalDetailVO(
+                view(requirement),
+                requirement.getRequirementType() == 1 ? newDetails.selectById(id) : null,
+                requirement.getRequirementType() == 2 ? changeDetails.selectById(id) : null,
+                requirement.getRequirementType() == 3 ? callDetails.selectById(id) : null
+        );
+    }
     public NewTransactionRequirementDetailEntity getNewTransactionDetail(Long id) { IntranetRequirementEntity requirement = require(id); if (requirement.getRequirementType() != 1) throw new BusinessException("该需求不是新增交易类型"); return newDetails.selectById(id); }
     @Transactional public NewTransactionRequirementDetailEntity saveNewTransactionDetail(Long id, NewTransactionRequirementDetailEntity detail) { IntranetRequirementEntity requirement = require(id); requireOwner(requirement); if (requirement.getRequirementType() != 1) throw new BusinessException("该需求不是新增交易类型"); if (requirement.getStatus() != 0 && requirement.getStatus() != 3) throw new BusinessException("仅草稿或已拒绝需求可以编辑明细"); detail.setRequirementId(id); if (newDetails.selectById(id) == null) newDetails.insert(detail); else newDetails.updateById(detail); return detail; }
     public TransactionCallRequirementDetailEntity getTransactionCallDetail(Long id) { IntranetRequirementEntity requirement = require(id); if (requirement.getRequirementType() != 3) throw new BusinessException("该需求不是交易调用类型"); return callDetails.selectById(id); }
@@ -112,18 +130,59 @@ public class IntranetRequirementService {
         IntranetRequirementEntity value = require(id);
         if (value.getStatus() != 2) throw new BusinessException("仅已通过需求可以分配开发负责人");
         if (value.getRequirementType() == 3) throw new BusinessException("交易调用需求不分配开发负责人");
+        requireVersionNotActivated(id);
         DeptEntity dept = deptByCode(DEVELOPER_DEPT_CODE, "未初始化内网研发部门，请先执行 V13 脚本");
         if (!users.hasActiveRoleInDepartment(request.developerUserId(), dept.getId(), DEVELOPER_ROLE)) throw new BusinessException("所选用户不是内网研发部的开发人员");
         UserEntity user = users.selectById(request.developerUserId()); if (user == null || user.getStatus() != 1) throw new BusinessException("开发人员不存在或已停用");
         value.setDeveloperUserId(user.getId()); value.setDeveloperName(user.getRealName()); requirements.updateById(value); return view(value);
     }
+    public RequirementImplementationOptionsVO implementationOptions(Long id) {
+        IntranetRequirementEntity value = require(id);
+        if (value.getStatus() != 2 || value.getRequirementType() == 3) throw new BusinessException("仅已通过的新增或变更需求可以配置实施信息");
+        LambdaQueryWrapper<TransactionAssetEntity> query = new LambdaQueryWrapper<TransactionAssetEntity>()
+                .ne(TransactionAssetEntity::getStatus, 3);
+        if (value.getRequirementType() == 1) {
+            if (value.getTransactionId() == null) query.eq(TransactionAssetEntity::getStatus, 0);
+            else query.and(condition -> condition.eq(TransactionAssetEntity::getStatus, 0)
+                    .or().eq(TransactionAssetEntity::getId, value.getTransactionId()));
+        }
+        query.orderByAsc(TransactionAssetEntity::getTransactionCode);
+        List<SelectionOptionVO> transactionOptions = transactions.selectList(query).stream()
+                .map(item -> new SelectionOptionVO(item.getId(), item.getTransactionCode() + " · " + item.getTransactionName())).toList();
+        DeptEntity dept = deptByCode(DEVELOPER_DEPT_CODE, "未初始化内网研发部门，请先执行 V13 脚本");
+        List<Long> developerIds = users.selectActiveIdsByRoleInDepartment(dept.getId(), DEVELOPER_ROLE);
+        List<SelectionOptionVO> developerOptions = developerIds.isEmpty() ? List.of() : users.selectList(new LambdaQueryWrapper<UserEntity>()
+                        .in(UserEntity::getId, developerIds).orderByAsc(UserEntity::getRealName)).stream()
+                .filter(user -> user.getStatus() == 1)
+                .map(user -> new SelectionOptionVO(user.getId(), user.getRealName())).toList();
+        TransactionVersionEntity activated = versions.selectByRequirementId(id);
+        return new RequirementImplementationOptionsVO(transactionOptions, developerOptions, activated == null ? null : activated.getVersionNo());
+    }
+    @Transactional public RequirementListVO configureImplementation(Long id, ConfigureImplementationRequest request) {
+        IntranetRequirementEntity value = require(id);
+        if (value.getStatus() != 2 || value.getRequirementType() == 3) throw new BusinessException("仅已通过的新增或变更需求可以配置实施信息");
+        requireVersionNotActivated(id);
+        if (value.getTransactionId() != null && !value.getTransactionId().equals(request.transactionId())) throw new BusinessException("已分配的交易不能更换");
+        TransactionAssetEntity transaction = transactions.selectById(request.transactionId());
+        if (transaction == null || transaction.getStatus() == 3) throw new BusinessException("只能选择未下线的交易");
+        if (value.getRequirementType() == 1 && transaction.getStatus() != 0) throw new BusinessException("新增交易需求只能选择评估中的交易");
+        DeptEntity dept = deptByCode(DEVELOPER_DEPT_CODE, "未初始化内网研发部门，请先执行 V13 脚本");
+        if (!users.hasActiveRoleInDepartment(request.developerUserId(), dept.getId(), DEVELOPER_ROLE)) throw new BusinessException("所选用户不是内网研发部的开发人员");
+        UserEntity developer = users.selectById(request.developerUserId());
+        if (developer == null || developer.getStatus() != 1) throw new BusinessException("开发人员不存在或已停用");
+        value.setTransactionId(transaction.getId()); value.setDeveloperUserId(developer.getId()); value.setDeveloperName(developer.getRealName());
+        requirements.updateById(value);
+        return view(value);
+    }
     @Transactional public RequirementListVO assignTransaction(Long id, AssignTransactionRequest request) {
         IntranetRequirementEntity value = require(id);
         if (value.getStatus() != 2) throw new BusinessException("仅已通过需求可以分配交易码");
+        if (value.getRequirementType() == 3) throw new BusinessException("交易调用需求不在此处分配交易");
+        requireVersionNotActivated(id);
         if (value.getTransactionId() != null) throw new BusinessException("该需求已分配交易码，不能重复分配");
         TransactionAssetEntity transaction = transactions.selectById(request.transactionId());
-        if (transaction == null || transaction.getStatus() != 0) throw new BusinessException("只能选择评估中的交易");
-        if (requirements.countByTransactionId(transaction.getId(), value.getId()) > 0) throw new BusinessException("该交易已关联其它需求");
+        if (transaction == null || transaction.getStatus() == 3) throw new BusinessException("只能选择未下线的交易");
+        if (value.getRequirementType() == 1 && transaction.getStatus() != 0) throw new BusinessException("新增交易需求只能选择评估中的交易");
         value.setTransactionId(transaction.getId()); requirements.updateById(value); return view(value);
     }
     private RequirementListVO decide(Long id, boolean approved, String reason) {
@@ -145,9 +204,20 @@ public class IntranetRequirementService {
     }
     private Set<Long> participants(ApprovalInstanceEntity instance, ApprovalTaskEntity task) { Set<Long> ids = approvers(task); ids.add(instance.getRequesterId()); if (task != null && task.getDecidedBy() != null) ids.add(task.getDecidedBy()); return ids; }
     private Set<Long> approvers(ApprovalTaskEntity task) { Set<Long> ids = new LinkedHashSet<>(users.selectActiveSuperAdminIds()); if (task != null && task.getCandidateDeptId() != null && task.getCandidateRoleCode() != null) ids.addAll(users.selectActiveIdsByRoleInDepartment(task.getCandidateDeptId(), task.getCandidateRoleCode())); return ids; }
+    private void requireApprovalVisible(ApprovalInstanceEntity instance) {
+        var actor = access.actor();
+        if (actor.superAdmin() || instance.getRequesterId().equals(actor.user().getId())) return;
+        boolean visible = approvals.tasks(instance).stream().anyMatch(task ->
+                actor.user().getId().equals(task.getAssignedUserId())
+                        || actor.user().getId().equals(task.getDecidedBy())
+                        || task.getCandidateDeptId() != null && task.getCandidateRoleCode() != null
+                        && users.hasActiveRoleInDepartment(actor.user().getId(), task.getCandidateDeptId(), task.getCandidateRoleCode()));
+        if (!visible) throw new BusinessException("无权查看该需求审批");
+    }
     private DeptEntity deptByCode(String code, String message) { DeptEntity value = depts.selectOne(new LambdaQueryWrapper<DeptEntity>().eq(DeptEntity::getDeptCode, code).eq(DeptEntity::getStatus, 1)); if (value == null) throw new BusinessException(message); return value; }
     private void requireOwner(IntranetRequirementEntity value) { if (!access.actor().superAdmin() && !access.actor().user().getId().equals(value.getCreatedBy())) throw new BusinessException("无权修改该需求"); }
     private void requireEditableDetail(IntranetRequirementEntity value) { if (value.getStatus() != 0 && value.getStatus() != 3) throw new BusinessException("仅草稿或已拒绝需求可以编辑明细"); }
+    private void requireVersionNotActivated(Long requirementId) { if (versions.countByRequirementId(requirementId) > 0) throw new BusinessException("交易版本已生效，不能修改实施配置"); }
     private IntranetRequirementEntity require(Long id) { IntranetRequirementEntity value = requirements.selectById(id); if (value == null) throw new BusinessException("需求不存在"); return value; }
     private void apply(IntranetRequirementEntity value, RequirementRequest request) { value.setOaNo(request.oaNo().trim()); value.setRequirementType(request.requirementType()); value.setTitle(request.title().trim()); value.setDescription(trimToNull(request.description())); value.setExpectedOnlineDate(request.expectedOnlineDate()); }
     private RequirementListVO view(IntranetRequirementEntity v) { return new RequirementListVO(v.getId(), v.getOaNo(), v.getRequirementType(), v.getTitle(), v.getDescription(), v.getExpectedOnlineDate(), v.getTransactionId(), v.getStatus(), v.getDeveloperUserId(), v.getDeveloperName(), v.getCreatedBy(), v.getCreatedTime(), v.getUpdatedTime()); }

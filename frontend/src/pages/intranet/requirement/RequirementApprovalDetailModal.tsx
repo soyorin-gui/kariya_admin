@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { App, Button, Descriptions, Input, Modal, Popconfirm, Spin, Tag, Typography } from 'antd';
 import { CheckOutlined, StopOutlined } from '@ant-design/icons';
-import { approveRequirement, getNewTransactionDetail, getRequirement, getTransactionCallDetail, getTransactionChangeDetail, rejectRequirement } from './api';
+import { approveRequirement, getRequirementApprovalDetail, rejectRequirement } from './api';
 import type { NewTransactionDetail, Requirement, TransactionCallDetail, TransactionChangeDetail } from './types';
 import { getApiErrorMessage } from '../../../utils/apiError';
 
@@ -51,15 +51,12 @@ export function RequirementApprovalDetailModal({
     setLoading(true);
     void (async () => {
       try {
-        const value = await getRequirement(id);
-        const newDetail = value.requirementType === 1 ? await getNewTransactionDetail(id) : undefined;
-        const changeDetail = value.requirementType === 2 ? await getTransactionChangeDetail(id) : undefined;
-        const callDetail = value.requirementType === 3 ? await getTransactionCallDetail(id) : undefined;
+        const value = await getRequirementApprovalDetail(id);
         if (active) {
-          setRequirement(value);
-          setNewTransactionDetail(newDetail);
-          setTransactionChangeDetail(changeDetail);
-          setTransactionCallDetail(callDetail);
+          setRequirement(value.requirement);
+          setNewTransactionDetail(value.newTransactionDetail);
+          setTransactionChangeDetail(value.transactionChangeDetail);
+          setTransactionCallDetail(value.transactionCallDetail);
         }
       } catch (error) {
         message.error(getApiErrorMessage(error, '无法加载需求审批详情'));

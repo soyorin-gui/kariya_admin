@@ -1,6 +1,6 @@
 import request from '../../../utils/request';
 import type { PageResult, Result } from '../../../types/common';
-import type { Transaction, TransactionDataResources, TransactionListItem, TransactionRequest } from './types';
+import type { Transaction, TransactionDataResources, TransactionListItem, TransactionRequest, TransactionVersion, TransactionVersionDetail } from './types';
 import type { MessageSide, TransactionMessageField, TransactionMessageFieldRequest } from './types';
 export const getTransactions = (params: { pageNum: number; pageSize: number; keyword?: string; status?: number; sortField?: string; sortOrder?: 'asc' | 'desc' }) => request.get<Result<PageResult<TransactionListItem>>>('/intranet/transactions', { params }).then(r => r.data.data);
 export const getTransaction = (id: number) => request.get<Result<Transaction>>(`/intranet/transactions/${id}`).then(r => r.data.data);
@@ -13,3 +13,5 @@ export const updateTransactionMessageField = (transactionId: number, side: Messa
 export const deleteTransactionMessageField = (transactionId: number, side: MessageSide, id: number) => request.delete(`/intranet/transactions/${transactionId}/message-fields/${id}`, { params: { side } });
 export const getTransactionDataResources = (transactionId: number) => request.get<Result<TransactionDataResources>>(`/intranet/transactions/${transactionId}/data-resources`).then(r => r.data.data);
 export const updateTransactionDataResources = (transactionId: number, data: TransactionDataResources) => request.put<Result<TransactionDataResources>>(`/intranet/transactions/${transactionId}/data-resources`, data).then(r => r.data);
+export const getTransactionVersions = (transactionId: number) => request.get<Result<TransactionVersion[]>>(`/intranet/transaction-versions/transactions/${transactionId}`).then(r => r.data.data);
+export const getTransactionVersionDetail = (versionId: number) => request.get<Result<TransactionVersionDetail>>(`/intranet/transaction-versions/${versionId}`).then(r => r.data.data);

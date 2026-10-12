@@ -10,6 +10,8 @@ import org.lbl.intranet.transaction.entity.TransactionAssetEntity;
 import org.lbl.intranet.transaction.field.mapper.TransactionMessageFieldMapper;
 import org.lbl.intranet.transaction.mapper.TransactionAssetMapper;
 import org.lbl.intranet.transaction.request.TransactionRequest;
+import org.lbl.intranet.transaction.version.entity.TransactionVersionEntity;
+import org.lbl.intranet.transaction.version.mapper.TransactionVersionMapper;
 import org.lbl.intranet.transaction.vo.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,13 +23,15 @@ public class TransactionAssetService {
     private final TransactionMessageFieldMapper messageFields;
     private final TransactionHbaseResourceMapper hbaseResources;
     private final TransactionEsResourceMapper esResources;
+    private final TransactionVersionMapper versions;
     public TransactionAssetService(TransactionAssetMapper mapper, TransactionMessageFieldMapper messageFields,
                                    TransactionHbaseResourceMapper hbaseResources,
-                                   TransactionEsResourceMapper esResources) {
+                                   TransactionEsResourceMapper esResources, TransactionVersionMapper versions) {
         this.mapper = mapper;
         this.messageFields = messageFields;
         this.hbaseResources = hbaseResources;
         this.esResources = esResources;
+        this.versions = versions;
     }
     public PageResult<TransactionListVO> page(long page, long size, String keyword, Integer status, String sortField, String sortOrder) {
         if (page < 1 || size < 1 || size > 100) throw new BusinessException("分页参数无效，每页最多 100 条");
@@ -45,6 +49,10 @@ public class TransactionAssetService {
     @Transactional public TransactionVO update(Long id, TransactionRequest r) { TransactionAssetEntity e = require(id); String code = r.transactionCode().trim(); requireUnique(code, id); apply(e, r, code); mapper.updateById(e); return toView(e); }
     @Transactional public void remove(Long id) {
         Long transactionId = require(id).getId();
+        if (versions.selectCount(new LambdaQueryWrapper<TransactionVersionEntity>()
+                .eq(TransactionVersionEntity::getTransactionId, transactionId)) > 0) {
+            throw new BusinessException("已有生效版本的交易不能删除");
+        }
         hbaseResources.deleteByTransactionId(transactionId);
         esResources.deleteByTransactionId(transactionId);
         messageFields.deleteByTransactionId(transactionId);

@@ -1,12 +1,13 @@
 import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { App, Button, Descriptions, Drawer, Popconfirm, Space, Tag } from 'antd';
+import { App, Button, Descriptions, Drawer, Popconfirm, Space, Table, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { DatabaseOutlined, DeleteOutlined, EditOutlined, EyeOutlined, PlusOutlined } from '@ant-design/icons';
-import { deleteTransaction, getTransaction, getTransactions } from './api';
-import type { Transaction, TransactionListItem } from './types';
+import { deleteTransaction, getTransaction, getTransactions, getTransactionVersions } from './api';
+import type { Transaction, TransactionListItem, TransactionVersion } from './types';
 import { TransactionDialog } from './TransactionDialog';
 import { DataResourceDialog } from './DataResourceDialog';
+import { TransactionVersionDetailModal } from './TransactionVersionDetailModal';
 import { EllipsisText } from '../../../components/EllipsisText';
 import { Permission } from '../../../permission/Permission';
 import { SmartTable, type SmartTableRef } from '../../../components/SmartTable';
@@ -29,10 +30,14 @@ export default function TransactionPage() {
   const [editingId, setEditingId] = useState<number | null | undefined>(undefined);
   const [detail, setDetail] = useState<Transaction>();
   const [detailOpen, setDetailOpen] = useState(false);
+  const [versions, setVersions] = useState<TransactionVersion[]>([]);
+  const [versionDetailId, setVersionDetailId] = useState<number>();
   const [resourceTransactionId, setResourceTransactionId] = useState<number>();
   const showDetail = async (id: number) => {
     try {
-      setDetail(await getTransaction(id));
+      const [transaction, history] = await Promise.all([getTransaction(id), getTransactionVersions(id)]);
+      setDetail(transaction);
+      setVersions(history);
       setDetailOpen(true);
     } catch (e) {
       message.error(getApiErrorMessage(e, '无法加载交易详情'));
@@ -173,7 +178,23 @@ export default function TransactionPage() {
             </>
           )}
         </Descriptions>
+        <Typography.Title level={5} style={{ marginTop: 20 }}>版本历史</Typography.Title>
+        <Table<TransactionVersion>
+          rowKey='id'
+          size='small'
+          pagination={false}
+          locale={{ emptyText: '暂无已生效版本' }}
+          dataSource={versions}
+          columns={[
+            { title: '版本', dataIndex: 'versionNo', width: 80, render: value => `V${value}` },
+            { title: '状态', dataIndex: 'activeFlag', width: 90, render: value => value === 1 ? <Tag color='success'>当前</Tag> : <Tag>历史</Tag> },
+            { title: '来源需求', dataIndex: 'requirementId', width: 100, render: value => `#${value}` },
+            { title: '生效时间', dataIndex: 'activatedTime', render: value => value?.replace('T', ' ') },
+            { title: '操作', width: 70, render: (_, row) => <a onClick={() => setVersionDetailId(row.id)}>查看</a> },
+          ]}
+        />
       </Drawer>
+      <TransactionVersionDetailModal id={versionDetailId} onClose={() => setVersionDetailId(undefined)} />
     </div>
   );
 }
