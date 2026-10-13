@@ -50,7 +50,7 @@ public class ApprovalWorkflowService {
     @Transactional(propagation = Propagation.MANDATORY)
     public void resubmit(ApprovalInstanceEntity instance, String businessTitle, String businessSummary,
                          List<ApprovalTaskEntity> taskList) {
-        if (!REJECTED.equals(instance.getStatus())) throw new BusinessException("只有已驳回的申请可以重新提交");
+        if (!REJECTED.equals(instance.getStatus()) && !CANCELLED.equals(instance.getStatus())) throw new BusinessException("只有已驳回或已撤销的申请可以重新提交");
         ApprovalTaskEntity firstPending = taskList.stream()
                 .filter(task -> "PENDING".equals(task.getStatus()))
                 .findFirst()

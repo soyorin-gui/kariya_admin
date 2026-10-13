@@ -2,13 +2,10 @@ import { useRef, useState } from 'react';
 import { App, Button, Space, Tag } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { EditOutlined, EyeOutlined, PlusOutlined, SendOutlined, StopOutlined } from '@ant-design/icons';
-import { cancelRequirement, getRequirement, getRequirements, submitRequirement } from './api';
+import { abandonRequirement, activateRequirementVersion, cancelRequirement, getRequirement, getRequirements, publishCallRequirement, submitRequirement } from './api';
 import type { Requirement } from './types';
 import { RequirementDialog } from './RequirementDialog';
 import { RequirementDetailDrawer } from './RequirementDetailDrawer';
-import { NewTransactionDetailDialog } from './NewTransactionDetailDialog';
-import { TransactionCallDetailDialog } from './TransactionCallDetailDialog';
-import { TransactionChangeDetailDialog } from './TransactionChangeDetailDialog';
 import { RequirementImplementationDialog } from './RequirementImplementationDialog';
 import { Permission } from '../../../permission/Permission';
 import { SmartTable, type SmartTableRef } from '../../../components/SmartTable';
@@ -21,23 +18,25 @@ const types: Record<number, string> = { 1: '新增交易', 2: '交易变更', 3:
 const statuses: Record<number, { label: string; color: string }> = {
   0: { label: '草稿', color: 'default' },
   1: { label: '审批中', color: 'processing' },
-  2: { label: '已通过', color: 'success' },
+  2: { label: '开发中', color: 'processing' },
   3: { label: '已拒绝', color: 'error' },
-  4: { label: '已撤销', color: 'default' },
+  4: { label: '已废弃', color: 'default' },
+  5: { label: '已投产', color: 'success' },
 };
 export default function RequirementPage() {
-  const { message } = App.useApp();
+  const { message, modal } = App.useApp();
   const tableRef = useRef<SmartTableRef<Search>>(null);
   const [editingId, setEditingId] = useState<number | null | undefined>(undefined);
   const [detail, setDetail] = useState<Requirement>();
-  const [detailEditor, setDetailEditor] = useState<Pick<Requirement, 'id' | 'requirementType'>>();
+  const [detailTab, setDetailTab] = useState<'detail' | 'flow'>('detail');
   const [implementation, setImplementation] = useState<Requirement>();
-  const showDetail = async (id: number) => { try { setDetail(await getRequirement(id)); } catch (e) { message.error(getApiErrorMessage(e, '无法加载需求详情')); } };
+  const showDetail = async (id: number, tab: 'detail' | 'flow' = 'detail') => { try { setDetailTab(tab); setDetail(await getRequirement(id)); } catch (e) { message.error(getApiErrorMessage(e, '无法加载需求详情')); } };
   const columns: ColumnsType<Requirement> = [
     { title: 'OA编号', dataIndex: 'oaNo', width: 130 },
     { title: '需求名称', dataIndex: 'title', width: 220 },
     { title: '需求描述', dataIndex: 'description', width: 260, ellipsis: { showTitle: false }, render: (v) => <EllipsisText value={v} /> },
     { title: '类型', dataIndex: 'requirementType', width: 110, filters: Object.entries(types).map(([value, text]) => ({ text, value })), render: (v) => <Tag color='blue'>{types[v]}</Tag> },
+    { title: '交易码', dataIndex: 'transactionCode', width: 150, render: (v) => v || '-' },
     {
       title: '状态',
       dataIndex: 'status',
@@ -51,8 +50,8 @@ export default function RequirementPage() {
     {
       title: '操作',
       fixed: 'right',
-      width: 350,
-      render: (_, row) => <Space size='middle'><a onClick={() => void showDetail(row.id)}><EyeOutlined /> 详情</a>{(row.status === 0 || row.status === 3) && <Permission code='intranet:requirement:update'><a onClick={() => setDetailEditor({ id: row.id, requirementType: row.requirementType })}>明细</a></Permission>}<Permission code='intranet:requirement:update'><a onClick={() => setEditingId(row.id)}><EditOutlined /> 编辑</a></Permission>{(row.status === 0 || row.status === 3) && <Permission code='intranet:requirement:submit'><a onClick={() => void submitRequirement(row.id).then(() => { message.success(row.status === 3 ? '需求已重新提交审批' : '需求已提交审批'); tableRef.current?.reload(); }).catch(e => message.error(getApiErrorMessage(e)))}><SendOutlined /> {row.status === 3 ? '重新提交' : '提交'}</a></Permission>}{row.status === 1 && <Permission code='intranet:requirement:submit'><a className='danger' onClick={() => void cancelRequirement(row.id).then(() => { message.success('需求已撤销'); tableRef.current?.reload(); }).catch(e => message.error(getApiErrorMessage(e)))}><StopOutlined /> 撤销</a></Permission>}{row.status === 2 && row.requirementType !== 3 && <Permission code='intranet:requirement:assign'><a onClick={() => setImplementation(row)}>实施</a></Permission>}</Space>,
+      width: 460,
+      render: (_, row) => <Space size='middle'><a onClick={() => void showDetail(row.id)}><EyeOutlined /> 详情</a><a onClick={() => void showDetail(row.id, 'flow')}>查看步骤</a>{(row.status === 0 || row.status === 3) && <><Permission code='intranet:requirement:update'><a onClick={() => setEditingId(row.id)}><EditOutlined /> 编辑</a></Permission><Permission code='intranet:requirement:submit'><a onClick={() => void modal.confirm({ title: '确认提交审批', content: '请确认详情页信息无误后再提交审批。', onOk: () => submitRequirement(row.id).then(() => { message.success('需求已提交审批'); tableRef.current?.reload(); }).catch(e => { message.error(getApiErrorMessage(e)); return Promise.reject(e); }) })}><SendOutlined /> 提交</a><a className='danger' onClick={() => void abandonRequirement(row.id).then(() => { message.success('需求已废弃'); tableRef.current?.reload(); }).catch(e => message.error(getApiErrorMessage(e)))}>废弃</a></Permission></>}{row.status === 1 && <Permission code='intranet:requirement:submit'><a className='danger' onClick={() => void cancelRequirement(row.id).then(() => { message.success('需求已返回草稿'); tableRef.current?.reload(); }).catch(e => message.error(getApiErrorMessage(e)))}><StopOutlined /> 撤销</a></Permission>}{row.status === 2 && <Permission code='intranet:requirement:assign'><a onClick={() => setImplementation(row)}>实施</a><a onClick={() => void modal.confirm({ title: '确认投产', content: row.requirementType === 3 ? '确认将该交易调用需求投产？必须已完成关联交易配置。' : '投产将生成当前交易的不可变版本快照，并将交易和需求变更为已投产，确认继续？', okText: '确认投产', okButtonProps: { danger: true }, onOk: () => (row.requirementType === 3 ? publishCallRequirement(row.id) : activateRequirementVersion(row.id)).then(() => { message.success('需求已投产'); tableRef.current?.reload(); }).catch(e => { message.error(getApiErrorMessage(e)); return Promise.reject(e); }) })}>投产</a></Permission>}</Space>,
     },
   ];
   return (
@@ -100,10 +99,7 @@ export default function RequirementPage() {
         />
       </div>
       {editingId !== undefined && <RequirementDialog open id={editingId} onClose={() => setEditingId(undefined)} onSaved={() => tableRef.current?.reload()} />}
-      <RequirementDetailDrawer value={detail} onClose={() => setDetail(undefined)} />
-      <NewTransactionDetailDialog id={detailEditor?.requirementType === 1 ? detailEditor.id : undefined} onClose={() => setDetailEditor(undefined)} />
-      <TransactionChangeDetailDialog id={detailEditor?.requirementType === 2 ? detailEditor.id : undefined} onClose={() => setDetailEditor(undefined)} />
-      <TransactionCallDetailDialog id={detailEditor?.requirementType === 3 ? detailEditor.id : undefined} onClose={() => setDetailEditor(undefined)} />
+      <RequirementDetailDrawer value={detail} initialTab={detailTab} onClose={() => setDetail(undefined)} />
       <RequirementImplementationDialog value={implementation} onClose={() => setImplementation(undefined)} onCompleted={() => tableRef.current?.reload()} />
     </div>
   );

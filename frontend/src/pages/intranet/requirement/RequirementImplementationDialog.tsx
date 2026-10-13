@@ -1,25 +1,27 @@
 import { useEffect, useState } from 'react';
-import { App, Button, Form, Modal, Popconfirm, Select, Space, Typography } from 'antd';
-import { RocketOutlined } from '@ant-design/icons';
-import { activateRequirementVersion, configureRequirementImplementation, getRequirementImplementationOptions } from './api';
+import { App, Button, Form, Modal, Select, Skeleton, Space, Typography } from 'antd';
+import { configureRequirementImplementation, getRequirementImplementationOptions } from './api';
 import type { Requirement, RequirementImplementationOptions } from './types';
 import { getApiErrorMessage } from '../../../utils/apiError';
 
-type FormValues = { transactionId: number; developerUserId: number };
+type FormValues = { transactionId: number; developerUserId?: number };
 
 export function RequirementImplementationDialog({ value, onClose, onCompleted }: { value?: Requirement; onClose: () => void; onCompleted: () => void }) {
   const [form] = Form.useForm<FormValues>();
   const { message } = App.useApp();
   const [options, setOptions] = useState<RequirementImplementationOptions>({ transactions: [], developers: [] });
+  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!value) return;
+    setLoading(true);
     setOptions({ transactions: [], developers: [] });
     form.setFieldsValue({ transactionId: value.transactionId, developerUserId: value.developerUserId } as FormValues);
     void getRequirementImplementationOptions(value.id)
       .then(setOptions)
-      .catch(error => message.error(getApiErrorMessage(error, '无法加载实施配置')));
+      .catch(error => message.error(getApiErrorMessage(error, '无法加载实施配置')))
+      .finally(() => setLoading(false));
   }, [form, message, value]);
 
   const saveAssignments = async () => {
@@ -42,22 +44,6 @@ export function RequirementImplementationDialog({ value, onClose, onCompleted }:
     }
   };
 
-  const activate = async () => {
-    if (!value) return;
-    try {
-      setSaving(true);
-      await saveAssignments();
-      const version = await activateRequirementVersion(value.id);
-      message.success(`交易版本 V${version.versionNo} 已生效`);
-      onCompleted();
-      onClose();
-    } catch (error) {
-      if (!(error as { errorFields?: unknown }).errorFields) message.error(getApiErrorMessage(error, '版本生效失败'));
-    } finally {
-      setSaving(false);
-    }
-  };
-
   return <Modal
     className='system-dialog transaction-dialog'
     width={620}
@@ -67,20 +53,17 @@ export function RequirementImplementationDialog({ value, onClose, onCompleted }:
     destroyOnHidden
     footer={<Space>
       <Button onClick={onClose}>取消</Button>
-      <Button loading={saving} disabled={Boolean(options.activatedVersionNo)} onClick={() => void save()}>保存配置</Button>
-      {options.activatedVersionNo ? <Button type='primary' disabled>已生效 V{options.activatedVersionNo}</Button> : <Popconfirm title='确定生成并生效当前交易版本？' description='生效后快照不可修改，旧版本将转为历史版本。' onConfirm={() => void activate()}>
-        <Button type='primary' icon={<RocketOutlined />} loading={saving}>版本生效</Button>
-      </Popconfirm>}
+      <Button type='primary' loading={saving || loading} disabled={Boolean(options.activatedVersionNo)} onClick={() => void save()}>保存配置</Button>
     </Space>}
   >
-    <Typography.Paragraph type='secondary'>版本将快照保存交易基础信息、请求/响应字段及当前关联的数据资源。</Typography.Paragraph>
-    <Form form={form} layout='horizontal' labelCol={{ flex: '0 0 112px' }} labelAlign='left' colon={false}>
+    <Typography.Paragraph type='secondary'>{value?.requirementType === 3 ? '请选择本次调用关联的未下线交易。' : '保存后仅完成交易和开发负责人的实施配置；版本快照与状态变更将在需求列表点击“投产”后执行。'}</Typography.Paragraph>
+    {loading ? <Skeleton active paragraph={{ rows: 3 }} /> : <Form form={form} layout='horizontal' labelCol={{ flex: '0 0 112px' }} labelAlign='left' colon={false}>
       <Form.Item name='transactionId' label='关联交易' rules={[{ required: true, message: '请选择交易' }]}>
         <Select showSearch optionFilterProp='label' disabled={Boolean(value?.transactionId) || Boolean(options.activatedVersionNo)} options={options.transactions} placeholder='请选择交易' />
       </Form.Item>
-      <Form.Item name='developerUserId' label='开发负责人' rules={[{ required: true, message: '请选择开发负责人' }]}>
+      {value?.requirementType !== 3 && <Form.Item name='developerUserId' label='开发负责人' rules={[{ required: true, message: '请选择开发负责人' }]}>
         <Select showSearch optionFilterProp='label' disabled={Boolean(options.activatedVersionNo)} options={options.developers} placeholder='请选择开发负责人' />
-      </Form.Item>
-    </Form>
+      </Form.Item>}
+    </Form>}
   </Modal>;
 }

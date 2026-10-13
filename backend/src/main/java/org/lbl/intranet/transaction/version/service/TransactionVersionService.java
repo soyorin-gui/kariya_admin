@@ -10,7 +10,9 @@ import org.lbl.intranet.dataasset.relation.entity.TransactionHbaseResourceEntity
 import org.lbl.intranet.dataasset.relation.mapper.TransactionEsResourceMapper;
 import org.lbl.intranet.dataasset.relation.mapper.TransactionHbaseResourceMapper;
 import org.lbl.intranet.requirement.entity.IntranetRequirementEntity;
+import org.lbl.intranet.requirement.entity.RequirementFlowEntity;
 import org.lbl.intranet.requirement.mapper.IntranetRequirementMapper;
+import org.lbl.intranet.requirement.mapper.RequirementFlowMapper;
 import org.lbl.intranet.transaction.entity.TransactionAssetEntity;
 import org.lbl.intranet.transaction.field.entity.TransactionMessageFieldEntity;
 import org.lbl.intranet.transaction.field.mapper.TransactionMessageFieldMapper;
@@ -46,17 +48,19 @@ public class TransactionVersionService {
     private final TransactionEsResourceMapper esResources;
     private final ApprovalWorkflowService approvals;
     private final AccessPolicy access;
+    private final RequirementFlowMapper flows;
 
     public TransactionVersionService(TransactionVersionMapper versions, TransactionVersionMessageFieldMapper versionFields,
                                      TransactionVersionHbaseResourceMapper versionHbaseResources,
                                      TransactionVersionEsResourceMapper versionEsResources,
                                      IntranetRequirementMapper requirements, TransactionAssetMapper transactions,
                                      TransactionMessageFieldMapper fields, TransactionHbaseResourceMapper hbaseResources,
-                                     TransactionEsResourceMapper esResources, ApprovalWorkflowService approvals, AccessPolicy access) {
+                                     TransactionEsResourceMapper esResources, ApprovalWorkflowService approvals, AccessPolicy access,
+                                     RequirementFlowMapper flows) {
         this.versions = versions; this.versionFields = versionFields; this.versionHbaseResources = versionHbaseResources;
         this.versionEsResources = versionEsResources; this.requirements = requirements; this.transactions = transactions;
         this.fields = fields; this.hbaseResources = hbaseResources; this.esResources = esResources;
-        this.approvals = approvals; this.access = access;
+        this.approvals = approvals; this.access = access; this.flows = flows;
     }
 
     public List<TransactionVersionVO> list(Long transactionId) {
@@ -89,7 +93,7 @@ public class TransactionVersionService {
     public TransactionVersionVO activate(Long requirementId) {
         IntranetRequirementEntity requirement = requirements.selectById(requirementId);
         if (requirement == null) throw new BusinessException("需求不存在");
-        if (!Integer.valueOf(2).equals(requirement.getStatus())) throw new BusinessException("仅已通过需求可以生成生效版本");
+        if (!Integer.valueOf(2).equals(requirement.getStatus())) throw new BusinessException("仅开发中需求可以生成生效版本");
         if (Integer.valueOf(3).equals(requirement.getRequirementType())) throw new BusinessException("交易调用需求不生成交易版本");
         if (requirement.getTransactionId() == null) throw new BusinessException("请先分配交易");
         if (requirement.getDeveloperUserId() == null) throw new BusinessException("请先分配开发负责人");
@@ -99,7 +103,7 @@ public class TransactionVersionService {
         if (!ApprovalWorkflowService.APPROVED.equals(approval.getStatus())) throw new BusinessException("需求审批尚未通过");
         TransactionAssetEntity transaction = transactions.selectById(requirement.getTransactionId());
         if (transaction == null) throw new BusinessException("关联交易不存在或已删除");
-        if (Integer.valueOf(3).equals(transaction.getStatus())) throw new BusinessException("已下线交易不能生成生效版本");
+        if (!Integer.valueOf(1).equals(transaction.getStatus())) throw new BusinessException("交易必须处于开发中才能投产");
 
         versions.update(null, new LambdaUpdateWrapper<TransactionVersionEntity>()
                 .eq(TransactionVersionEntity::getTransactionId, transaction.getId())
@@ -115,6 +119,12 @@ public class TransactionVersionService {
 
         transaction.setStatus(2);
         transactions.updateById(transaction);
+        requirement.setStatus(5);
+        requirements.updateById(requirement);
+        RequirementFlowEntity flow = new RequirementFlowEntity();
+        flow.setRequirementId(requirementId); flow.setEventType("DEPLOYED"); flow.setEventName("投产交易版本 V" + version.getVersionNo());
+        flow.setOperatorId(actor.user().getId()); flow.setOperatorName(actor.user().getRealName()); flow.setCreatedTime(LocalDateTime.now());
+        flows.insert(flow);
         return view(version);
     }
 

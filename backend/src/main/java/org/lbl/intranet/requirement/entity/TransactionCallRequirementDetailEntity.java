@@ -12,7 +12,7 @@ public class TransactionCallRequirementDetailEntity {
     @TableId private Long requirementId;
     private String costBusinessContact; private String businessDepartment; private String oaContactNo;
     private String interfaceDataFields; private String callingSystem; private String callingSystemOwner;
-    private LocalDate expectedOnlineDate; private String userQueryBehavior; private String transactionCode;
+    private LocalDate expectedOnlineDate; private String userQueryBehavior;
     private Integer currentCapabilityMetFlag; private String thirdCategoryDetail; private String fiveCategoryDetail;
     private String architectureDetail; private String remarks;
 }

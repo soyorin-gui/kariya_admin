@@ -11,3 +11,7 @@
 .transaction-detail-descriptions { width: 100%; }
 .transaction-detail-descriptions .ant-descriptions-item-label { width: 150px; white-space: nowrap; }
 .transaction-detail-descriptions .ant-descriptions-item-content { min-width: 0; overflow-wrap: anywhere; }
+.requirement-flow-steps .ant-steps-item-finish .ant-steps-item-icon { background: transparent; border: 0; }
+.requirement-flow-steps .ant-steps-item-finish .ant-steps-icon { color: #22a06b; font-size: 20px; }
+.requirement-flow-steps .ant-steps-item-process .ant-steps-icon { color: #1677ff; font-size: 20px; }
+.requirement-flow-steps .ant-steps-item-error .ant-steps-icon { color: #d4380d; font-size: 20px; }

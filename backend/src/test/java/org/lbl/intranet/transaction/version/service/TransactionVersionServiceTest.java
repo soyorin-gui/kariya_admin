@@ -14,6 +14,7 @@ import org.lbl.intranet.dataasset.relation.mapper.TransactionEsResourceMapper;
 import org.lbl.intranet.dataasset.relation.mapper.TransactionHbaseResourceMapper;
 import org.lbl.intranet.requirement.entity.IntranetRequirementEntity;
 import org.lbl.intranet.requirement.mapper.IntranetRequirementMapper;
+import org.lbl.intranet.requirement.mapper.RequirementFlowMapper;
 import org.lbl.intranet.transaction.entity.TransactionAssetEntity;
 import org.lbl.intranet.transaction.field.entity.TransactionMessageFieldEntity;
 import org.lbl.intranet.transaction.field.mapper.TransactionMessageFieldMapper;
@@ -51,6 +52,7 @@ class TransactionVersionServiceTest {
     @Mock TransactionEsResourceMapper esResources;
     @Mock ApprovalWorkflowService approvals;
     @Mock AccessPolicy access;
+    @Mock RequirementFlowMapper flows;
 
     @BeforeEach
     void initializeLambdaMetadata() {
@@ -96,7 +98,7 @@ class TransactionVersionServiceTest {
         when(versions.insert(any(TransactionVersionEntity.class))).thenAnswer(invocation -> { ((TransactionVersionEntity) invocation.getArgument(0)).setId(90L); return 1; });
 
         TransactionVersionService service = new TransactionVersionService(versions, versionFields, versionHbaseResources,
-                versionEsResources, requirements, transactions, fields, hbaseResources, esResources, approvals, access);
+                versionEsResources, requirements, transactions, fields, hbaseResources, esResources, approvals, access, flows);
 
         var result = service.activate(10L);
 

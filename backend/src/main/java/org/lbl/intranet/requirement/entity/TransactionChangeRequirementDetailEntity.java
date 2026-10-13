@@ -8,6 +8,5 @@ import lombok.Data;
 @TableName("intranet_requirement_transaction_change_detail")
 public class TransactionChangeRequirementDetailEntity {
     @TableId private Long requirementId;
-    private Long transactionId;
     private String esfChange; private String dataLogicChange; private String transactionLogicChange; private String remarks;
 }

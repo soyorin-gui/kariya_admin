@@ -36,7 +36,7 @@ public class TransactionDataResourceService {
     }
 
     public TransactionDataResourceVO detail(Long transactionId) {
-        requireTransaction(transactionId);
+        requireTransaction(transactionId, false);
         List<Long> hbaseIds = hbaseResources.selectList(new LambdaQueryWrapper<TransactionHbaseResourceEntity>()
                         .eq(TransactionHbaseResourceEntity::getTransactionId, transactionId)
                         .orderByAsc(TransactionHbaseResourceEntity::getId))
@@ -50,7 +50,7 @@ public class TransactionDataResourceService {
 
     @Transactional
     public TransactionDataResourceVO replace(Long transactionId, TransactionDataResourceRequest request) {
-        requireTransaction(transactionId);
+        requireTransaction(transactionId, true);
         List<Long> hbaseIds = normalize(request.hbaseTableIds(), "HBase 表");
         List<Long> esIds = normalize(request.esIndexIds(), "ES 索引");
         for (Long tableId : hbaseIds) {
@@ -75,8 +75,10 @@ public class TransactionDataResourceService {
         return new TransactionDataResourceVO(hbaseIds, esIds);
     }
 
-    private void requireTransaction(Long id) {
-        if (transactions.selectById(id) == null) throw new BusinessException("交易不存在或已删除");
+    private void requireTransaction(Long id, boolean editable) {
+        var transaction = transactions.selectById(id);
+        if (transaction == null) throw new BusinessException("交易不存在或已删除");
+        if (editable && transaction.getStatus() != 0 && transaction.getStatus() != 1) throw new BusinessException("已投产或已下线交易不可修改数据资源，请通过交易变更需求实施");
     }
 
     private List<Long> normalize(List<Long> ids, String label) {

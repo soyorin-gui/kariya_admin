@@ -46,7 +46,7 @@ public class TransactionAssetService {
     }
     public TransactionVO detail(Long id) { return toView(require(id)); }
     @Transactional public TransactionVO create(TransactionRequest r) { String code = r.transactionCode().trim(); requireUnique(code, 0); TransactionAssetEntity e = new TransactionAssetEntity(); apply(e, r, code); mapper.insert(e); return toView(e); }
-    @Transactional public TransactionVO update(Long id, TransactionRequest r) { TransactionAssetEntity e = require(id); String code = r.transactionCode().trim(); requireUnique(code, id); apply(e, r, code); mapper.updateById(e); return toView(e); }
+    @Transactional public TransactionVO update(Long id, TransactionRequest r) { TransactionAssetEntity e = require(id); requireEditable(e); String code = r.transactionCode().trim(); requireUnique(code, id); apply(e, r, code); mapper.updateById(e); return toView(e); }
     @Transactional public void remove(Long id) {
         Long transactionId = require(id).getId();
         if (versions.selectCount(new LambdaQueryWrapper<TransactionVersionEntity>()
@@ -59,6 +59,7 @@ public class TransactionAssetService {
         mapper.deleteById(transactionId);
     }
     private TransactionAssetEntity require(Long id) { TransactionAssetEntity e = mapper.selectById(id); if (e == null) throw new BusinessException("交易不存在或已删除"); return e; }
+    private void requireEditable(TransactionAssetEntity e) { if (e.getStatus() != 0 && e.getStatus() != 1) throw new BusinessException("已投产或已下线交易不可直接编辑，请通过交易变更需求实施"); }
     private void requireUnique(String code, long id) { if (mapper.countByTransactionCode(code, id) > 0) throw new BusinessException("交易编码已被占用"); }
     private void apply(TransactionAssetEntity e, TransactionRequest r, String code) {
         e.setTransactionName(r.transactionName().trim()); e.setTransactionCode(code); e.setDescription(trimToNull(r.description())); e.setStatus(r.status());

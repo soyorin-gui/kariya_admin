@@ -56,7 +56,7 @@ frontend/src/pages/intranet/
 
 因此 `frontend/src/pages/intranet/shared/` 下的共享 `.tsx` 组件也会成为菜单候选。2026-10-11 用户决定暂不修改扫描规则，由菜单配置操作规范避免误选非页面组件；该风险当前接受，不作为 P1 开发阻塞。若未来需要从技术上消除，可选方向：
 
-- 把页面注册表收敛为只收录 `**/index.tsx`——全仓库 9 个菜单 `component` 值全部以 `/index` 结尾（已核对 `init_data.sql` 与 V2/V6），所以该约定是安全的。这属于**基线修改**，需按 D-003 批准；
+- 把页面注册表收敛为只收录 `**/index.tsx`——该结论曾依据已删除的初始化/种子脚本核对得出，当前仅作为历史设计结论保留。这属于**基线修改**，需按 D-003 批准；
 - 或把内网共享组件放到 `pages/` 之外（需要先修改本节的目录约定）；
 - 纯逻辑（无 JSX）的共享代码用 `.ts` 文件，不会被 glob 收录。
 
@@ -77,7 +77,7 @@ frontend/src/pages/intranet/
 
 交易的请求/响应报文字段以单表 `intranet_transaction_message_field` 按 `(transaction_id, message_side)` 构成一棵树，根节点用 `parent_id = 0` 表示。结构上必须保持**无环**：前端按 `parent_id` 建树，环上的节点找不到根，会让整棵子树从界面静默消失而不是报错。因此服务层在写入前沿目标父节点向上回溯，回到自身即拒绝；数据库层当前没有对应约束，直接写库仍可绕开，若后续引入批量导入需重新评估。
 
-同一交易、同一报文方向、同一父节点下，`field_name_en` 必须唯一。服务层在新增和修改前预检，V7 迁移脚本增加数据库唯一索引；执行 V7 前必须先检查存量重复记录，不允许脚本自动删除或改名。
+同一交易、同一报文方向、同一父节点下，`field_name_en` 必须唯一。服务层在新增和修改前预检，最终结构基线在 `intranet_schema.sql` 中声明数据库唯一索引；已有库变更前必须先检查存量重复记录，不允许自动删除或改名。
 
 交易采用物理删除。删除交易时，服务层在同一事务内先删除该交易现有的全部报文字段，再删除交易主记录，避免孤立字段。后续新增交易关联表时，必须把它们纳入同一删除契约并补回归测试，不得仅依赖当前两张表的实现。
 
@@ -154,7 +154,7 @@ frontend/src/pages/intranet/
 - 审批中心只查询 `sys_approval_instance` / `sys_approval_task`，不再直接查询任何业务审批表；**基线代码中不得出现任何 `intranet_` 表名**。
 - 内网侧通过 `business_type + business_id` 引用自己的需求记录；公共表不建指向业务表的外键。
 
-**部门调动迁移**：用户已执行 `db/approval/V1`、`V2` 并确认两个缺失计数均为 0。按 D-035，业务表最终命名为 `sys_department_change`，只保存申请人、原部门、目标部门、原因和审计时间；`status`、`current_step`、`version`、`finished_time` 统一从公共实例读取。旧 `sys_department_change_step` 由一次性 AP3 删除。AP3 执行后旧表结构不再存在，不能直接回滚到旧应用，也不能再次运行依赖旧表名的 AP2。
+**部门调动最终结构**：用户确认历史审批迁移已执行，旧脚本已按 D-041 删除。业务表最终命名为 `sys_department_change`，只保存申请人、原部门、目标部门、原因和审计时间；`status`、`current_step`、`version`、`finished_time` 统一从公共实例读取。旧 `sys_department_change_step` 不再存在，不能直接回滚到依赖旧结构的应用。
 
 **分页与排序**：审批中心只对公共表执行统一的 `ORDER BY`、`LIMIT` 和 `COUNT(*)`；以后新增审批业务只创建公共实例/任务，不修改审批中心 SQL，不采用长期 `UNION ALL`，也不做 Java 内存归并。
 
@@ -222,7 +222,7 @@ frontend/src/pages/intranet/
 
 ### P1-03 数据资产模型（已按确认数据字典实现）
 
-> 2026-10-11 复核：本节的概念关系已由 V8 脚本和 `org.lbl.intranet.dataasset` 包实现，见下方“已实现的表结构与代码路径”。表名、字段名、类型和长度是**当前实现事实**，其中三处业务语义仍待用户确认（见本节末尾“仍待确认”），不得据此认为数据字典全部定稿。
+> 2026-10-13 复核：本节的概念关系已由 `intranet_schema.sql` 和 `org.lbl.intranet.dataasset` 包实现，见下方“已实现的表结构与代码路径”。表名、字段名、类型和长度是**当前实现事实**，其中三处业务语义仍待用户确认（见本节末尾“仍待确认”），不得据此认为数据字典全部定稿。
 
 ```text
 源系统
@@ -266,7 +266,7 @@ frontend/src/pages/intranet/
 
 ### 已实现的表结构与代码路径（2026-10-11 代码复核）
 
-脚本 `backend/src/main/resources/db/intranet/V8__create_intranet_data_asset_tables.sql`（六张表，均含 `created_by/created_time/updated_by/updated_time`）：
+脚本 `backend/src/main/resources/db/intranet_schema.sql`（六张数据资产与关联表，均含 `created_by/created_time/updated_by/updated_time`）：
 
 | 表 | 关键字段 | 唯一约束 |
 | --- | --- | --- |
@@ -278,8 +278,8 @@ frontend/src/pages/intranet/
 | `intranet_transaction_es_resource` | `transaction_id`、`es_index_id` | `(transaction_id, es_index_id)` |
 
 - 后端：`org.lbl.intranet.dataasset.hbase`（表与字段）、`.es`（索引与字段）、`.relation`（交易关联），均为 `Controller` + `Service` + `Mapper` + `entity/request/vo` 分层；查询侧统一按“更新时间倒序 + id 倒序”分页，编号重复在服务层预检。
-- 删除与引用保护：HBase 表被 ES 索引或交易关联时拒绝删除；ES 索引被交易关联时拒绝删除；删除资源时在同一事务内先删字段；ES 固定 RowKey 字段禁止删除。V8 **未建数据库外键**，绕过应用直写库仍可产生孤立引用。
-- 权限码：`intranet:dataasset:list/add/update/delete`，由 V9 种子脚本写入 `sys_menu` / `sys_role_menu`；资产选项接口额外允许 `intranet:transaction:list` 与 `intranet:transaction:update`。
+- 删除与引用保护：HBase 表被 ES 索引或交易关联时拒绝删除；ES 索引被交易关联时拒绝删除；删除资源时在同一事务内先删字段；ES 固定 RowKey 字段禁止删除。最终结构**未建数据库外键**，绕过应用直写库仍可产生孤立引用。
+- 权限码：`intranet:dataasset:list/add/update/delete`；资产选项接口额外允许 `intranet:transaction:list` 与 `intranet:transaction:update`。菜单和角色授权由目标环境手工初始化（D-041）。
 - 前端：`frontend/src/pages/intranet/dataasset/{index,AssetDialogs,api,types}.tsx|ts` 提供 HBase/ES 两个 Tab 的资产分页和资产对话框；字段入口跳转隐藏页 `frontend/src/pages/intranet/dataasset/fields/index.tsx`，使用行内可编辑表格，不再保留字段抽屉或字段 Modal。交易列表通过 `frontend/src/pages/intranet/transaction/DataResourceDialog.tsx` 配置资源集合。
 - intranet 共享：`frontend/src/pages/intranet/components/InlineEditableTable.tsx`（行内编辑骨架 + `.card-scroll` 滚动容器 + `sticky` 固定表头 + 进入编辑自动滚到该行）和 `FieldText.tsx`（长文本行内编辑 + Popover 展开）被交易、HBase、ES 页面复用；业务规则留在页面内。
 - 长文本截断展示：统一使用基线通用组件 `frontend/src/components/EllipsisText/`（见 D-029），intranet 不再保留自己的实现；与 antd Table 搭配时写 `ellipsis: { showTitle: false }`。
@@ -287,7 +287,7 @@ frontend/src/pages/intranet/
 - 交易删除契约已扩展到关联表：`TransactionAssetService.remove` 在同一事务内先删 HBase 关联、ES 关联、报文字段，再删交易（见 D-015、D-024）。
 - 当前 HEAD 的 `backend/src/test` 仅保留 `JasyptEncryptorTest.java`；P1-02 与 P1-03 的领域定向测试均不在仓库中（随 `a3b8d0b` 删除，用户确认为有意清理）。
 - **验证状态**：2026-10-11 复核复现 `mvn test` BUILD SUCCESS、现存测试 2/2 通过，`npm run build` 通过。删除保护、固定 `id` 约束、资源整体替换和交易删除顺序**没有自动化断言**；用户已决定本期不补 P1 领域定向测试（见 D-030），因此这些约束目前没有回归保护。
-- **迁移状态**：V7~V11 已由用户实际执行并验证（2026-10-11 用户确认，本会话未查库复核）。
+- **迁移状态**：用户确认所有历史脚本已实际执行；2026-10-13 历史脚本已删除，后续空库部署使用 `init_schema.sql` + `intranet_schema.sql`（D-041）。
 - **字段类型约束（已确认的设计）**：`EsFieldRequest.dataType` 只有 `@NotBlank` + `@Size(64)`，类型范围只由前端下拉限定为 `keyword/numeric/date/text`；后端与数据库都**不做**枚举校验，这是 D-027 确认的设计而非缺陷。HBase `data_type` 为自由文本同属 D-019 的既有设计，也不校验。
 
 ### 仍待确认（代码已落地，但必须在 P1-03 定稿前答复）

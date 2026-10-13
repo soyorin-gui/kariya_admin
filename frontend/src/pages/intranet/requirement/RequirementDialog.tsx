@@ -1,93 +1,28 @@
 import { useEffect, useRef, useState } from 'react';
 import dayjs from 'dayjs';
-import { App, DatePicker, Form, Input, Modal, Select, Spin } from 'antd';
-import { createRequirement, getRequirement, updateRequirement } from './api';
-import type { RequirementRequest } from './types';
+import { App, Button, DatePicker, Divider, Drawer, Form, Input, InputNumber, Select, Skeleton, Space, Tabs } from 'antd';
+import { DownloadOutlined, UploadOutlined } from '@ant-design/icons';
+import { createRequirement, getNewTransactionDetail, getRequirement, getTransactionCallDetail, getTransactionChangeDetail, saveNewTransactionDetail, saveTransactionCallDetail, saveTransactionChangeDetail, updateRequirement } from './api';
+import type { NewTransactionDetail, RequirementRequest, TransactionCallDetail, TransactionChangeDetail } from './types';
 import { getApiErrorMessage } from '../../../utils/apiError';
 
-const types = [
-  { value: 1, label: '新增交易' },
-  { value: 2, label: '交易变更' },
-  { value: 3, label: '交易调用' },
-];
+const types = [{ value: 1, label: '新增交易' }, { value: 2, label: '交易变更' }, { value: 3, label: '交易调用' }];
+type FormValues = RequirementRequest & { expectedOnlineDate?: dayjs.Dayjs };
+const Short = ({ name, label }: { name: string; label: string }) => <Form.Item name={name} label={label}><Input maxLength={300} /></Form.Item>;
+const Long = ({ name, label }: { name: string; label: string }) => <Form.Item name={name} label={label}><Input.TextArea rows={3} maxLength={2000} /></Form.Item>;
+const YesNo = ({ name, label }: { name: string; label: string }) => <Form.Item name={name} label={label}><Select allowClear options={[{ value: 1, label: '是' }, { value: 0, label: '否' }]} /></Form.Item>;
+
 export function RequirementDialog({ open, id, onClose, onSaved }: { open: boolean; id: number | null; onClose: () => void; onSaved: () => void }) {
-  const [form] = Form.useForm<RequirementRequest>();
-  const { message } = App.useApp();
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const savingRef = useRef(false);
-  useEffect(() => {
-    if (!open) return;
-    let active = true;
-    setLoading(true);
-    form.resetFields();
-    void (async () => {
-      try {
-        const value = id === null ? undefined : await getRequirement(id);
-        if (active && value) form.setFieldsValue({ ...value, expectedOnlineDate: value.expectedOnlineDate ? dayjs(value.expectedOnlineDate) : undefined } as never);
-      } catch (e) {
-        message.error(getApiErrorMessage(e, '无法加载需求详情'));
-        onClose();
-      } finally {
-        if (active) setLoading(false);
-      }
-    })();
-    return () => {
-      active = false;
-    };
-  }, [form, id, message, onClose, open]);
-  const save = async () => {
-    if (savingRef.current) return;
-    savingRef.current = true;
-    setSaving(true);
-    try {
-      const value = await form.validateFields();
-      const payload = { ...value, expectedOnlineDate: (value.expectedOnlineDate as unknown as { format?: (pattern: string) => string })?.format?.('YYYY-MM-DD') ?? value.expectedOnlineDate };
-      id === null ? await createRequirement(payload) : await updateRequirement(id, payload);
-      message.success('需求已保存');
-      onSaved();
-      onClose();
-    } catch (e) {
-      if (!(e as { errorFields?: unknown }).errorFields) message.error(getApiErrorMessage(e, '保存失败'));
-    } finally {
-      savingRef.current = false;
-      setSaving(false);
-    }
-  };
-  return (
-    <Modal
-      className='system-dialog transaction-dialog'
-      width={660}
-      title={id === null ? '新建需求概要' : '编辑需求概要'}
-      open={open}
-      onCancel={onClose}
-      onOk={() => void save()}
-      confirmLoading={saving}
-      destroyOnHidden
-    >
-      {loading ? (
-        <div className='dialog-loading'>
-          <Spin />
-        </div>
-      ) : (
-        <Form form={form} layout='horizontal' labelCol={{ flex: '0 0 96px' }} colon={false} requiredMark={false}>
-          <Form.Item name='oaNo' label='OA编号' rules={[{ required: true }]}>
-            <Input maxLength={50} placeholder='请输入 OA 编号' />
-          </Form.Item>
-          <Form.Item name='title' label='需求名称' rules={[{ required: true }]}>
-            <Input maxLength={255} placeholder='请输入需求名称' />
-          </Form.Item>
-          <Form.Item name='requirementType' label='需求类型' rules={[{ required: true }]}>
-            <Select disabled={id !== null} placeholder='请选择需求类型' options={types} />
-          </Form.Item>
-          <Form.Item name='expectedOnlineDate' label='期望上线时间'>
-            <DatePicker style={{ width: '100%' }} placeholder='请选择日期' />
-          </Form.Item>
-          <Form.Item name='description' label='需求描述'>
-            <Input.TextArea rows={3} maxLength={1000} placeholder='请输入需求背景、范围或补充说明' />
-          </Form.Item>
-        </Form>
-      )}
-    </Modal>
-  );
+  const [form] = Form.useForm<FormValues>(); const [detailForm] = Form.useForm();
+  const { message } = App.useApp(); const [loading, setLoading] = useState(false); const [saving, setSaving] = useState(false); const savingRef = useRef(false);
+  const type = Form.useWatch('requirementType', form);
+  useEffect(() => { if (!open) return; let active = true; setLoading(true); form.resetFields(); detailForm.resetFields();
+    void (async () => { try { if (id === null) return; const value = await getRequirement(id); if (!active) return; form.setFieldsValue({ ...value, expectedOnlineDate: value.expectedOnlineDate ? dayjs(value.expectedOnlineDate) : undefined } as never); const detail = value.requirementType === 1 ? await getNewTransactionDetail(id) : value.requirementType === 2 ? await getTransactionChangeDetail(id) : await getTransactionCallDetail(id); if (active) detailForm.setFieldsValue(value.requirementType === 3 && detail?.expectedOnlineDate ? { ...detail, expectedOnlineDate: dayjs(detail.expectedOnlineDate) } : detail ?? {}); } catch (e) { message.error(getApiErrorMessage(e, '无法加载需求详情')); onClose(); } finally { if (active) setLoading(false); } })();
+    return () => { active = false; };
+  }, [detailForm, form, id, message, onClose, open]);
+  const save = async () => { if (savingRef.current) return; savingRef.current = true; setSaving(true); try { const value = await form.validateFields(); const payload = { ...value, expectedOnlineDate: value.expectedOnlineDate?.format('YYYY-MM-DD') }; const saved = id === null ? await createRequirement(payload) : await updateRequirement(id, payload); const detail = await detailForm.validateFields(); if (value.requirementType === 1) await saveNewTransactionDetail(saved.id, detail as NewTransactionDetail); else if (value.requirementType === 2) await saveTransactionChangeDetail(saved.id, detail as TransactionChangeDetail); else await saveTransactionCallDetail(saved.id, { ...detail, expectedOnlineDate: detail.expectedOnlineDate?.format?.('YYYY-MM-DD') } as TransactionCallDetail); message.success('需求及明细已保存'); onSaved(); onClose(); } catch (e) { if (!(e as { errorFields?: unknown }).errorFields) message.error(getApiErrorMessage(e, '保存失败')); } finally { savingRef.current = false; setSaving(false); } };
+  const detailContent = type === 1 ? <Tabs items={[{ key: 'business', label: '业务信息', children: <><Short name='costBusinessContact' label='成本业务联系人' /><Short name='businessDepartment' label='业务部门' /><Short name='oaContactNo' label='OA联系单号' /><Long name='interfaceDataFields' label='接口数据字段' /><Short name='dataSourceSystem' label='数据来源系统' /><Short name='callingSystem' label='调用方系统' /><Short name='callingSystemOwner' label='调用方负责人' /><Form.Item name='userQueryBehavior' label='用户查询行为'><Select allowClear options={[{ value: 'INTERNAL', label: '对客' }, { value: 'EXTERNAL', label: '非对客' }]} /></Form.Item><YesNo name='dataProjectedFlag' label='是否投产数据' /><Long name='thirdCategoryDetail' label='三超详细描述' /><Long name='fiveCategoryDetail' label='五敏详细描述' /><Long name='architectureDetail' label='企架详细描述' /></> }, { key: 'nonfunctional', label: '非功能指标', children: <><Short name='serviceWindow' label='交易服务时间' /><Short name='responseTimeRequirement' label='响应时间要求' /><Form.Item name='concurrentUserCount' label='并发用户数'><InputNumber min={0} style={{ width: '100%' }} /></Form.Item><Short name='tpsPeak' label='TPS峰值' /><Long name='tpsEstimationBasis' label='TPS估算依据' /><Short name='historyQueryRange' label='历史查询范围' /><Short name='singleQueryRange' label='单次查询跨度' /><Form.Item name='pageSize' label='分页记录数'><InputNumber min={1} style={{ width: '100%' }} /></Form.Item><Short name='dailyTransactionVolume' label='日交易量' /><YesNo name='generateFileFlag' label='是否生成文件' /><Long name='fileGenerationScope' label='文件生成范围' /><YesNo name='calculationFlag' label='是否涉及计算' /><Long name='calculationScenario' label='计算场景' /><Long name='remarks' label='备注' /></> }]} /> : type === 2 ? <><Long name='esfChange' label='ESF变更' /><Long name='dataLogicChange' label='数据逻辑变更' /><Long name='transactionLogicChange' label='交易逻辑变更' /><Long name='remarks' label='备注' /></> : <><Short name='costBusinessContact' label='成本业务联系人' /><Short name='businessDepartment' label='业务部门' /><Short name='oaContactNo' label='OA联系单号' /><Long name='interfaceDataFields' label='接口数据字段' /><Short name='callingSystem' label='调用方系统' /><Short name='callingSystemOwner' label='调用方负责人' /><Form.Item name='expectedOnlineDate' label='期望上线时间'><DatePicker style={{ width: '100%' }} /></Form.Item><Form.Item name='userQueryBehavior' label='用户查询行为'><Select allowClear options={[{ value: 'INTERNAL', label: '对客' }, { value: 'EXTERNAL', label: '非对客' }]} /></Form.Item><YesNo name='currentCapabilityMetFlag' label='现有能力是否满足' /><Long name='thirdCategoryDetail' label='三超详细描述' /><Long name='fiveCategoryDetail' label='五敏详细描述' /><Long name='architectureDetail' label='企架详细描述' /><Long name='remarks' label='备注' /></>;
+  return <Drawer rootClassName='transaction-detail-drawer' width={760} open={open} title={id === null ? '新建需求' : '编辑需求'} onClose={onClose} destroyOnHidden extra={<Space><Button onClick={onClose}>取消</Button><Button type='primary' loading={saving} onClick={() => void save()}>保存</Button></Space>}>
+    {loading ? <Skeleton active paragraph={{ rows: 12 }} /> : <><Form form={form} layout='horizontal' labelCol={{ flex: '0 0 108px' }} colon={false} requiredMark={false}><Form.Item name='oaNo' label='OA编号' rules={[{ required: true }]}><Input maxLength={50} /></Form.Item><Form.Item name='title' label='需求名称' rules={[{ required: true }]}><Input maxLength={255} /></Form.Item><Form.Item name='requirementType' label='需求类型' rules={[{ required: true }]}><Select disabled={id !== null} options={types} /></Form.Item><Form.Item name='expectedOnlineDate' label='期望上线时间'><DatePicker style={{ width: '100%' }} /></Form.Item><Form.Item name='description' label='需求描述'><Input.TextArea rows={3} maxLength={1000} /></Form.Item></Form><Divider orientation='left'>需求明细</Divider>{(type === 1 || type === 3) && <Space style={{ marginBottom: 16 }}><Button disabled icon={<UploadOutlined />}>导入文件</Button><Button type='link' disabled icon={<DownloadOutlined />}>下载模板</Button></Space>}<Form form={detailForm} layout='horizontal' labelCol={{ flex: '0 0 108px' }} colon={false}>{type && detailContent}</Form></>}
+  </Drawer>;
 }
