@@ -280,7 +280,7 @@ frontend/src/pages/intranet/
 - 后端：`org.lbl.intranet.dataasset.hbase`（表与字段）、`.es`（索引与字段）、`.relation`（交易关联），均为 `Controller` + `Service` + `Mapper` + `entity/request/vo` 分层；查询侧统一按“更新时间倒序 + id 倒序”分页，编号重复在服务层预检。
 - 删除与引用保护：HBase 表被 ES 索引或交易关联时拒绝删除；ES 索引被交易关联时拒绝删除；删除资源时在同一事务内先删字段；ES 固定 RowKey 字段禁止删除。最终结构**未建数据库外键**，绕过应用直写库仍可产生孤立引用。
 - 权限码：`intranet:dataasset:list/add/update/delete`；资产选项接口额外允许 `intranet:transaction:list` 与 `intranet:transaction:update`。菜单和角色授权由目标环境手工初始化（D-041）。
-- 前端：`frontend/src/pages/intranet/dataasset/{index,AssetDialogs,api,types}.tsx|ts` 提供 HBase/ES 两个 Tab 的资产分页和资产对话框；字段入口跳转隐藏页 `frontend/src/pages/intranet/dataasset/fields/index.tsx`，使用行内可编辑表格，不再保留字段抽屉或字段 Modal。交易列表通过 `frontend/src/pages/intranet/transaction/DataResourceDialog.tsx` 配置资源集合。
+- 前端：`frontend/src/pages/intranet/dataasset/{index,AssetDialogs,api,types}.tsx|ts` 提供 HBase/ES 两个 Tab 的资产分页和资产对话框；字段入口跳转隐藏页 `frontend/src/pages/intranet/dataasset/fields/index.tsx`，使用行内可编辑表格，不再保留字段抽屉或字段 Modal。交易字段页和 `frontend/src/pages/intranet/transaction/DataResourceDialog.tsx` 按交易状态与 `intranet:transaction:update` 权限切换维护/只读模式；数据资源只读模式展示关联 ES 索引和 HBase 表的基础信息。
 - intranet 共享：`frontend/src/pages/intranet/components/InlineEditableTable.tsx`（行内编辑骨架 + `.card-scroll` 滚动容器 + `sticky` 固定表头 + 进入编辑自动滚到该行）和 `FieldText.tsx`（长文本行内编辑 + Popover 展开）被交易、HBase、ES 页面复用；业务规则留在页面内。
 - 长文本截断展示：统一使用基线通用组件 `frontend/src/components/EllipsisText/`（见 D-029），intranet 不再保留自己的实现；与 antd Table 搭配时写 `ellipsis: { showTitle: false }`。
 - 基线 SmartTable：`searchConfig` 支持多条件查询、显式查询/重置、高级条件展开和自定义控件，见 D-025；既有 `searchRender` 页面保持兼容。交易列表用三组条件演示该能力，其中“ESF 服务名/操作名”和“关联索引/HBase 表”**刻意不接后端**，属于 D-026 确认的前端样式验证用途；`keyword` 仍按交易名称、交易编码和 ESF 服务名三列模糊匹配。

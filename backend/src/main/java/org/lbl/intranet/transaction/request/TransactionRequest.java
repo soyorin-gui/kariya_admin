@@ -13,5 +13,7 @@ public record TransactionRequest(
         @NotBlank(message = "请输入 ESF 服务操作名称") @Size(max = 64) String esfServiceOperationName,
         @Size(max = 10) String label, @Size(max = 32) String businessContact, @Size(max = 50) String dataTimeliness,
         @NotNull(message = "请选择打印文件方式") @Min(0) @Max(2) Integer printFileMode,
-        @Size(max = 500) String sortRule, @Size(max = 500) String dataValidationScope, @Size(max = 100) String queryScope,
-        @Size(max = 500) String fileGenerationScope, @Size(max = 255) String fileNameRule) { }
+        @Size(max = 500) String sortRule, @Size(max = 500) String dataValidationScope,
+        @Size(max = 100) String queryScope,
+        @Size(max = 500) String fileGenerationScope, @Size(max = 255) String fileNameRule) {
+}

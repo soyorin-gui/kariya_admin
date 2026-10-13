@@ -2,24 +2,25 @@ import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { App, Button, Descriptions, Drawer, Popconfirm, Space, Table, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { DatabaseOutlined, DeleteOutlined, EditOutlined, EyeOutlined, PlusOutlined } from '@ant-design/icons';
+import { PlusOutlined } from '@ant-design/icons';
 import { deleteTransaction, getTransaction, getTransactions, getTransactionVersions } from './api';
 import type { Transaction, TransactionListItem, TransactionVersion } from './types';
 import { TransactionDialog } from './TransactionDialog';
 import { DataResourceDialog } from './DataResourceDialog';
 import { TransactionVersionDetailModal } from './TransactionVersionDetailModal';
 import { EllipsisText } from '../../../components/EllipsisText';
-import { Permission } from '../../../permission/Permission';
+import { Permission, usePermission } from '../../../permission/Permission';
 import { SmartTable, type SmartTableRef } from '../../../components/SmartTable';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import './index.css';
+import { StatusTag, type StatusTagStatus } from '../../../components/StatusTag';
 
 type Search = { keyword: string; esfKeyword: string; resourceKeyword: string; status?: number };
-const statuses: Record<number, { label: string; color: string }> = {
-  0: { label: '评估中', color: 'default' },
-  1: { label: '开发中', color: 'processing' },
-  2: { label: '已投产', color: 'success' },
-  3: { label: '已下线', color: 'error' },
+const statuses: Record<number, { label: string; value: StatusTagStatus }> = {
+  0: { label: '评估中', value: 'default' },
+  1: { label: '开发中', value: 'processing' },
+  2: { label: '已投产', value: 'success' },
+  3: { label: '已下线', value: 'error' },
 };
 const printMode: Record<number, string> = { 0: '无', 1: '异步', 2: '同步' };
 
@@ -32,7 +33,8 @@ export default function TransactionPage() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [versions, setVersions] = useState<TransactionVersion[]>([]);
   const [versionDetailId, setVersionDetailId] = useState<number>();
-  const [resourceTransactionId, setResourceTransactionId] = useState<number>();
+  const hasPermission = usePermission();
+  const [resourceTransaction, setResourceTransaction] = useState<TransactionListItem>();
   const showDetail = async (id: number) => {
     try {
       const [transaction, history] = await Promise.all([getTransaction(id), getTransactionVersions(id)]);
@@ -45,36 +47,31 @@ export default function TransactionPage() {
   };
   const columns: ColumnsType<TransactionListItem> = [
     { title: '交易名称', dataIndex: 'transactionName', width: 180 },
-    { title: '交易编码', dataIndex: 'transactionCode', width: 150, render: (v) => <code>{v}</code> },
+    { title: '交易编码', dataIndex: 'transactionCode', width: 140 },
     {
       title: '状态',
       dataIndex: 'status',
-      width: 100,
+      width: 80,
+      align: 'center',
       filters: Object.entries(statuses).map(([value, item]) => ({ text: item.label, value })),
-      render: (v) => <Tag color={statuses[v]?.color}>{statuses[v]?.label || v}</Tag>,
+      render: (v) => <StatusTag status={statuses[v]?.value}>{statuses[v]?.label || v}</StatusTag>,
     },
     { title: 'ESF 服务名', dataIndex: 'esfServiceName', width: 150, ellipsis: { showTitle: false }, render: (v) => <EllipsisText value={v} /> },
     { title: '操作名称', dataIndex: 'esfServiceOperationName', width: 170, ellipsis: { showTitle: false }, render: (v) => <EllipsisText value={v} /> },
-    { title: '标签', dataIndex: 'label', width: 100, render: (v) => (v ? <Tag>{v}</Tag> : '-') },
-    { title: '业务对接人', dataIndex: 'businessContact', width: 130, render: (v) => v || '-' },
-    { title: '更新时间', dataIndex: 'updatedTime', width: 170, sorter: true, render: (v) => v?.replace('T', ' ') },
+    { title: '标签', dataIndex: 'label', align: 'center', width: 80, render: (v) => (v ? <Tag>{v}</Tag> : '-') },
+    { title: '业务对接人', dataIndex: 'businessContact', align: 'center', width: 80, render: (v) => v || '-' },
+    { title: '更新时间', dataIndex: 'updatedTime', width: 140, align: 'center', sorter: true, render: (v) => v?.replace('T', ' ') },
     {
       title: '操作',
       fixed: 'right',
-      width: 330,
+      width: 220,
       render: (_, row) => (
         <Space size='middle'>
-          <a onClick={() => void showDetail(row.id)}>
-            <EyeOutlined /> 详情
-          </a>
+          <a onClick={() => void showDetail(row.id)}>详情</a>
           <a onClick={() => void navigate({ pathname: '/intranet/transaction/fields', search: `?transactionId=${row.id}` })}>字段设计</a>
+          <a onClick={() => setResourceTransaction(row)}>数据资源</a>
           <Permission code='intranet:transaction:update'>
-            <a onClick={() => setResourceTransactionId(row.id)}>
-              <DatabaseOutlined /> 数据资源
-            </a>
-            <a onClick={() => setEditingId(row.id)}>
-              <EditOutlined /> 编辑
-            </a>
+            <a onClick={() => setEditingId(row.id)}>编辑</a>
           </Permission>
           <Permission code='intranet:transaction:delete'>
             <Popconfirm
@@ -89,9 +86,7 @@ export default function TransactionPage() {
                   .catch((e) => message.error(getApiErrorMessage(e)))
               }
             >
-              <a className='danger'>
-                <DeleteOutlined /> 删除
-              </a>
+              <a className='danger'>删除</a>
             </Popconfirm>
           </Permission>
         </Space>
@@ -147,7 +142,11 @@ export default function TransactionPage() {
         />
       </div>
       <TransactionDialog open={editingId !== undefined} id={editingId ?? null} onClose={() => setEditingId(undefined)} onSaved={() => tableRef.current?.reload()} />
-      <DataResourceDialog transactionId={resourceTransactionId} onClose={() => setResourceTransactionId(undefined)} />
+      <DataResourceDialog
+        transaction={resourceTransaction}
+        editable={Boolean(resourceTransaction && (resourceTransaction.status === 0 || resourceTransaction.status === 1) && hasPermission('intranet:transaction:update'))}
+        onClose={() => setResourceTransaction(undefined)}
+      />
       <Drawer rootClassName='transaction-detail-drawer' title={detail ? `交易详情 · ${detail.transactionName}` : '交易详情'} width={680} open={detailOpen} onClose={() => setDetailOpen(false)}>
         <Descriptions className='transaction-detail-descriptions' bordered column={1} size='small'>
           {detail && (
@@ -178,7 +177,9 @@ export default function TransactionPage() {
             </>
           )}
         </Descriptions>
-        <Typography.Title level={5} style={{ marginTop: 20 }}>版本历史</Typography.Title>
+        <Typography.Title level={5} style={{ marginTop: 20 }}>
+          版本历史
+        </Typography.Title>
         <Table<TransactionVersion>
           rowKey='id'
           size='small'
@@ -186,10 +187,10 @@ export default function TransactionPage() {
           locale={{ emptyText: '暂无已生效版本' }}
           dataSource={versions}
           columns={[
-            { title: '版本', dataIndex: 'versionNo', width: 80, render: value => `V${value}` },
-            { title: '状态', dataIndex: 'activeFlag', width: 90, render: value => value === 1 ? <Tag color='success'>当前</Tag> : <Tag>历史</Tag> },
-            { title: '来源需求', dataIndex: 'requirementId', width: 100, render: value => `#${value}` },
-            { title: '生效时间', dataIndex: 'activatedTime', render: value => value?.replace('T', ' ') },
+            { title: '版本', dataIndex: 'versionNo', width: 80, render: (value) => `V${value}` },
+            { title: '状态', dataIndex: 'activeFlag', width: 90, render: (value) => (value === 1 ? <Tag color='success'>当前</Tag> : <Tag>历史</Tag>) },
+            { title: '来源需求', dataIndex: 'requirementId', width: 100, render: (value) => `#${value}` },
+            { title: '生效时间', dataIndex: 'activatedTime', render: (value) => value?.replace('T', ' ') },
             { title: '操作', width: 70, render: (_, row) => <a onClick={() => setVersionDetailId(row.id)}>查看</a> },
           ]}
         />

@@ -80,65 +80,65 @@ export function TransactionDialog({ open, id, onClose, onSaved }: { open: boolea
         </div>
       ) : (
         <Form form={form} layout='horizontal' labelCol={{ flex: '0 0 112px' }} colon={false} requiredMark={false}>
-            <Form.Item name='transactionName' label='交易名称' rules={[{ required: true }]}>
-              <Input maxLength={128} placeholder='请输入交易名称' />
-            </Form.Item>
-            <Form.Item name='transactionCode' label='交易编码' rules={[{ required: true }]}>
-              <Input maxLength={64} placeholder='请输入交易唯一编码' />
-            </Form.Item>
-            <Form.Item name='status' label='交易状态' rules={[{ required: true }]}>
-              <Select
-                options={[
-                  { value: 0, label: '评估中' },
-                  { value: 1, label: '开发中' },
-                  { value: 2, label: '已投产' },
-                  { value: 3, label: '已下线' },
-                ]}
-              />
-            </Form.Item>
-            <Form.Item name='label' label='自定义标签'>
-              <Input maxLength={10} placeholder='可选，例如：风控' />
-            </Form.Item>
-            <Form.Item name='esfServiceName' label='ESF 服务名' rules={[{ required: true }]}>
-              <Input maxLength={64} placeholder='请输入 ESF 服务名' />
-            </Form.Item>
-            <Form.Item name='esfServiceOperationId' label='ESF 服务操作 ID' rules={[{ required: true }]}>
-              <Input maxLength={64} placeholder='请输入 ESF 服务操作 ID' />
-            </Form.Item>
-            <Form.Item name='esfServiceAddress' label='ESF 服务地址' rules={[{ required: true }]}>
-              <Input maxLength={64} placeholder='请输入 ESF 服务地址，例如 S12345678' />
-            </Form.Item>
-            <Form.Item name='esfServiceOperationName' label='ESF 服务操作名称' rules={[{ required: true }]}>
-              <Input maxLength={64} placeholder='请输入 ESF 服务操作名称' />
-            </Form.Item>
-            <Form.Item name='businessContact' label='业务对接人'>
-              <Input maxLength={32} placeholder='可选，填写姓名' />
-            </Form.Item>
-            <Form.Item name='dataTimeliness' label='数据时效性'>
-              <Input maxLength={50} placeholder='可选，例如实时、T+1' />
-            </Form.Item>
-            <Form.Item name='queryScope' label='查询范围'>
-              <Input maxLength={100} placeholder='可选，例如近 30 个自然日' />
-            </Form.Item>
-            <Form.Item name='printFileMode' label='打印文件方式'>
-              <Radio.Group
-                options={[
-                  { value: 0, label: '无' },
-                  { value: 1, label: '异步' },
-                  { value: 2, label: '同步' },
-                ]}
-              />
-            </Form.Item>
-            {mode !== 0 && (
-              <>
-                <Form.Item name='fileGenerationScope' label='文件生成范围'>
-                  <Input maxLength={500} placeholder='请输入文件生成范围' />
-                </Form.Item>
-                <Form.Item name='fileNameRule' label='文件名称规则'>
-                  <Input maxLength={255} placeholder='例如 uuid.finish' />
-                </Form.Item>
-              </>
-            )}
+          <Form.Item name='transactionName' label='交易名称' rules={[{ required: true }]}>
+            <Input maxLength={128} placeholder='请输入交易名称' />
+          </Form.Item>
+          <Form.Item name='transactionCode' label='交易编码' rules={[{ required: true }]}>
+            <Input maxLength={64} placeholder='请输入交易唯一编码' />
+          </Form.Item>
+          <Form.Item name='status' label='交易状态' rules={[{ required: true }]}>
+            <Select
+              options={[
+                { value: 0, label: '评估中' },
+                { value: 1, label: '开发中' },
+                { value: 2, label: '已投产' },
+                { value: 3, label: '已下线' },
+              ]}
+            />
+          </Form.Item>
+          <Form.Item name='label' label='自定义标签'>
+            <Input maxLength={10} placeholder='可选，例如：风控' />
+          </Form.Item>
+          <Form.Item name='esfServiceName' label='服务名' rules={[{ required: true }]}>
+            <Input maxLength={64} placeholder='请输入 ESF 服务名' />
+          </Form.Item>
+          <Form.Item name='esfServiceOperationId' label='服务操作ID' rules={[{ required: true }]}>
+            <Input maxLength={64} placeholder='请输入 ESF 服务操作ID' />
+          </Form.Item>
+          <Form.Item name='esfServiceAddress' label='服务地址' rules={[{ required: true }]}>
+            <Input maxLength={64} placeholder='请输入 ESF 服务地址，例如 S12345678' />
+          </Form.Item>
+          <Form.Item name='esfServiceOperationName' label='服务操作名称' rules={[{ required: true }]}>
+            <Input maxLength={64} placeholder='请输入 ESF 服务操作名称' />
+          </Form.Item>
+          <Form.Item name='businessContact' label='业务对接人'>
+            <Input maxLength={32} placeholder='可选，填写姓名' />
+          </Form.Item>
+          <Form.Item name='dataTimeliness' label='数据时效性'>
+            <Input maxLength={50} placeholder='可选，例如实时、T+1' />
+          </Form.Item>
+          <Form.Item name='queryScope' label='查询范围'>
+            <Input maxLength={100} placeholder='可选，例如近 30 个自然日' />
+          </Form.Item>
+          <Form.Item name='printFileMode' label='打印文件方式'>
+            <Radio.Group
+              options={[
+                { value: 0, label: '无' },
+                { value: 1, label: '异步' },
+                { value: 2, label: '同步' },
+              ]}
+            />
+          </Form.Item>
+          {mode !== 0 && (
+            <>
+              <Form.Item name='fileGenerationScope' label='文件生成范围'>
+                <Input maxLength={500} placeholder='请输入文件生成范围' />
+              </Form.Item>
+              <Form.Item name='fileNameRule' label='文件名称规则'>
+                <Input maxLength={255} placeholder='例如 uuid.finish' />
+              </Form.Item>
+            </>
+          )}
           <Form.Item name='description' label='交易说明'>
             <Input.TextArea rows={2} maxLength={1000} placeholder='可选，说明交易用途或边界' />
           </Form.Item>

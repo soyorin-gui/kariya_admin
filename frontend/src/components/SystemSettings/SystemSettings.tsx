@@ -105,12 +105,7 @@ export function SystemSettings({ open, onClose }: { open: boolean; onClose: () =
       <section className='setting-section'>
         <h3>圆角</h3>
         <p>按钮、输入框、卡片、弹窗统一使用同一个圆角值。</p>
-        <Segmented
-          block
-          value={theme.borderRadius}
-          onChange={(value) => theme.setBorderRadius(value as number)}
-          options={BORDER_RADII.map((radius) => ({ value: radius, label: `${radius}` }))}
-        />
+        <Segmented block value={theme.borderRadius} onChange={(value) => theme.setBorderRadius(value as number)} options={BORDER_RADII.map((radius) => ({ value: radius, label: `${radius}` }))} />
       </section>
 
       <section className='setting-section'>

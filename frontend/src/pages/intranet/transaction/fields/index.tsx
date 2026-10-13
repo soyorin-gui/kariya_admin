@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState, type Key } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { App, Button, Form, Input, Popconfirm, Select, Space, Tabs, Tag } from 'antd';
+import { Alert, App, Button, Form, Input, Popconfirm, Select, Space, Tabs, Tag } from 'antd';
 import { ArrowLeftOutlined, DeleteOutlined, EditOutlined, PlusOutlined, SaveOutlined, CloseOutlined, SearchOutlined } from '@ant-design/icons';
 import { createTransactionMessageField, deleteTransactionMessageField, getTransaction, getTransactionMessageFields, updateTransactionMessageField } from '../api';
 import type { MessageSide, Transaction, TransactionMessageField, TransactionMessageFieldRequest } from '../types';
-import { Permission } from '../../../../permission/Permission';
+import { usePermission } from '../../../../permission/Permission';
 import { getApiErrorMessage } from '../../../../utils/apiError';
 import { InlineEditableTable, type InlineEditableColumn } from '../../components/InlineEditableTable';
 import { ExpandableTextInput } from '../../components/FieldText';
@@ -45,6 +45,7 @@ function countNodes(nodes: TreeField[]): number {
 }
 export default function TransactionFieldDesignPage() {
   const { message } = App.useApp();
+  const hasPermission = usePermission();
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const transactionId = Number(params.get('transactionId'));
@@ -73,6 +74,7 @@ export default function TransactionFieldDesignPage() {
   useEffect(() => {
     void load();
   }, [side, transactionId]);
+  const canEdit = Boolean(transaction && (transaction.status === 0 || transaction.status === 1) && hasPermission('intranet:transaction:update'));
   const editing = editingId !== undefined;
   const tableRows = useMemo(() => {
     if (editingId !== DRAFT_ID) return rows;
@@ -111,7 +113,7 @@ export default function TransactionFieldDesignPage() {
     try {
       const values = await form.validateFields();
       const original = rows.find((row) => row.id === editingId);
-      const payload: TransactionMessageFieldRequest = { ...values, parentId: editingId === DRAFT_ID ? draftParentId ?? 0 : original!.parentId, sortOrder: Number(values.sortOrder ?? 0) };
+      const payload: TransactionMessageFieldRequest = { ...values, parentId: editingId === DRAFT_ID ? (draftParentId ?? 0) : original!.parentId, sortOrder: Number(values.sortOrder ?? 0) };
       const result = editingId === DRAFT_ID ? await createTransactionMessageField(transactionId, side, payload) : await updateTransactionMessageField(transactionId, side, editingId!, payload);
       message.success(result.message || '保存成功');
       cancel();
@@ -127,12 +129,22 @@ export default function TransactionFieldDesignPage() {
   };
   const columns: Array<InlineEditableColumn<TreeField, TransactionMessageFieldRequest>> = [
     { title: '字段中文名', dataIndex: 'fieldNameCn', field: 'fieldNameCn', rules: fieldRules('fieldNameCn'), width: 170, editor: () => <Input size='small' maxLength={64} placeholder='字段中文名' /> },
-    { title: '字段英文名', dataIndex: 'fieldNameEn', field: 'fieldNameEn', rules: fieldRules('fieldNameEn'), width: 180, view: (v) => <code>{String(v)}</code>, editor: () => <Input size='small' maxLength={64} placeholder='字段英文名' /> },
+    {
+      title: '字段英文名',
+      dataIndex: 'fieldNameEn',
+      field: 'fieldNameEn',
+      rules: fieldRules('fieldNameEn'),
+      width: 180,
+      view: (v) => <code>{String(v)}</code>,
+      editor: () => <Input size='small' maxLength={64} placeholder='字段英文名' />,
+    },
     {
       title: '节点类型',
       dataIndex: 'nodeType',
       width: 110,
-      field: 'nodeType', view: (v) => <Tag>{String(v)}</Tag>, editor: () => <Select size='small' options={['FIELD', 'OBJECT', 'ARRAY'].map((value) => ({ value, label: value }))} />,
+      field: 'nodeType',
+      view: (v) => <Tag>{String(v)}</Tag>,
+      editor: () => <Select size='small' options={['FIELD', 'OBJECT', 'ARRAY'].map((value) => ({ value, label: value }))} />,
     },
     { title: '数据类型', dataIndex: 'dataType', field: 'dataType', width: 120, view: (v) => String(v || '-'), editor: () => <Input size='small' maxLength={64} placeholder='String' /> },
     { title: '长度/精度', dataIndex: 'dataLength', field: 'dataLength', width: 105, view: (v) => String(v || '-'), editor: () => <Input size='small' maxLength={64} placeholder='32 / 18,2' /> },
@@ -140,22 +152,30 @@ export default function TransactionFieldDesignPage() {
       title: '必填',
       dataIndex: 'requiredFlag',
       width: 85,
-      field: 'requiredFlag', view: (v) => v === 1 ? '是' : '否', editor: () => <Select
-            size='small'
-            options={[
-              { value: 0, label: '否' },
-              { value: 1, label: '是' },
-            ]}
-          />,
+      field: 'requiredFlag',
+      view: (v) => (v === 1 ? '是' : '否'),
+      editor: () => (
+        <Select
+          size='small'
+          options={[
+            { value: 0, label: '否' },
+            { value: 1, label: '是' },
+          ]}
+        />
+      ),
     },
     { title: '顺序', dataIndex: 'sortOrder', field: 'sortOrder', width: 75, editor: () => <Input size='small' type='number' min={0} /> },
     {
       title: '说明',
       dataIndex: 'description',
       width: 300,
-      field: 'description', view: (v) => <EllipsisText value={v as string | undefined} />, editor: () => <ExpandableTextInput maxLength={1000} placeholder='字段说明' />,
+      field: 'description',
+      view: (v) => <EllipsisText value={v as string | undefined} />,
+      editor: () => <ExpandableTextInput maxLength={1000} placeholder='字段说明' />,
     },
-    {
+  ];
+  if (canEdit) {
+    columns.push({
       title: '操作',
       fixed: 'right',
       width: 210,
@@ -170,34 +190,32 @@ export default function TransactionFieldDesignPage() {
             </a>
           </Space>
         ) : (
-          <Permission code='intranet:transaction:update'>
-            <Space>
-              <a onClick={() => startCreate(row.id)}>
-                <PlusOutlined /> 子字段
+          <Space>
+            <a onClick={() => startCreate(row.id)}>
+              <PlusOutlined /> 子字段
+            </a>
+            <a onClick={() => startEdit(row)}>
+              <EditOutlined /> 编辑
+            </a>
+            <Popconfirm
+              title='确定删除此字段？'
+              onConfirm={() =>
+                void deleteTransactionMessageField(transactionId, side, row.id)
+                  .then(() => {
+                    message.success('删除字段成功');
+                    void load();
+                  })
+                  .catch((error) => message.error(getApiErrorMessage(error)))
+              }
+            >
+              <a className='danger'>
+                <DeleteOutlined /> 删除
               </a>
-              <a onClick={() => startEdit(row)}>
-                <EditOutlined /> 编辑
-              </a>
-              <Popconfirm
-                title='确定删除此字段？'
-                onConfirm={() =>
-                  void deleteTransactionMessageField(transactionId, side, row.id)
-                    .then(() => {
-                      message.success('删除字段成功');
-                      void load();
-                    })
-                    .catch((error) => message.error(getApiErrorMessage(error)))
-                }
-              >
-                <a className='danger'>
-                  <DeleteOutlined /> 删除
-                </a>
-              </Popconfirm>
-            </Space>
-          </Permission>
+            </Popconfirm>
+          </Space>
         ),
-    },
-  ];
+    });
+  }
   if (!Number.isInteger(transactionId) || transactionId <= 0)
     return (
       <div className='transaction-field-page'>
@@ -230,14 +248,20 @@ export default function TransactionFieldDesignPage() {
             { key: 'REQUEST', label: '请求字段' },
             { key: 'RESPONSE', label: '响应字段' },
           ]}
-          tabBarExtraContent={
-            <Permission code='intranet:transaction:update'>
-              <Button type='primary' icon={<PlusOutlined />} disabled={editing} onClick={() => startCreate()}>
-                新增根字段
-              </Button>
-            </Permission>
-          }
+          tabBarExtraContent={canEdit ? (
+            <Button type='primary' icon={<PlusOutlined />} disabled={editing} onClick={() => startCreate()}>
+              新增根字段
+            </Button>
+          ) : undefined}
         />
+        {!canEdit && transaction && (
+          <Alert
+            className='transaction-field-readonly-alert'
+            type='info'
+            showIcon
+            message={transaction.status === 2 || transaction.status === 3 ? '当前交易已进入只读状态，字段仅供查看。' : '你没有维护交易字段的权限，当前仅供查看。'}
+          />
+        )}
         <div className='transaction-field-toolbar'>
           <Space wrap>
             <Input
@@ -249,31 +273,40 @@ export default function TransactionFieldDesignPage() {
               disabled={editing}
               placeholder='搜索字段中文名或英文名'
             />
-            {filtering && <span className='transaction-field-filter-count'>显示 {visibleCount} / {tableRows.length} 个节点</span>}
+            {filtering && (
+              <span className='transaction-field-filter-count'>
+                显示 {visibleCount} / {tableRows.length} 个节点
+              </span>
+            )}
           </Space>
         </div>
-          <InlineEditableTable<TreeField, TransactionMessageFieldRequest>
-            form={form}
-            editingKey={editingId}
-            getRowKey={(row) => row.id}
-            columns={columns}
-            dataSource={filteredTree}
-            loading={{ spinning: loading, tip: '正在加载字段数据…' }}
-            pagination={false}
-            scroll={{ x: 1400 }}
-            locale={{ emptyText: '暂无字段，点击“新增根字段”开始维护。' }}
-            expandable={{
-              expandedRowKeys: filtering ? filteredExpanded : expandedRowKeys ?? defaultExpanded,
-              onExpandedRowsChange: filtering ? undefined : setExpandedRowKeys,
-              indentSize: 18,
-              // 与菜单管理、部门管理、侧边栏子菜单同一个 chevron：样式类来自基线 system/shared.css，
-              // 本页的 index.css 已经 @import 了它，因此不需要新增任何样式。
-              expandIcon: ({ expanded, onExpand, record }) =>
-                record.children?.length ? (
-                  <button type='button' className={`tree-expand-arrow${expanded ? ' is-expanded' : ''}`} aria-label={expanded ? '收起子字段' : '展开子字段'} onClick={(event) => onExpand(record, event)} />
-                ) : null,
-            }}
-          />
+        <InlineEditableTable<TreeField, TransactionMessageFieldRequest>
+          form={form}
+          editingKey={editingId}
+          getRowKey={(row) => row.id}
+          columns={columns}
+          dataSource={filteredTree}
+          loading={{ spinning: loading, tip: '正在加载字段数据…' }}
+          pagination={false}
+          scroll={{ x: canEdit ? 1400 : 1190 }}
+          locale={{ emptyText: canEdit ? '暂无字段，点击“新增根字段”开始维护。' : '暂无字段。' }}
+          expandable={{
+            expandedRowKeys: filtering ? filteredExpanded : (expandedRowKeys ?? defaultExpanded),
+            onExpandedRowsChange: filtering ? undefined : setExpandedRowKeys,
+            indentSize: 18,
+            // 与菜单管理、部门管理、侧边栏子菜单同一个 chevron：样式类来自基线 system/shared.css，
+            // 本页的 index.css 已经 @import 了它，因此不需要新增任何样式。
+            expandIcon: ({ expanded, onExpand, record }) =>
+              record.children?.length ? (
+                <button
+                  type='button'
+                  className={`tree-expand-arrow${expanded ? ' is-expanded' : ''}`}
+                  aria-label={expanded ? '收起子字段' : '展开子字段'}
+                  onClick={(event) => onExpand(record, event)}
+                />
+              ) : null,
+          }}
+        />
       </div>
     </div>
   );

@@ -24,9 +24,6 @@ export interface ApprovalTask {
 }
 
 export const getApprovalTasks = (scope: ApprovalScope, pageNum = 1, pageSize = 10) =>
-  request
-    .get<Result<PageResult<ApprovalTask>>>('/account/approvals', { params: { scope, pageNum, pageSize } })
-    .then((response) => response.data.data);
+  request.get<Result<PageResult<ApprovalTask>>>('/account/approvals', { params: { scope, pageNum, pageSize } }).then((response) => response.data.data);
 
-export const getPendingApprovalCount = () =>
-  request.get<Result<{ count: number }>>('/account/approvals/pending-count').then((response) => response.data.data.count);
+export const getPendingApprovalCount = () => request.get<Result<{ count: number }>>('/account/approvals/pending-count').then((response) => response.data.data.count);

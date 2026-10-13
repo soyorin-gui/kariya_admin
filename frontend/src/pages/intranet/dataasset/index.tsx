@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { App, Button, Input, Popconfirm, Space, Tabs } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
+import { PlusOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
 import { SmartTable, type SmartTableRef } from '../../../components/SmartTable';
 import { Permission } from '../../../permission/Permission';
 import { getApiErrorMessage } from '../../../utils/apiError';
@@ -26,24 +26,22 @@ export default function DataAssetPage() {
   const openFields = (assetType: 'HBASE' | 'ES', assetId: number) => navigate({ pathname: '/intranet/dataasset/fields', search: `?assetType=${assetType}&assetId=${assetId}` });
 
   const hbaseColumns: ColumnsType<HbaseTable> = [
-    { title: '集市名', dataIndex: 'marketName', width: 110 },
+    { title: '集市名', dataIndex: 'marketName', width: 110, align: 'center' },
     { title: 'HBase 表名', dataIndex: 'tableName', width: 200 },
     { title: '数据量', dataIndex: 'dataVolume', width: 120, render: (v) => <EllipsisText value={v} /> },
     { title: '数据深度', dataIndex: 'dataDepth', width: 120, render: (v) => <EllipsisText value={v} /> },
     { title: '锁标识', dataIndex: 'lockKey', width: 150, render: (v) => <EllipsisText value={v} /> },
-    { title: 'RowKey 规则', dataIndex: 'rowkeyRule', width: 220, render: (v) => <EllipsisText value={v} /> },
-    { title: '更新时间', dataIndex: 'updatedTime', width: 170, render: (v) => v?.replace('T', ' ') },
+    { title: 'RowKey 规则', dataIndex: 'rowkeyRule', render: (v) => <EllipsisText value={v} /> },
+    { title: '更新时间', dataIndex: 'updatedTime', width: 170, render: (v) => v?.replace('T', ' '), align: 'center' },
     {
       title: '操作',
       fixed: 'right',
-      width: 230,
+      width: 160,
       render: (_, row) => (
         <Space>
           <a onClick={() => openFields('HBASE', row.id)}>字段设计</a>
           <Permission code='intranet:dataasset:update'>
-            <a onClick={() => setHbaseEditing(row.id)}>
-              <EditOutlined /> 编辑
-            </a>
+            <a onClick={() => setHbaseEditing(row.id)}>编辑</a>
           </Permission>
           <Permission code='intranet:dataasset:delete'>
             <Popconfirm
@@ -58,9 +56,7 @@ export default function DataAssetPage() {
                   .catch((e) => message.error(getApiErrorMessage(e)))
               }
             >
-              <a className='danger'>
-                <DeleteOutlined /> 删除
-              </a>
+              <a className='danger'>删除</a>
             </Popconfirm>
           </Permission>
         </Space>
@@ -70,21 +66,19 @@ export default function DataAssetPage() {
   const esColumns: ColumnsType<EsIndex> = [
     { title: '索引名称', dataIndex: 'indexName', width: 180 },
     { title: '索引命名模式', dataIndex: 'indexPattern', width: 220, render: (v) => <EllipsisText value={v} /> },
-    { title: '分片规则', dataIndex: 'partitionRule', width: 130, render: (v) => <EllipsisText value={v} /> },
     { title: '对应 HBase 表', width: 200, render: (_, row) => `${row.hbaseMarketName}:${row.hbaseTableName}` },
+    { title: '分片规则', dataIndex: 'partitionRule', width: 100, render: (v) => <EllipsisText value={v} />, align: 'center' },
     { title: '说明', dataIndex: 'description', width: 220, render: (v) => <EllipsisText value={v} /> },
-    { title: '更新时间', dataIndex: 'updatedTime', width: 170, render: (v) => v?.replace('T', ' ') },
+    { title: '更新时间', dataIndex: 'updatedTime', width: 170, render: (v) => v?.replace('T', ' '), align: 'center' },
     {
       title: '操作',
       fixed: 'right',
-      width: 230,
+      width: 140,
       render: (_, row) => (
         <Space>
           <a onClick={() => openFields('ES', row.id)}>字段设计</a>
           <Permission code='intranet:dataasset:update'>
-            <a onClick={() => setEsEditing(row.id)}>
-              <EditOutlined /> 编辑
-            </a>
+            <a onClick={() => setEsEditing(row.id)}>编辑</a>
           </Permission>
           <Permission code='intranet:dataasset:delete'>
             <Popconfirm
@@ -99,9 +93,7 @@ export default function DataAssetPage() {
                   .catch((e) => message.error(getApiErrorMessage(e)))
               }
             >
-              <a className='danger'>
-                <DeleteOutlined /> 删除
-              </a>
+              <a className='danger'>删除</a>
             </Popconfirm>
           </Permission>
         </Space>
