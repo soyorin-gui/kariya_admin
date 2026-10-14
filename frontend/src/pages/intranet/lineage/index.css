@@ -1,0 +1,6 @@
+.lineage-page { padding-bottom: 24px; }
+.lineage-description { margin: 6px 0 0; color: #8c8c8c; }
+.lineage-search-card { margin-bottom: 16px; }
+.lineage-graph-card .ant-card-body { min-height: 560px; }
+.lineage-canvas { position: relative; height: 560px; overflow: hidden; }
+.lineage-canvas-tools { position: absolute; right: 16px; top: 16px; padding: 6px; border: 1px solid #f0f0f0; border-radius: 8px; background: rgba(255, 255, 255, .94); box-shadow: 0 4px 12px rgba(0, 0, 0, .08); }

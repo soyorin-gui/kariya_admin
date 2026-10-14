@@ -1,6 +1,6 @@
 import request from '../../../utils/request';
 import type { PageResult, Result } from '../../../types/common';
-import type { ImpactItem, LineageOption, Transaction, TransactionDataResources, TransactionFieldSource, TransactionListItem, TransactionRequest, TransactionVersion, TransactionVersionDetail } from './types';
+import type { ImpactItem, LineageGraph, LineageOption, LineageSearchOption, Transaction, TransactionDataResources, TransactionFieldSource, TransactionListItem, TransactionRequest, TransactionVersion, TransactionVersionDetail } from './types';
 import type { MessageSide, TransactionMessageField, TransactionMessageFieldRequest } from './types';
 export const getTransactions = (params: { pageNum: number; pageSize: number; keyword?: string; status?: number; sortField?: string; sortOrder?: 'asc' | 'desc' }) => request.get<Result<PageResult<TransactionListItem>>>('/intranet/transactions', { params }).then(r => r.data.data);
 export const getTransaction = (id: number) => request.get<Result<Transaction>>(`/intranet/transactions/${id}`).then(r => r.data.data);
@@ -19,3 +19,6 @@ export const getLineageOptions = () => request.get<Result<LineageOption[]>>('/in
 export const getTransactionFieldSource = (fieldId: number) => request.get<Result<TransactionFieldSource>>(`/intranet/lineage/transaction-fields/${fieldId}`).then(r => r.data.data);
 export const saveTransactionFieldSource = (fieldId: number, data: Omit<TransactionFieldSource, 'targetFieldId'>) => request.put<Result<TransactionFieldSource>>(`/intranet/lineage/transaction-fields/${fieldId}`, data).then(r => r.data.data);
 export const getFieldImpact = (sourceType: string, sourceFieldId: number) => request.get<Result<ImpactItem[]>>('/intranet/lineage/impact', { params: { sourceType, sourceFieldId } }).then(r => r.data.data);
+export const getFieldImpactGraph = (sourceType: string, sourceFieldId: number) => request.get<Result<LineageGraph>>('/intranet/lineage/impact-graph', { params: { sourceType, sourceFieldId } }).then(r => r.data.data);
+export const getLineageSearchOptions = (entryType: string, keyword: string) => request.get<Result<LineageSearchOption[]>>('/intranet/lineage/search-options', { params: { entryType, keyword } }).then(r => r.data.data);
+export const getLineageGraph = (entryType: string, entryId: number) => request.get<Result<LineageGraph>>('/intranet/lineage/graph', { params: { entryType, entryId } }).then(r => r.data.data);

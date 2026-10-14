@@ -10,6 +10,10 @@ export interface LineageOption { sourceType: 'HBASE_FIELD' | 'ES_FIELD'; sourceF
 export interface FieldSourceRelation { id?: number; sourceType: 'HBASE_FIELD' | 'ES_FIELD'; sourceFieldId: number; sourceLabel?: string; relationType: 'DIRECT' | 'DERIVED' | 'QUERY_CONDITION'; expression?: string; remark?: string }
 export interface TransactionFieldSource { targetFieldId: number; sourceType: FieldSourceType; sourceDetail?: string; relations: FieldSourceRelation[] }
 export interface ImpactItem { transactionId: number; transactionCode: string; transactionName: string; targetFieldId: number; messageSide: MessageSide; fieldNameCn: string; fieldNameEn: string; relationType: string; expression?: string; remark?: string }
+export interface LineageGraphNode { id: string; type: string; label: string; detail: string }
+export interface LineageGraphEdge { source: string; target: string; label: string }
+export interface LineageGraph { nodes: LineageGraphNode[]; edges: LineageGraphEdge[] }
+export interface LineageSearchOption { entryType: 'TRANSACTION' | 'TRANSACTION_FIELD' | 'HBASE_TABLE' | 'HBASE_FIELD'; entryId: number; label: string; detail: string }
 export interface TransactionDataResources { hbaseTableIds: number[]; esIndexIds: number[]; }
 export interface TransactionVersion { id: number; transactionId: number; requirementId: number; versionNo: number; activeFlag: number; transactionName: string; transactionCode: string; activatedBy?: number; activatedTime: string; }
 export interface TransactionVersionMessageField { id: number; versionId: number; sourceFieldId: number; messageSide: MessageSide; parentSourceFieldId: number; nodeType: MessageNodeType; fieldNameCn: string; fieldNameEn: string; dataType?: string; dataLength?: string; requiredFlag: number; description?: string; sortOrder: number; }

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { App, Button, Form, Input, Popconfirm, Select, Space, Tag } from 'antd';
 import { ArrowLeftOutlined, CloseOutlined, DeleteOutlined, EditOutlined, PlusOutlined, SaveOutlined, SearchOutlined } from '@ant-design/icons';
-import { createEsField, createHbaseField, deleteEsField, deleteHbaseField, getEsFields, getEsIndex, getFieldImpact, getHbaseFields, getHbaseTable, updateEsField, updateHbaseField } from '../api';
+import { createEsField, createHbaseField, deleteEsField, deleteHbaseField, getEsFields, getEsIndex, getHbaseFields, getHbaseTable, updateEsField, updateHbaseField } from '../api';
 import type { EsFieldRequest, EsIndex, HbaseFieldRequest, HbaseTable } from '../types';
 import { Permission } from '../../../../permission/Permission';
 import { getApiErrorMessage } from '../../../../utils/apiError';
@@ -25,7 +25,7 @@ type FieldRow = FieldFormValues & { id: number };
 const DRAFT_ID = -1;
 
 export default function DataAssetFieldDesignPage() {
-  const { message, modal } = App.useApp();
+  const { message } = App.useApp();
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const [form] = Form.useForm<FieldFormValues>();
@@ -144,7 +144,17 @@ export default function DataAssetFieldDesignPage() {
         </Space>
       ) : (
         <Space>
-          <a onClick={() => void getFieldImpact(assetType === 'HBASE' ? 'HBASE_FIELD' : 'ES_FIELD', row.id).then(items => modal.info({ width: 720, title: `字段影响分析 · ${row.fieldName}`, content: items.length ? <ul>{items.map(item => <li key={`${item.transactionId}-${item.targetFieldId}`}>{item.transactionCode} · {item.transactionName} → {item.messageSide === 'REQUEST' ? '请求' : '响应'}.{item.fieldNameEn}（{item.relationType}）</li>)}</ul> : '未登记下游交易字段依赖。' }))}>
+          <a
+            onClick={() => {
+              const entryType = assetType === 'HBASE' ? 'HBASE_FIELD' : 'HBASE_TABLE';
+              const entryId = assetType === 'HBASE' ? row.id : (asset as EsIndex | undefined)?.hbaseTableId;
+              if (!entryId) {
+                message.warning('当前 ES 索引未关联 HBase 表，暂时无法分析回表血缘。');
+                return;
+              }
+              navigate(`/intranet/lineage?entryType=${entryType}&entryId=${entryId}`);
+            }}
+          >
             影响分析
           </a>
           <Permission code='intranet:dataasset:update'>
