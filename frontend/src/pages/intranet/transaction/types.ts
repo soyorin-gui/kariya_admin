@@ -5,6 +5,11 @@ export type MessageSide = 'REQUEST' | 'RESPONSE';
 export type MessageNodeType = 'FIELD' | 'OBJECT' | 'ARRAY';
 export interface TransactionMessageField { id: number; transactionId: number; messageSide: MessageSide; parentId: number; nodeType: MessageNodeType; fieldNameCn: string; fieldNameEn: string; dataType?: string; dataLength?: string; requiredFlag: number; description?: string; sortOrder: number; }
 export interface TransactionMessageFieldRequest { parentId: number; nodeType: MessageNodeType; fieldNameCn: string; fieldNameEn: string; dataType?: string; dataLength?: string; requiredFlag: number; description?: string; sortOrder: number; }
+export type FieldSourceType = 'PHYSICAL' | 'CALLER_INPUT' | 'CONSTANT' | 'SYSTEM_GENERATED' | 'COMPUTED' | 'UNCONFIGURED';
+export interface LineageOption { sourceType: 'HBASE_FIELD' | 'ES_FIELD'; sourceFieldId: number; label: string }
+export interface FieldSourceRelation { id?: number; sourceType: 'HBASE_FIELD' | 'ES_FIELD'; sourceFieldId: number; sourceLabel?: string; relationType: 'DIRECT' | 'DERIVED' | 'QUERY_CONDITION'; expression?: string; remark?: string }
+export interface TransactionFieldSource { targetFieldId: number; sourceType: FieldSourceType; sourceDetail?: string; relations: FieldSourceRelation[] }
+export interface ImpactItem { transactionId: number; transactionCode: string; transactionName: string; targetFieldId: number; messageSide: MessageSide; fieldNameCn: string; fieldNameEn: string; relationType: string; expression?: string; remark?: string }
 export interface TransactionDataResources { hbaseTableIds: number[]; esIndexIds: number[]; }
 export interface TransactionVersion { id: number; transactionId: number; requirementId: number; versionNo: number; activeFlag: number; transactionName: string; transactionCode: string; activatedBy?: number; activatedTime: string; }
 export interface TransactionVersionMessageField { id: number; versionId: number; sourceFieldId: number; messageSide: MessageSide; parentSourceFieldId: number; nodeType: MessageNodeType; fieldNameCn: string; fieldNameEn: string; dataType?: string; dataLength?: string; requiredFlag: number; description?: string; sortOrder: number; }

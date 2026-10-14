@@ -54,6 +54,24 @@ CREATE TABLE intranet_transaction_message_field (
     INDEX idx_intranet_message_field_tree (transaction_id, message_side, parent_id, sort_order, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE intranet_transaction_field_source_config (
+    target_field_id BIGINT PRIMARY KEY,
+    source_type VARCHAR(32) NOT NULL COMMENT 'PHYSICAL/CALLER_INPUT/CONSTANT/SYSTEM_GENERATED/COMPUTED',
+    source_detail VARCHAR(2000) NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE intranet_field_lineage_relation (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    source_type VARCHAR(32) NOT NULL COMMENT 'HBASE_FIELD/ES_FIELD; future types supported',
+    source_field_id BIGINT NOT NULL,
+    target_field_id BIGINT NOT NULL,
+    relation_type VARCHAR(32) NOT NULL COMMENT 'DIRECT/DERIVED/QUERY_CONDITION',
+    expression VARCHAR(2000) NULL,
+    remark VARCHAR(1000) NULL,
+    UNIQUE KEY uk_intranet_field_lineage (source_type, source_field_id, target_field_id, relation_type),
+    INDEX idx_intranet_field_lineage_target (target_field_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE intranet_hbase_table (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     market_name VARCHAR(64) NOT NULL,

@@ -15,3 +15,21 @@ CREATE TABLE intranet_requirement_flow (
     created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_intranet_requirement_flow (requirement_id, created_time, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE intranet_transaction_field_source_config (
+    target_field_id BIGINT PRIMARY KEY,
+    source_type VARCHAR(32) NOT NULL COMMENT 'PHYSICAL/CALLER_INPUT/CONSTANT/SYSTEM_GENERATED/COMPUTED',
+    source_detail VARCHAR(2000) NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE intranet_field_lineage_relation (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    source_type VARCHAR(32) NOT NULL,
+    source_field_id BIGINT NOT NULL,
+    target_field_id BIGINT NOT NULL,
+    relation_type VARCHAR(32) NOT NULL,
+    expression VARCHAR(2000) NULL,
+    remark VARCHAR(1000) NULL,
+    UNIQUE KEY uk_intranet_field_lineage (source_type, source_field_id, target_field_id, relation_type),
+    INDEX idx_intranet_field_lineage_target (target_field_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

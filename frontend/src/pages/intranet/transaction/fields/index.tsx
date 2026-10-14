@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type Key } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Alert, App, Button, Form, Input, Popconfirm, Select, Space, Tabs, Tag } from 'antd';
-import { ArrowLeftOutlined, DeleteOutlined, EditOutlined, PlusOutlined, SaveOutlined, CloseOutlined, SearchOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, DeleteOutlined, EditOutlined, PlusOutlined, SaveOutlined, CloseOutlined, SearchOutlined, LinkOutlined } from '@ant-design/icons';
 import { createTransactionMessageField, deleteTransactionMessageField, getTransaction, getTransactionMessageFields, updateTransactionMessageField } from '../api';
 import type { MessageSide, Transaction, TransactionMessageField, TransactionMessageFieldRequest } from '../types';
 import { usePermission } from '../../../../permission/Permission';
@@ -11,6 +11,7 @@ import { ExpandableTextInput } from '../../components/FieldText';
 import { EllipsisText } from '../../../../components/EllipsisText';
 import '../index.css';
 import './index.css';
+import { FieldSourceDialog } from '../lineage/FieldSourceDialog';
 
 type TreeField = TransactionMessageField & { children?: TreeField[] };
 const DRAFT_ID = -1;
@@ -57,6 +58,7 @@ export default function TransactionFieldDesignPage() {
   const [editingId, setEditingId] = useState<number>();
   const [draftParentId, setDraftParentId] = useState<number>();
   const [expandedRowKeys, setExpandedRowKeys] = useState<readonly Key[]>();
+  const [sourceField, setSourceField] = useState<TransactionMessageField>();
   const [form] = Form.useForm<TransactionMessageFieldRequest>();
   const load = async () => {
     if (!Number.isInteger(transactionId) || transactionId <= 0) return;
@@ -191,6 +193,7 @@ export default function TransactionFieldDesignPage() {
           </Space>
         ) : (
           <Space>
+            <a onClick={() => setSourceField(row)}><LinkOutlined /> 来源</a>
             <a onClick={() => startCreate(row.id)}>
               <PlusOutlined /> 子字段
             </a>
@@ -307,6 +310,7 @@ export default function TransactionFieldDesignPage() {
               ) : null,
           }}
         />
+        <FieldSourceDialog field={sourceField} open={Boolean(sourceField)} onClose={() => setSourceField(undefined)} />
       </div>
     </div>
   );

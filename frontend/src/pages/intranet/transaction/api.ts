@@ -1,6 +1,6 @@
 import request from '../../../utils/request';
 import type { PageResult, Result } from '../../../types/common';
-import type { Transaction, TransactionDataResources, TransactionListItem, TransactionRequest, TransactionVersion, TransactionVersionDetail } from './types';
+import type { ImpactItem, LineageOption, Transaction, TransactionDataResources, TransactionFieldSource, TransactionListItem, TransactionRequest, TransactionVersion, TransactionVersionDetail } from './types';
 import type { MessageSide, TransactionMessageField, TransactionMessageFieldRequest } from './types';
 export const getTransactions = (params: { pageNum: number; pageSize: number; keyword?: string; status?: number; sortField?: string; sortOrder?: 'asc' | 'desc' }) => request.get<Result<PageResult<TransactionListItem>>>('/intranet/transactions', { params }).then(r => r.data.data);
 export const getTransaction = (id: number) => request.get<Result<Transaction>>(`/intranet/transactions/${id}`).then(r => r.data.data);
@@ -15,3 +15,7 @@ export const getTransactionDataResources = (transactionId: number) => request.ge
 export const updateTransactionDataResources = (transactionId: number, data: TransactionDataResources) => request.put<Result<TransactionDataResources>>(`/intranet/transactions/${transactionId}/data-resources`, data).then(r => r.data);
 export const getTransactionVersions = (transactionId: number) => request.get<Result<TransactionVersion[]>>(`/intranet/transaction-versions/transactions/${transactionId}`).then(r => r.data.data);
 export const getTransactionVersionDetail = (versionId: number) => request.get<Result<TransactionVersionDetail>>(`/intranet/transaction-versions/${versionId}`).then(r => r.data.data);
+export const getLineageOptions = () => request.get<Result<LineageOption[]>>('/intranet/lineage/source-options').then(r => r.data.data);
+export const getTransactionFieldSource = (fieldId: number) => request.get<Result<TransactionFieldSource>>(`/intranet/lineage/transaction-fields/${fieldId}`).then(r => r.data.data);
+export const saveTransactionFieldSource = (fieldId: number, data: Omit<TransactionFieldSource, 'targetFieldId'>) => request.put<Result<TransactionFieldSource>>(`/intranet/lineage/transaction-fields/${fieldId}`, data).then(r => r.data.data);
+export const getFieldImpact = (sourceType: string, sourceFieldId: number) => request.get<Result<ImpactItem[]>>('/intranet/lineage/impact', { params: { sourceType, sourceFieldId } }).then(r => r.data.data);

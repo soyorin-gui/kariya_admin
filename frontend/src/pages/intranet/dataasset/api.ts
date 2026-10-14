@@ -1,6 +1,7 @@
 import request from '../../../utils/request';
 import type { PageResult, Result } from '../../../types/common';
 import type { EsField, EsFieldRequest, EsIndex, EsIndexRequest, HbaseField, HbaseFieldRequest, HbaseTable, HbaseTableRequest } from './types';
+import type { ImpactItem } from '../transaction/types';
 
 export const getHbaseTables = (params: { pageNum: number; pageSize: number; keyword?: string }) => request.get<Result<PageResult<HbaseTable>>>('/intranet/data-assets/hbase-tables', { params }).then(r => r.data.data);
 export const getHbaseOptions = () => request.get<Result<HbaseTable[]>>('/intranet/data-assets/hbase-tables/options').then(r => r.data.data);
@@ -23,3 +24,4 @@ export const getEsFields = (indexId: number) => request.get<Result<EsField[]>>(`
 export const createEsField = (indexId: number, data: EsFieldRequest) => request.post<Result<EsField>>(`/intranet/data-assets/es-indexes/${indexId}/fields`, data).then(r => r.data);
 export const updateEsField = (indexId: number, id: number, data: EsFieldRequest) => request.put<Result<EsField>>(`/intranet/data-assets/es-indexes/${indexId}/fields/${id}`, data).then(r => r.data);
 export const deleteEsField = (indexId: number, id: number) => request.delete(`/intranet/data-assets/es-indexes/${indexId}/fields/${id}`);
+export const getFieldImpact = (sourceType: string, sourceFieldId: number) => request.get<Result<ImpactItem[]>>('/intranet/lineage/impact', { params: { sourceType, sourceFieldId } }).then(r => r.data.data);

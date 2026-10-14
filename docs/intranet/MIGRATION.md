@@ -9,9 +9,9 @@
 | 顺序 | 文件 | 用途 | 执行边界 |
 | --- | --- | --- | --- |
 | 1 | `backend/src/main/resources/db/init_schema.sql` | 系统基线表结构，含公共审批与最终的部门调动表 | 仅用于空数据库；不含初始数据 |
-| 2 | `backend/src/main/resources/db/intranet_schema.sql` | 17 张最终 `intranet_*` 业务表及索引 | 在步骤 1 后、空的内网表空间中执行；不含任何数据或 RBAC 种子 |
+| 2 | `backend/src/main/resources/db/intranet_schema.sql` | 19 张最终 `intranet_*` 业务表及索引 | 在步骤 1 后、空的内网表空间中执行；不含任何数据或 RBAC 种子 |
 
-当前内测库执行 [intranet_schema_update_requirements.sql](../../backend/src/main/resources/db/intranet_schema_update_requirements.sql) 以加入需求流转记录并删除重复交易关联字段。
+当前内测库执行 [intranet_schema_update_requirements.sql](../../backend/src/main/resources/db/intranet_schema_update_requirements.sql) 以加入需求流转记录、字段来源配置及字段关系表，并删除重复交易关联字段。
 
 两个结构脚本均使用直接 `CREATE TABLE`，重复执行会失败。这是面向新部署的明确保护，不是可升级脚本。已有环境不得执行，应由 DBA 根据表、列和索引清单核对差异并制定专用变更方案。
 
