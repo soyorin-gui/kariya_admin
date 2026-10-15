@@ -292,3 +292,18 @@ CREATE TABLE intranet_transaction_version_es_resource (
     es_index_id BIGINT NOT NULL,
     UNIQUE KEY uk_intranet_version_es_resource (version_id, es_index_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE intranet_operation_test_case (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    transaction_id BIGINT NOT NULL,
+    binding_type VARCHAR(16) NOT NULL,
+    transaction_version_id BIGINT NULL,
+    case_name VARCHAR(128) NOT NULL,
+    description VARCHAR(500) NULL,
+    request_payload LONGTEXT NOT NULL,
+    created_by BIGINT NULL,
+    created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by BIGINT NULL,
+    updated_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_operation_case_binding (transaction_id, binding_type, transaction_version_id, case_name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

@@ -10,6 +10,7 @@ SET @test_user_id = (SELECT id FROM sys_user ORDER BY id LIMIT 1);
 DELETE FROM sys_notification WHERE business_type = 'INTRANET_REQUIREMENT';
 DELETE t FROM sys_approval_task t JOIN sys_approval_instance i ON i.id = t.approval_instance_id WHERE i.business_type = 'INTRANET_REQUIREMENT';
 DELETE FROM sys_approval_instance WHERE business_type = 'INTRANET_REQUIREMENT';
+DELETE FROM intranet_operation_test_case;
 DELETE FROM intranet_transaction_version_message_field;
 DELETE FROM intranet_transaction_version_hbase_resource;
 DELETE FROM intranet_transaction_version_es_resource;

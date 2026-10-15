@@ -1,6 +1,6 @@
--- operation 流水查询及日志抽屉权限（MySQL 8.0+，仅用于开发/验证环境）
+-- operation 页面、日志按钮及响应对比权限（MySQL 8.0+，仅用于开发/验证环境）
 --
--- 作用：让前端动态菜单发现流水查询页面，并将日志查看、下载作为该页面的按钮权限授予指定角色。
+-- 作用：让前端动态菜单发现流水查询、在线调试和多环境响应对比页面，并将日志按钮权限授予指定角色。
 -- 不创建业务表、不插入流水数据；页面数据由 local profile 的外网模拟源提供。
 -- 执行前请确认当前连接的是可验证的开发数据库，并自行备份 sys_menu / sys_role_menu。
 
@@ -69,6 +69,38 @@ SET @operation_invoke_menu_id = (
     ORDER BY id LIMIT 1
 );
 
+INSERT INTO sys_menu
+    (parent_id, menu_name, menu_type, route_name, route_path, component, permission_code,
+     icon, sort_order, visible, status, keep_alive, builtin)
+SELECT
+    @operation_directory_id, '多环境响应对比', 'MENU', 'intranet-operation-compare',
+    '/intranet/operation/compare', 'intranet/operation/compare/index', 'intranet:operation:compare:list',
+    'ApartmentOutlined', 30, 1, 1, 0, 0
+WHERE @operation_directory_id IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM sys_menu WHERE route_path = '/intranet/operation/compare')
+  AND NOT EXISTS (SELECT 1 FROM sys_menu WHERE permission_code = 'intranet:operation:compare:list');
+
+SET @operation_compare_menu_id = (
+    SELECT id FROM sys_menu
+    WHERE route_path = '/intranet/operation/compare' AND deleted = 0
+    ORDER BY id LIMIT 1
+);
+
+INSERT INTO sys_menu
+    (parent_id, menu_name, menu_type, route_name, route_path, component, permission_code,
+     icon, sort_order, visible, status, keep_alive, builtin)
+SELECT
+    @operation_invoke_menu_id, '管理测试案例', 'BUTTON', NULL, NULL, NULL,
+    'intranet:operation:test-case:manage', NULL, 10, 1, 1, 0, 0
+WHERE @operation_invoke_menu_id IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM sys_menu WHERE permission_code = 'intranet:operation:test-case:manage' AND deleted = 0);
+
+SET @operation_test_case_manage_id = (
+    SELECT id FROM sys_menu
+    WHERE permission_code = 'intranet:operation:test-case:manage' AND deleted = 0
+    ORDER BY id LIMIT 1
+);
+
 -- 清理早期独立“日志追踪”菜单，日志功能现仅作为流水页内抽屉。
 SET @legacy_log_menu_id = (
     SELECT id FROM sys_menu
@@ -134,6 +166,14 @@ SELECT @operation_role_id, @operation_invoke_menu_id
 WHERE @operation_role_id IS NOT NULL AND @operation_invoke_menu_id IS NOT NULL;
 
 INSERT IGNORE INTO sys_role_menu (role_id, menu_id)
+SELECT @operation_role_id, @operation_compare_menu_id
+WHERE @operation_role_id IS NOT NULL AND @operation_compare_menu_id IS NOT NULL;
+
+INSERT IGNORE INTO sys_role_menu (role_id, menu_id)
+SELECT @operation_role_id, @operation_test_case_manage_id
+WHERE @operation_role_id IS NOT NULL AND @operation_test_case_manage_id IS NOT NULL;
+
+INSERT IGNORE INTO sys_role_menu (role_id, menu_id)
 SELECT @operation_role_id, @operation_log_list_id
 WHERE @operation_role_id IS NOT NULL AND @operation_log_list_id IS NOT NULL;
 
@@ -141,12 +181,14 @@ INSERT IGNORE INTO sys_role_menu (role_id, menu_id)
 SELECT @operation_role_id, @operation_log_download_id
 WHERE @operation_role_id IS NOT NULL AND @operation_log_download_id IS NOT NULL;
 
--- 三个 id 都非 NULL 才表示菜单与授权前提满足。执行后退出登录并重新登录。
+-- 页面、按钮和角色 id 均应非 NULL。执行后退出登录并重新登录。
 SELECT
     @intranet_parent_id AS intranet_parent_id,
     @operation_directory_id AS operation_directory_id,
     @operation_flow_menu_id AS operation_flow_menu_id,
     @operation_invoke_menu_id AS operation_invoke_menu_id,
+    @operation_compare_menu_id AS operation_compare_menu_id,
+    @operation_test_case_manage_id AS operation_test_case_manage_id,
     @operation_log_list_id AS operation_log_list_id,
     @operation_log_download_id AS operation_log_download_id,
     @operation_role_id AS granted_role_id,
