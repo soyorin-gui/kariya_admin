@@ -1,6 +1,6 @@
 # 内网迁移与部署清单
 
-> 更新日期：2026-10-14。本文只描述当前可部署的最终结构，不保留已执行的历史增量脚本。
+> 更新日期：2026-10-15。本文只描述当前可部署的最终结构，不保留已执行的历史增量脚本。
 
 ## 数据库结构
 
@@ -32,14 +32,14 @@
 
 operation M1 内网接续还需要手工准备：
 
-- 菜单“交易运行中心 / 流水查询”，路由 `/intranet/operation/flow`、组件 `intranet/operation/flow/index`；菜单“日志追踪”，路由 `/intranet/operation/logs`、组件 `intranet/operation/logs/index`；
-- 权限 `intranet:operation:flow:list`、`intranet:operation:log:list`、`intranet:operation:log:download`，并按实际岗位授权；交易码下拉用户还需交易资产只读权限；
+- 菜单“交易运行中心 / 流水查询”，路由 `/intranet/operation/flow`、组件 `intranet/operation/flow/index`；“交易在线调试”，路由 `/intranet/operation/invoke`、组件 `intranet/operation/invoke/index`；日志追踪仅作为流水页内的抽屉，不创建独立菜单或路由；
+- 权限 `intranet:operation:flow:list`、`intranet:operation:invoke:list`、`intranet:operation:log:list`、`intranet:operation:log:download`，并按实际岗位授权；交易码下拉用户还需交易资产只读权限；
 - 每个运行环境的 Redis Cluster 节点、认证、TLS、超时、固定响应码列表和环境显示名；这些值必须由外部安全配置提供，不得写入 Git；
 - 真实环境不得启用 `default/local` profile 下的外网模拟流水源；应新增并启用内网 Redis Cluster 数据源实现。
 
 开发环境可执行 `backend/src/main/resources/db/operation/01_operation_flow_menu.sql` 创建“交易运行中心 / 流水查询”菜单并授权指定角色；执行后用同目录的 `02_operation_flow_verify.sql` 核对结果，并重新登录刷新菜单和权限。`99_operation_flow_rollback.sql` 只用于开发环境撤销这两条菜单及其授权，不属于内网部署输入。
 
-注意：2026-10-14 M2 交互已调整为“流水页内日志抽屉”，不再保留独立日志菜单。当前 `01_operation_flow_menu.sql` 中新增的“日志追踪”菜单属于待重构原型，内网部署前必须改为流水菜单下的日志查看/下载按钮权限；在完成该调整前不要把当前日志菜单 SQL 作为最终部署配置。
+`01_operation_flow_menu.sql` 会清理早期独立“日志追踪”菜单，并将日志查看/下载创建为“流水查询”菜单下的按钮权限。该脚本仅用于开发/验证环境；内网部署应由管理员按相同菜单层级和权限码初始化。
 
 M1 未新增数据库表、字段、依赖或结构脚本。
 

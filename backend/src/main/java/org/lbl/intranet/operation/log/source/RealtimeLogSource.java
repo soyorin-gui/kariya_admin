@@ -1,7 +1,8 @@
 package org.lbl.intranet.operation.log.source;
 
 import org.lbl.intranet.operation.log.model.LogEnvironment;
-import org.lbl.intranet.operation.log.model.RealtimeLogResult;
+import org.lbl.intranet.operation.log.model.CurrentLogDocument;
+import org.lbl.intranet.operation.log.model.LogDownload;
 
 import java.util.List;
 
@@ -9,5 +10,7 @@ import java.util.List;
 public interface RealtimeLogSource {
     List<LogEnvironment> environments();
 
-    RealtimeLogResult query(String environmentId, String globalFlowId);
+    CurrentLogDocument query(String environmentId, String globalFlowId);
+
+    LogDownload downloadRealTime(String environmentId, String fileId);
 }

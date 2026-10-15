@@ -1,20 +1,18 @@
 package org.lbl.intranet.operation.log.service;
 
 import org.lbl.common.exception.BusinessException;
-import org.lbl.intranet.operation.log.model.HistoricalLogDocument;
+import org.lbl.intranet.operation.log.model.CurrentLogDocument;
+import org.lbl.intranet.operation.log.model.FlowLogContext;
+import org.lbl.intranet.operation.log.model.FlowLogFile;
 import org.lbl.intranet.operation.log.model.LogDownload;
-import org.lbl.intranet.operation.log.model.LogEnvironment;
-import org.lbl.intranet.operation.log.model.RealtimeLogResult;
-import org.lbl.intranet.operation.log.request.HistoricalLogQueryRequest;
-import org.lbl.intranet.operation.log.request.RealtimeLogQueryRequest;
+import org.lbl.intranet.operation.log.model.LogFileType;
+import org.lbl.intranet.operation.log.request.FlowLogContextRequest;
 import org.lbl.intranet.operation.log.source.HistoricalLogSource;
 import org.lbl.intranet.operation.log.source.RealtimeLogSource;
 import org.springframework.stereotype.Service;
 
-import java.util.Comparator;
-import java.util.LinkedHashMap;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 @Service
 public class OperationLogTraceService {
@@ -26,24 +24,39 @@ public class OperationLogTraceService {
         this.realtimeSources = List.copyOf(realtimeSources);
     }
 
-    public List<LogEnvironment> environments() {
-        Map<String, LogEnvironment> unique = new LinkedHashMap<>();
-        historicalSources.stream().flatMap(source -> source.environments().stream()).forEach(item -> unique.putIfAbsent(item.id(), item));
-        realtimeSources.stream().flatMap(source -> source.environments().stream()).forEach(item -> unique.putIfAbsent(item.id(), item));
-        return unique.values().stream().sorted(Comparator.comparing(LogEnvironment::name)).toList();
+    public FlowLogContext context(FlowLogContextRequest request) {
+        var flow = request.flow();
+        if (flow.queryDate() == null || flow.globalFlowId() == null || flow.globalFlowId().isBlank()) {
+            throw new BusinessException("流水信息不完整");
+        }
+        var historicalDocuments = historical(request.environmentId()).query(request.environmentId(), flow.queryDate(), flow.globalFlowId().trim());
+        CurrentLogDocument currentDocument = realtime(request.environmentId()).query(request.environmentId(), flow.globalFlowId().trim());
+        List<FlowLogFile> files = new ArrayList<>();
+        StringBuilder content = new StringBuilder();
+        boolean truncated = false;
+        for (var document : historicalDocuments) {
+            files.add(new FlowLogFile(document.fileId(), document.fileName(), LogFileType.ROLLED, document.fileSize(), document.lastModified(), document.truncated()));
+            appendContent(content, document.fileName(), document.content());
+            truncated |= document.truncated();
+        }
+        files.add(new FlowLogFile(currentDocument.fileId(), currentDocument.fileName(), LogFileType.CURRENT, currentDocument.fileSize(), currentDocument.lastModified(), currentDocument.truncated()));
+        appendContent(content, currentDocument.fileName(), currentDocument.content());
+        truncated |= currentDocument.truncated();
+        List<String> warnings = truncated ? List.of("日志内容已按数据源限制截断") : List.of();
+        return new FlowLogContext(flow, content.toString(), List.copyOf(files), truncated, warnings);
     }
 
-    public List<HistoricalLogDocument> history(HistoricalLogQueryRequest request) {
-        return historical(request.environmentId()).query(request.environmentId(), request.queryDate(), request.globalFlowId().trim());
-    }
-
-    public LogDownload download(String environmentId, String fileId) {
+    public LogDownload download(String environmentId, LogFileType fileType, String fileId) {
         if (environmentId == null || environmentId.isBlank() || fileId == null || fileId.isBlank()) throw new BusinessException("日志下载参数不完整");
-        return historical(environmentId).download(environmentId, fileId);
+        return switch (fileType) {
+            case ROLLED -> historical(environmentId).downloadHistorical(environmentId, fileId);
+            case CURRENT -> realtime(environmentId).downloadRealTime(environmentId, fileId);
+        };
     }
 
-    public RealtimeLogResult realtime(RealtimeLogQueryRequest request) {
-        return realtime(request.environmentId()).query(request.environmentId(), request.globalFlowId().trim());
+    private void appendContent(StringBuilder content, String fileName, String fileContent) {
+        if (!content.isEmpty()) content.append("\n\n");
+        content.append("===== ").append(fileName).append(" =====\n").append(fileContent);
     }
 
     private HistoricalLogSource historical(String environmentId) {

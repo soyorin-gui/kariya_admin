@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { App, Button, DatePicker, Input, Select, Space, Spin, Tag, TimePicker } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { ReloadOutlined, SearchOutlined } from '@ant-design/icons';
+import { FileTextOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
 import dayjs, { type Dayjs } from 'dayjs';
 import { SmartTable } from '../../../../components/SmartTable';
 import { Permission } from '../../../../permission/Permission';
@@ -11,6 +10,7 @@ import { getTransactions } from '../../transaction/api';
 import type { TransactionListItem } from '../../transaction/types';
 import { getFlowEnvironments, getFlowFilterOptions, queryTransactionFlows } from './api';
 import type { FlowEnvironment, TransactionFlowRecord } from './types';
+import { FlowLogDrawer } from './FlowLogDrawer';
 
 type Search = {
   environmentId?: string;
@@ -45,12 +45,12 @@ function dateTime(date: Dayjs, time?: Dayjs): string | undefined {
 
 export default function TransactionFlowPage() {
   const { message } = App.useApp();
-  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [environments, setEnvironments] = useState<FlowEnvironment[]>([]);
   const [responseCodes, setResponseCodes] = useState<string[]>([]);
   const [transactions, setTransactions] = useState<TransactionListItem[]>([]);
   const [queriedEnvironmentId, setQueriedEnvironmentId] = useState<string>();
+  const [selectedFlow, setSelectedFlow] = useState<TransactionFlowRecord>();
 
   const loadTransactions = async (keyword?: string) => {
     const data = await getTransactions({ pageNum: 1, pageSize: 100, keyword });
@@ -81,6 +81,17 @@ export default function TransactionFlowPage() {
   }, []);
 
   const columns: ColumnsType<TransactionFlowRecord> = [
+    {
+      title: '日志',
+      width: 58,
+      fixed: 'left',
+      align: 'center',
+      render: (_, record) => (
+        <Permission code='intranet:operation:log:list'>
+          <Button type='text' icon={<FileTextOutlined />} title='查看日志' onClick={() => setSelectedFlow(record)} />
+        </Permission>
+      ),
+    },
     { title: '交易码', dataIndex: 'transactionCode', width: 110, fixed: 'left' },
     { title: '调用方 ID', dataIndex: 'callerId', width: 140 },
     { title: 'IP-服务地址', dataIndex: 'serviceAddress', width: 230, ellipsis: true },
@@ -91,25 +102,6 @@ export default function TransactionFlowPage() {
     { title: '响应码', dataIndex: 'responseCode', width: 150 },
     { title: '查询日期', dataIndex: 'queryDate', width: 120 },
     { title: '全局流水号', dataIndex: 'globalFlowId', width: 250 },
-    {
-      title: '操作',
-      width: 100,
-      fixed: 'right',
-      render: (_, record) => (
-        <Permission code='intranet:operation:log:list'>
-          <a
-            onClick={() =>
-              void navigate({
-                pathname: '/intranet/operation/logs',
-                search: new URLSearchParams({ environmentId: queriedEnvironmentId ?? '', queryDate: record.queryDate, globalFlowId: record.globalFlowId }).toString(),
-              })
-            }
-          >
-            日志追踪
-          </a>
-        </Permission>
-      ),
-    },
   ];
 
   if (loading) return <Spin fullscreen tip='正在加载流水查询配置' />;
@@ -238,6 +230,7 @@ export default function TransactionFlowPage() {
           scroll={{ x: 1650 }}
         />
       </div>
+      <FlowLogDrawer environmentId={queriedEnvironmentId} flow={selectedFlow} onClose={() => setSelectedFlow(undefined)} />
     </div>
   );
 }

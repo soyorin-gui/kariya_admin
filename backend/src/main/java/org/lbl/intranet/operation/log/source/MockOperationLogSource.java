@@ -4,7 +4,7 @@ import org.lbl.common.exception.BusinessException;
 import org.lbl.intranet.operation.log.model.HistoricalLogDocument;
 import org.lbl.intranet.operation.log.model.LogDownload;
 import org.lbl.intranet.operation.log.model.LogEnvironment;
-import org.lbl.intranet.operation.log.model.RealtimeLogResult;
+import org.lbl.intranet.operation.log.model.CurrentLogDocument;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
@@ -23,7 +23,8 @@ import java.util.concurrent.ConcurrentHashMap;
 @Profile({"default", "local"})
 public class MockOperationLogSource implements HistoricalLogSource, RealtimeLogSource {
     private static final LogEnvironment ENVIRONMENT = new LogEnvironment("external-demo", "外网模拟环境");
-    private final Map<String, StoredFile> downloads = new ConcurrentHashMap<>();
+    private final Map<String, StoredFile> historicalDownloads = new ConcurrentHashMap<>();
+    private final Map<String, StoredFile> currentDownloads = new ConcurrentHashMap<>();
 
     @Override
     public List<LogEnvironment> environments() {
@@ -42,21 +43,21 @@ public class MockOperationLogSource implements HistoricalLogSource, RealtimeLogS
         byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
         String fileId = UUID.nameUUIDFromBytes((environmentId + "|" + queryDate + "|" + globalFlowId).getBytes(StandardCharsets.UTF_8)).toString();
         String fileName = "demo-transaction-" + queryDate + ".log";
-        downloads.put(fileId, new StoredFile(environmentId, fileName, bytes));
+        historicalDownloads.put(fileId, new StoredFile(environmentId, fileName, bytes));
         return List.of(new HistoricalLogDocument(fileId, fileName, bytes.length,
                 LocalDateTime.of(queryDate, LocalTime.of(23, 59, 59)), content, false));
     }
 
     @Override
-    public LogDownload download(String environmentId, String fileId) {
+    public LogDownload downloadHistorical(String environmentId, String fileId) {
         requireEnvironment(environmentId);
-        StoredFile file = downloads.get(fileId);
+        StoredFile file = historicalDownloads.get(fileId);
         if (file == null || !file.environmentId().equals(environmentId)) throw new BusinessException("日志文件不存在或查询上下文已失效");
         return new LogDownload(file.fileName(), "text/plain;charset=UTF-8", file.content().length, new ByteArrayInputStream(file.content()));
     }
 
     @Override
-    public RealtimeLogResult query(String environmentId, String globalFlowId) {
+    public CurrentLogDocument query(String environmentId, String globalFlowId) {
         requireEnvironment(environmentId);
         String content = """
                 这是外网开发使用的虚构实时日志，不代表任何真实交易应用接口。
@@ -64,7 +65,19 @@ public class MockOperationLogSource implements HistoricalLogSource, RealtimeLogS
                 [INFO ] globalFlowId=%s 当前交易线程运行正常
                 [INFO ] globalFlowId=%s 当前未发现异常堆栈
                 """.formatted(environmentId, globalFlowId, globalFlowId);
-        return new RealtimeLogResult("demo-transaction-app", LocalDateTime.now(), content);
+        byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
+        String fileId = UUID.nameUUIDFromBytes((environmentId + "|current|" + globalFlowId).getBytes(StandardCharsets.UTF_8)).toString();
+        String fileName = "demo-transaction.log.crn";
+        currentDownloads.put(fileId, new StoredFile(environmentId, fileName, bytes));
+        return new CurrentLogDocument(fileId, fileName, bytes.length, LocalDateTime.now(), "demo-transaction-app", content, false);
+    }
+
+    @Override
+    public LogDownload downloadRealTime(String environmentId, String fileId) {
+        requireEnvironment(environmentId);
+        StoredFile file = currentDownloads.get(fileId);
+        if (file == null || !file.environmentId().equals(environmentId)) throw new BusinessException("当前日志文件不存在或查询上下文已失效");
+        return new LogDownload(file.fileName(), "text/plain;charset=UTF-8", file.content().length, new ByteArrayInputStream(file.content()));
     }
 
     private void requireEnvironment(String environmentId) {

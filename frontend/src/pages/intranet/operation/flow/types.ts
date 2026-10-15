@@ -35,3 +35,22 @@ export interface TransactionFlowQuery {
   pageNum: number;
   pageSize: number;
 }
+
+export type LogFileType = 'ROLLED' | 'CURRENT';
+
+export interface FlowLogFile {
+  fileId: string;
+  fileName: string;
+  fileType: LogFileType;
+  fileSize: number;
+  lastModified: string;
+  truncated: boolean;
+}
+
+export interface FlowLogContext {
+  flow: TransactionFlowRecord;
+  content: string;
+  files: FlowLogFile[];
+  truncated: boolean;
+  warnings: string[];
+}

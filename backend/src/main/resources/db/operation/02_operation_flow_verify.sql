@@ -1,11 +1,11 @@
--- operation M1 菜单和权限验证（只读，可重复执行）
+-- operation 流水查询和日志抽屉权限验证（只读，可重复执行）
 
 SELECT
     id, parent_id, menu_name, menu_type, route_name, route_path,
     component, permission_code, icon, sort_order, visible, status, deleted
 FROM sys_menu
-WHERE route_path IN ('/intranet/operation', '/intranet/operation/flow', '/intranet/operation/logs')
-   OR permission_code IN ('intranet:operation:flow:list', 'intranet:operation:log:list', 'intranet:operation:log:download')
+WHERE route_path IN ('/intranet/operation', '/intranet/operation/flow', '/intranet/operation/invoke')
+   OR permission_code IN ('intranet:operation:flow:list', 'intranet:operation:invoke:list', 'intranet:operation:log:list', 'intranet:operation:log:download')
 ORDER BY parent_id, sort_order, id;
 
 SELECT
@@ -19,8 +19,8 @@ SELECT
 FROM sys_role_menu rm
 INNER JOIN sys_role r ON r.id = rm.role_id
 INNER JOIN sys_menu m ON m.id = rm.menu_id
-WHERE m.route_path IN ('/intranet/operation', '/intranet/operation/flow', '/intranet/operation/logs')
-   OR m.permission_code = 'intranet:operation:log:download'
+WHERE m.route_path IN ('/intranet/operation', '/intranet/operation/flow', '/intranet/operation/invoke')
+   OR m.permission_code IN ('intranet:operation:invoke:list', 'intranet:operation:log:list', 'intranet:operation:log:download')
 ORDER BY r.role_code, m.sort_order, m.id;
 
 -- 如果需要确认某个用户是否绑定了上面的角色，请替换用户名后执行：

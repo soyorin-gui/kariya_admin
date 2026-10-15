@@ -13,5 +13,5 @@ public interface HistoricalLogSource {
 
     List<HistoricalLogDocument> query(String environmentId, LocalDate queryDate, String globalFlowId);
 
-    LogDownload download(String environmentId, String fileId);
+    LogDownload downloadHistorical(String environmentId, String fileId);
 }

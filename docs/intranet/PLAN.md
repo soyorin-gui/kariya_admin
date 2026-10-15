@@ -11,7 +11,7 @@
 | 模块 | 范围 | 当前状态 | 模块计划 | 模块交接 | 当前说明 |
 | --- | --- | --- | --- | --- | --- |
 | `lineage` | 交易资产、数据资产、交易版本、字段来源与血缘分析 | 暂停 | [lineage/PLAN.md](lineage/PLAN.md) | [lineage/HANDOFF.md](lineage/HANDOFF.md) | 已形成 HBase/ES 到交易字段的最小确定性血缘闭环；保留现状，等待业务规则继续梳理 |
-| `operation` | 多环境 Redis 流水、OBS/实时日志、动态测试表单、SOAP 在线调用、多环境响应对比、共享样例 | 开发中 | [operation/PLAN.md](operation/PLAN.md) | [operation/HANDOFF.md](operation/HANDOFF.md) | M1 外网页面已验收、待内网 Redis；M2 改为流水页内日志抽屉，已完成跨设备交接，待内网继续 |
+| `operation` | 多环境 Redis 流水、OBS/实时日志、动态测试表单、SOAP 在线调用、多环境响应对比、共享样例 | 开发中 | [operation/PLAN.md](operation/PLAN.md) | [operation/HANDOFF.md](operation/HANDOFF.md) | M1/M2 外网页面已验收；M3 表单已实现，当前为 M4 SOAP 前端直连原型 |
 
 ## 全局事项
 
