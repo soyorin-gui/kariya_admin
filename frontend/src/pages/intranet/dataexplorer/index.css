@@ -1,0 +1,17 @@
+.dataexplorer-page { min-width: 0; }
+.dataexplorer-layout { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 16px; }
+.dataexplorer-resource-card { min-height: 680px; }
+.dataexplorer-resource-list { margin-top: 12px; max-height: 580px; overflow: auto; }
+.dataexplorer-resource-item { cursor: pointer; border-radius: 8px; margin-block: 4px; }
+.dataexplorer-resource-item.is-active { background: var(--brand-soft, #eaf3ff); }
+.dataexplorer-resource-name { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+.dataexplorer-query-grid { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 16px; align-items: start; }
+.dataexplorer-editor { min-width: 0; }
+.dataexplorer-hbase-form { padding: 12px 0 0; }
+.dataexplorer-result-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
+.dataexplorer-result-table .ant-table-row { cursor: pointer; }
+@media (max-width: 980px) {
+  .dataexplorer-layout, .dataexplorer-query-grid { grid-template-columns: 1fr; }
+  .dataexplorer-resource-card { min-height: auto; }
+  .dataexplorer-resource-list { max-height: 260px; }
+}

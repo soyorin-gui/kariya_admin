@@ -41,7 +41,11 @@ operation M1 内网接续还需要手工准备：
 
 `01_operation_flow_menu.sql` 会清理早期独立“日志追踪”菜单，并将日志查看/下载创建为“流水查询”菜单下的按钮权限。该脚本仅用于开发/验证环境；内网部署应由管理员按相同菜单层级和权限码初始化。
 
-M1 未新增数据库表、字段、依赖或结构脚本。
+数据查询工作台的开发/验证菜单脚本为 `backend/src/main/resources/db/dataexplorer/01_dataexplorer_menu.sql`：它在“内网管理”（`/intranet`）下创建路由 `/intranet/dataexplorer`、组件 `intranet/dataexplorer/index`、权限 `intranet:dataexplorer:list`，并默认授权 `super_admin`。脚本不创建业务表或任何真实数据源连接；执行后需重新登录刷新菜单与权限。
+
+交易统计分析的开发/验证菜单脚本为 `backend/src/main/resources/db/statistics/01_statistics_menu.sql`：它在“内网管理”（`/intranet`）下创建路由 `/intranet/statistics`、组件 `intranet/statistics/index`、权限 `intranet:statistics:list`，并默认授权 `super_admin`。交易监控大屏不创建独立菜单或权限，而是从统计分析页打开静态受保护路由 `/statistics-screen`；如开发库执行过旧版大屏菜单脚本，可运行 `backend/src/main/resources/db/statistics/02_statistics_screen_menu_cleanup.sql` 清理该菜单和授权。上述脚本均不创建业务表、Redis 连接或统计任务；执行后需重新登录刷新菜单与权限。
+
+M1 未新增数据库表、字段、依赖或结构脚本。后续共享测试样例已新增 `intranet_operation_test_case` 表，其初始化脚本位于 `backend/src/main/resources/db/intranet_schema.sql`，开发环境辅助脚本为 `backend/src/main/resources/db/operation/03_operation_test_case.sql`；执行前仍需按环境的数据库变更流程确认。
 
 开发验证另有两份**非部署脚本**：`intranet_verification_data.sql` 会清理并重建内网测试数据，`intranet_lineage_menu.sql` 仅用于测试库创建“血缘分析”菜单及授权。二者都不属于新环境的结构初始化输入，执行前必须确认目标是可清理的测试库。
 

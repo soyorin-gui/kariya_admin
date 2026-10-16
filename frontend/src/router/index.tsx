@@ -11,6 +11,7 @@ import AccountSetupPage from '../pages/account/setup';
 import AccountSecurityPage from '../pages/account/security';
 import NotificationsPage from '../pages/account/notifications';
 import ApprovalCenterPage from '../pages/account/approvals';
+import TransactionStatisticsScreenPage from '../pages/intranet/statistics/screen';
 
 /**
  * 静态骨架 + 一个动态出口。
@@ -41,6 +42,14 @@ export const router = createBrowserRouter([
     element: (
       <AuthGuard>
         <AccountSetupPage />
+      </AuthGuard>
+    ),
+  },
+  {
+    path: '/statistics-screen',
+    element: (
+      <AuthGuard>
+        <TransactionStatisticsScreenPage />
       </AuthGuard>
     ),
   },

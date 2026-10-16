@@ -1,8 +1,8 @@
 # Intranet 多模块全局状态
 
-> 更新日期：2026-10-14
+> 更新日期：2026-10-16
 >
-> 当前活跃模块：`operation`
+> 当前活跃模块：`statistics`
 >
 > 状态枚举：`已完成`、`开发中`、`暂停`、`待业务确认`、`待验收`。只有真实代码、测试或人工验收提供证据后，任务才能进入相应完成状态。
 
@@ -11,7 +11,9 @@
 | 模块 | 范围 | 当前状态 | 模块计划 | 模块交接 | 当前说明 |
 | --- | --- | --- | --- | --- | --- |
 | `lineage` | 交易资产、数据资产、交易版本、字段来源与血缘分析 | 暂停 | [lineage/PLAN.md](lineage/PLAN.md) | [lineage/HANDOFF.md](lineage/HANDOFF.md) | 已形成 HBase/ES 到交易字段的最小确定性血缘闭环；保留现状，等待业务规则继续梳理 |
-| `operation` | 多环境 Redis 流水、OBS/实时日志、动态测试表单、SOAP 在线调用、多环境响应对比、共享样例 | 开发中 | [operation/PLAN.md](operation/PLAN.md) | [operation/HANDOFF.md](operation/HANDOFF.md) | M1/M2/M4 外网页面已验收；M5 独立对比页和模拟接口已实现，待页面验收 |
+| `operation` | 多环境 Redis 流水、OBS/实时日志、动态测试表单、SOAP 在线调用、多环境响应对比、共享样例 | 暂停 | [operation/PLAN.md](operation/PLAN.md) | [operation/HANDOFF.md](operation/HANDOFF.md) | M1–M5 外网功能已由用户验收；M6 及真实内网连接、规则与服务逻辑由用户转入内网自行设计开发 |
+| `dataexplorer` | Elasticsearch、HBase、Redis 的统一 Web 查询工作台 | 暂停 | [dataexplorer/PLAN.md](dataexplorer/PLAN.md) | [dataexplorer/HANDOFF.md](dataexplorer/HANDOFF.md) | D1 前端工作台、集中 Mock 和菜单已由用户验收；D2 真实内网查询接入由用户自行实施 |
+| `statistics` | 交易统计分析与未来独立监控大屏 | 待验收 | [statistics/PLAN.md](statistics/PLAN.md) | [statistics/HANDOFF.md](statistics/HANDOFF.md) | S1–S3 已由用户验收；S4 新窗口无 Layout 交易监控大屏和集中 Mock 已实现，等待用户验收 |
 
 ## 全局事项
 

@@ -1,0 +1,20 @@
+.statistics-page { min-width: 0; }
+.statistics-content { display: flex; width: 100%; }
+.statistics-tabs > .ant-tabs-nav { margin-bottom: 16px; }
+.statistics-filter-card { margin-bottom: 16px; }
+.statistics-kpi-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-bottom: 16px; }
+.statistics-kpi-card .ant-statistic-title { color: var(--muted); }
+.statistics-chart-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.statistics-daily-card { margin-top: 16px; }
+.statistics-alert { margin-bottom: 16px; }
+.statistics-dimension-grid { display: grid; grid-template-columns: minmax(0, .88fr) minmax(0, 1.12fr); gap: 16px; }
+.statistics-dimension-grid .ant-table-row { cursor: pointer; }
+.statistics-selected-row > td { background: color-mix(in srgb, var(--brand) 8%, var(--surface)) !important; }
+.statistics-ranking-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.statistics-ranking-table-card { margin-top: 16px; }
+.statistics-ranking-table-card .ant-table-row { cursor: pointer; }
+.statistics-ranking-name { display: inline-block; max-width: 230px; vertical-align: bottom; }
+@media (max-width: 960px) { .statistics-kpi-grid, .statistics-chart-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 1180px) { .statistics-dimension-grid { grid-template-columns: 1fr; } }
+@media (max-width: 1180px) { .statistics-ranking-grid { grid-template-columns: 1fr; } }
+@media (max-width: 620px) { .statistics-kpi-grid, .statistics-chart-grid { grid-template-columns: 1fr; } }

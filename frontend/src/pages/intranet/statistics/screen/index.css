@@ -1,0 +1,28 @@
+.statistics-screen { min-height: 100vh; padding: 22px; color: #d9ebff; background: radial-gradient(circle at 80% -10%, #174c8b 0, transparent 38%), radial-gradient(circle at 8% 96%, #163763 0, transparent 42%), #071a32; }
+.statistics-screen.is-fullscreen { height: 100vh; min-height: 0; overflow: auto; padding: 28px; }
+.statistics-screen-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 0 4px 14px; border-bottom: 1px solid rgba(113, 177, 255, .28); }
+.statistics-screen-kicker { color: #62b5ff; font-size: 12px; font-weight: 700; letter-spacing: 2px; }
+.statistics-screen h1 { margin: 5px 0 0; color: #f2f8ff; font-size: 30px; letter-spacing: 2px; }
+.statistics-screen-tools { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; }
+.statistics-screen-tools .ant-select { width: 140px; }
+.statistics-screen-tools .ant-picker { width: 142px; }
+.statistics-screen-button { color: #d9ebff; border-color: #3979bd; background: rgba(24, 73, 125, .58); }
+.statistics-screen-meta { display: flex; flex-wrap: wrap; gap: 18px; align-items: center; padding: 12px 4px 16px; color: #91afd5; font-size: 13px; }
+.statistics-screen-alert { margin-bottom: 16px; }
+.statistics-screen-kpis { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 12px; margin-bottom: 12px; }
+.statistics-screen-kpi, .statistics-screen-panel { border: 1px solid rgba(74, 141, 210, .42); background: linear-gradient(135deg, rgba(18, 57, 97, .92), rgba(8, 31, 60, .88)); box-shadow: inset 0 1px 0 rgba(134, 200, 255, .1), 0 10px 28px rgba(0, 0, 0, .18); }
+.statistics-screen-kpi { min-height: 92px; padding: 13px 15px; border-radius: 6px; }
+.statistics-screen-kpi .ant-statistic-title { color: #91afd5; font-size: 12px; }
+.statistics-screen-kpi .ant-statistic-content { color: #eef7ff; font-size: 24px; }
+.statistics-screen-kpi.success .ant-statistic-content { color: #24e1a5; }.statistics-screen-kpi.nodata .ant-statistic-content { color: #47a9ff; }.statistics-screen-kpi.failure .ant-statistic-content { color: #ff6b82; }.statistics-screen-kpi.elapsed .ant-statistic-content { color: #b98cff; }.statistics-screen-kpi.active .ant-statistic-content { color: #ffd66b; }
+.statistics-screen-grid { display: grid; gap: 12px; margin-bottom: 12px; }
+.statistics-screen-primary-grid { grid-template-columns: 1.45fr .85fr .85fr 1.45fr; }
+.statistics-screen-bottom-grid { grid-template-columns: 1.35fr .65fr; }
+.statistics-screen-panel { min-width: 0; padding: 14px; border-radius: 6px; }
+.statistics-screen-panel h2 { margin: 0 0 8px; color: #e6f4ff; font-size: 15px; font-weight: 600; }
+.statistics-screen-table .ant-table, .statistics-screen-table .ant-table-container, .statistics-screen-table .ant-table-thead > tr > th, .statistics-screen-table .ant-table-tbody > tr > td { color: #cfe3fb; background: transparent; border-color: rgba(105, 162, 222, .2); }
+.statistics-screen-table .ant-table-thead > tr > th { color: #8cc8ff; }.statistics-screen-table .ant-table-tbody > tr:hover > td { background: rgba(69, 139, 213, .16) !important; }
+.statistics-screen-alert-list { display: grid; gap: 10px; }.statistics-screen-alert-list .ant-alert { background: rgba(103, 72, 20, .3); border-color: rgba(255, 207, 88, .35); }.statistics-screen-alert-list .ant-alert-message, .statistics-screen-alert-list .ant-alert-description { color: #e6f4ff; }
+.statistics-screen-empty { min-height: 300px; padding-top: 100px; }.statistics-screen-empty .ant-empty-description { color: #a9c8ef; }
+@media (max-width: 1600px) { .statistics-screen-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); }.statistics-screen-primary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }.statistics-screen-primary-grid .wide { grid-column: span 1; } }
+@media (max-width: 960px) { .statistics-screen { padding: 16px; }.statistics-screen-header { align-items: flex-start; flex-direction: column; }.statistics-screen-tools { justify-content: flex-start; }.statistics-screen-kpis, .statistics-screen-primary-grid, .statistics-screen-bottom-grid { grid-template-columns: 1fr; }.statistics-screen h1 { font-size: 24px; } }
